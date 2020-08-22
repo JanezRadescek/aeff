@@ -5,4 +5,4 @@ let c () =
     return 3
 
 run let c = 2 in let d = b c in (a,a) :: d :: []
-run let c = 2 in let d = b c in (a,a) :: d :: []
+run let c = 2 in let d = b c in (a,1+1+1+1+1) :: d :: []
