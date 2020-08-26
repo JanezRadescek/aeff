@@ -102,6 +102,8 @@ let rec infer_pattern state = function
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
 
+let uncurry f = function (a,b) -> f a b
+
 let rec infer_expression state = function
   | Ast.Var x ->
       let params, ty = Ast.VariableMap.find x state.variables in
@@ -109,8 +111,8 @@ let rec infer_expression state = function
       (Ast.substitute_ty subst ty, [])
   | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [])
   | Ast.Annotated (expr, ty) ->
-      let ty', eqs = infer_expression state expr in
-      (ty, (ty, ty') :: eqs)
+      let _ = check_expression state ty expr in
+      (ty, [])
   | Ast.Tuple exprs ->
       let fold expr (tys, eqs) =
         let ty', eqs' = infer_expression state expr in
@@ -142,6 +144,52 @@ let rec infer_expression state = function
           (ty_out, (ty_in, ty) :: eqs)
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
+
+(* state * annotation * expresion -> unit * ?    *)
+and check_expression state annotation = function
+  | Ast.Tuple expr ->
+      match annotation with
+      | Ast.PTuple anno -> (
+          List.map (uncurry check_expression state) List.combine annotation expr ) 
+      | _ -> Error.typing "Expected tuple." 
+        
+  | Ast.Lambda (pat, com) ->
+      match annotation with ->
+      | Ast.TyArrow(pat_anno,com_anno) -> (
+          let state' = extend_variables state [ (pat,pat_anno) ] in
+          check_expression state' com_anno com )
+      | _ -> Error.typing "Expected Lambda." 
+
+  | Ast.RecLambda (f, (pat, com)) ->
+      match annotation with ->
+      | Ast.TyArrow(pat_anno,com_anno) -> (
+          let state' = extend_variables state [ (f, annotation) ] in
+          let state'' = extend_variables state' [ (pat,pat_anno) ] in
+          check_expression state'' com_anno com )
+      | _ -> Error.typing "Expected Rec Lambda." 
+
+  | Ast.Fulfill expr ->
+      match annotation with ->
+      | Ast.TyPromise anno -> check_expression state anno expr 
+      | _ -> Error.typing "Expected Promise."  
+
+  | Ast.Reference expr_ref ->
+      match annotation with ->
+      | Ast.TyReference anno -> check_expression state anno !expr 
+      | _ -> Error.typing "Expected Reference"  
+
+  | Ast.Variant (lbl, expr) -> (
+      let ty_in, ty_out = infer_variant state lbl in
+      match (ty_in, expr) with
+      | None, None -> ()
+      | Some ty_in, Some expr ->
+          check_expression state anno expr
+      | None, Some _ | Some _, None ->
+          Error.typing "Variant optional argument mismatch" )    
+
+  | _ expr ->
+      let (ty,equ) = infer_expression state expr in
+      if not subtype(ty,annotation) then Error.typing "Wrong annotated type." 
 
 and infer_computation state = function
   | Ast.Return expr ->
