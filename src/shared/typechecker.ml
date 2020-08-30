@@ -71,6 +71,8 @@ let infer_variant state lbl =
   and ty' = Option.map (Ast.substitute_ty subst) ty in
   (ty', Ast.TyApply (ty_name, args))
 
+let uncurry f = function (a,b) -> f a b
+
 let rec infer_pattern state = function
   | Ast.PVar x ->
       let ty = fresh_ty () in
@@ -103,9 +105,42 @@ let rec infer_pattern state = function
           Error.typing "Variant optional argument mismatch" )
 
 let rec check_pattern state annotation = function
-| Error.typing "TODO" )
-
-let uncurry f = function (a,b) -> f a b
+  | Ast.PVar x ->
+      (annotation, [ (x, annotation) ], [])
+  | Ast.PAs (pat, x) ->
+      let ty, vars, eqs = check_pattern state annotation pat in
+      (annotation, (x, annotation) :: vars, eqs)
+  | Ast.PAnnotated (pat, ty) ->
+      let ty', vars, eqs = check_pattern state annotation pat in
+      match ty with
+      | annotation -> (annotation, vars, eqs)
+      | _ -> Error.typing "Annotation conflict"
+  | Ast.PConst c -> 
+      let ty = Ast.TyConst (Const.infer_ty c) in
+      match ty with
+      | annotation -> (annotation, [], [])
+      | _ -> Error.typing "Wrong constant type"
+  | Ast.PNonbinding ->
+      (annotation, [], [])
+  | Ast.PTuple pats ->
+      match annotation with
+      | Ast.TyTuple annotations -> (
+        let fold (anno,pat) (tys, vars, eqs) =
+          let ty', vars', eqs' = check_pattern state anno pat in
+          (anno :: tys, vars' @ vars, eqs' @ eqs)
+        in
+        let tys', vars, eqs = List.fold_right fold (List.combine annotations pats) ([], [], []) in
+        (annotation, vars, eqs))
+      | _ Error.typing "Expected pattern tuple"
+  | Ast.PVariant (lbl, pat) -> (
+      let ty_in, ty_out = infer_variant state lbl in
+      match (ty_in, pat, ty_out) with
+      | None, None, annotation -> (ty_out, [], [])
+      | Some ty_in, Some pat, annotation ->
+          let ty, vars, eqs = check_pattern state ty_in pat in
+          (annotation, vars, eqs)
+      | None, Some _, _| Some _, None, _ ->
+          Error.typing "Variant optional argument mismatch" )
 
 (*let subtype a b = a = b *)
 
@@ -164,10 +199,23 @@ and check_expression state annotation =
 
 (* state * annotation * expresion -> type * unsolved equations ?      we should save (hard) results *)
 and check_expression1 state annotation = function
+
+let fold expr (tys, eqs) =
+        let ty', eqs' = infer_expression state expr in
+        (ty' :: tys, eqs' @ eqs)
+      in
+      let tys, eqs = List.fold_right fold exprs ([], []) in
+      (Ast.TyTuple tys, eqs)
+
   | Ast.Tuple expr ->
       match annotation with
-      | Ast.PTuple anno -> (
-          List.map (uncurry check_expression state) List.combine annotation expr ) 
+      | Ast.PTuple annotations -> (
+        let fold (anno,expr) (tys, eqs) =
+          let ty', eqs' = check_expression state anno expr in
+          (anno :: tys, eqs' @ eqs)
+        in
+        let tys, eqs = List.fold_right fold (List.combine annotations expr) ([], []) in
+        (annotation, eqs)
       | _ -> Error.typing "Expected tuple." 
         
   | Ast.Lambda (pat, com) ->
