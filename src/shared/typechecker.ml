@@ -73,6 +73,46 @@ let infer_variant state lbl =
 
 let uncurry f = function (a,b) -> f a b
 
+(*let subtype a b = a = b *)
+
+let rec unify state = function
+  | [] -> Ast.TyParamMap.empty
+  | (t1, t2) :: eqs when t1 = t2 -> unify state eqs
+  | (Ast.TyApply (ty_name1, args1), Ast.TyApply (ty_name2, args2)) :: eqs
+    when ty_name1 = ty_name2 ->
+      unify state (List.combine args1 args2 @ eqs)
+  | (Ast.TyApply (ty_name, args), ty) :: eqs
+    when is_transparent_type state ty_name ->
+      unify state ((unfold state ty_name args, ty) :: eqs)
+  | (ty, Ast.TyApply (ty_name, args)) :: eqs
+    when is_transparent_type state ty_name ->
+      unify state ((ty, unfold state ty_name args) :: eqs)
+  | (Ast.TyTuple tys1, Ast.TyTuple tys2) :: eqs
+    when List.length tys1 = List.length tys2 ->
+      unify state (List.combine tys1 tys2 @ eqs)
+  | (Ast.TyArrow (t1, t1'), Ast.TyArrow (t2, t2')) :: eqs ->
+      unify state ((t1, t2) :: (t1', t2') :: eqs)
+  | (Ast.TyPromise ty1, Ast.TyPromise ty2) :: eqs ->
+      unify state ((ty1, ty2) :: eqs)
+  | (Ast.TyReference ty1, Ast.TyReference ty2) :: eqs ->
+      unify state ((ty1, ty2) :: eqs)
+  | (Ast.TyParam a, t) :: eqs when not (occurs a t) ->
+      add_subst a t
+        (unify state (subst_equations (Ast.TyParamMap.singleton a t) eqs))
+  | (t, Ast.TyParam a) :: eqs when not (occurs a t) ->
+      add_subst a t
+        (unify state (subst_equations (Ast.TyParamMap.singleton a t) eqs))
+  | (t1, t2) :: _ ->
+      let print_param = Ast.new_print_param () in
+      Error.typing "Cannot unify %t = %t"
+        (Ast.print_ty print_param t1)
+        (Ast.print_ty print_param t2)
+
+let unify_subs ty eqs =
+  let sbst = unify state eqs in
+  let t' = Ast.substitute_ty sbst ty in
+  t'
+
 let rec infer_pattern state = function
   | Ast.PVar x ->
       let ty = fresh_ty () in
@@ -106,48 +146,44 @@ let rec infer_pattern state = function
 
 let rec check_pattern state annotation = function
   | Ast.PVar x ->
-      (annotation, [ (x, annotation) ], [])
+      [ (x, annotation) ]
   | Ast.PAs (pat, x) ->
-      let ty, vars, eqs = check_pattern state annotation pat in
-      (annotation, (x, annotation) :: vars, eqs)
+      let vars= check_pattern state annotation pat in
+      (x, annotation) :: vars
   | Ast.PAnnotated (pat, ty) ->
-      let ty', vars, eqs = check_pattern state annotation pat in
+      let vars = check_pattern state annotation pat in
       match ty with
-      | annotation -> (annotation, vars, eqs)
+      | annotation -> vars
       | _ -> Error.typing "Annotation conflict"
   | Ast.PConst c -> 
       let ty = Ast.TyConst (Const.infer_ty c) in
       match ty with
-      | annotation -> (annotation, [], [])
+      | annotation -> []
       | _ -> Error.typing "Wrong constant type"
   | Ast.PNonbinding ->
-      (annotation, [], [])
+      []
   | Ast.PTuple pats ->
       match annotation with
-      | Ast.TyTuple annotations -> (
-        let fold (anno,pat) (tys, vars, eqs) =
-          let ty', vars', eqs' = check_pattern state anno pat in
-          (anno :: tys, vars' @ vars, eqs' @ eqs)
+      | Ast.TyTuple annotations when List.length pats = List.length annotations -> (
+        let fold (anno,pat) vars =
+          let vars' = check_pattern state anno pat in
+          vars' @ vars
         in
-        let tys', vars, eqs = List.fold_right fold (List.combine annotations pats) ([], [], []) in
-        (annotation, vars, eqs))
+        List.fold_right fold (List.combine annotations pats) []
       | _ Error.typing "Expected pattern tuple"
   | Ast.PVariant (lbl, pat) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, pat, ty_out) with
-      | None, None, annotation -> (ty_out, [], [])
+      | None, None, annotation -> []
       | Some ty_in, Some pat, annotation ->
-          let ty, vars, eqs = check_pattern state ty_in pat in
-          (annotation, vars, eqs)
+          check_pattern state ty_in pat
       | None, Some _, _| Some _, None, _ ->
           Error.typing "Variant optional argument mismatch" )
-
-(*let subtype a b = a = b *)
 
 let rec infer_expression state expr = function
   let ty = Ast.TypeMap.Find expr  in (* TODO Ast.TypeMap.Find če še nismp izračunali tip ga poračunajmo sicer le vrnemo*))
   match ty with
-  | ?TODO -> infer_expression1 state expr
+  | ?TODO? -> infer_expression1 state expr
   | x -> (x, [])
 
 let rec infer_expression1 state = function
@@ -196,18 +232,19 @@ and check_expression state annotation = function
       let params, ty = Ast.VariableMap.find x state.variables in
       let subst = refreshing_subst params in
       (Ast.substitute_ty subst ty, [])
-  | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [])
+  | Ast.Const c -> 
+      match annotation with
+      | Ast.TyConst (Const.infer_ty c) -> ()
+      | _ -> Error.typing "Wrong cons type"
   | Ast.Annotated (expr, ty) ->
-      if ty = annotation then check_expression state ty expr else Error.typing "Annotations do not match."
+      match annotation with
+      | ty -> check_expression state ty expr
+      | _ -> Error.typing "Annotations do not match."
   | Ast.Tuple expr ->
       match annotation with
-      | Ast.PTuple annotations when List.length expr = List.length annotations -> (
-        let fold (anno,expr) (tys, eqs) =
-          let ty', eqs' = check_expression state anno expr in
-          (anno :: tys, eqs' @ eqs)
-        in
-        let tys, eqs = List.fold_right fold (List.combine annotations expr) ([], []) in
-        (annotation, eqs)
+      | Ast.PTuple annotations when List.length expr = List.length annotations -> 
+        let _ = List.map (uncurry (check_expression state)) List.combine annotations expr in
+        ()
       | _ -> Error.typing "Expected tuple." 
         
   | Ast.Lambda (pat, com) ->
@@ -237,12 +274,11 @@ and check_expression state annotation = function
 
   | Ast.Variant (lbl, expr) -> (
       let ty_in, ty_out = infer_variant state lbl in
-      match (ty_in, expr) with
-      | None, None -> (ty_out,[])
-      | Some ty_in, Some expr ->
-          let ty, eqs = check_expression state ty_in expr in
-          (ty_out, eqs)
-      | None, Some _ | Some _, None ->
+      match (ty_in, expr, annotation) with
+      | None, None, ty_out -> ()
+      | Some ty_in, Some expr, ty_out ->
+          check_expression state ty_in expr
+      | None, Some _ | Some _, None, _ ->
           Error.typing "Variant optional argument mismatch" )    
 
   | _ -> Error.typing "Type does not exist" 
@@ -289,49 +325,41 @@ and check_computation state annotation = function
     check_expression state annotation expr
 
   | Ast.Do (comp1, comp2) ->
-      let ty1, eqs1 = infer_computation state comp1 in
-      let _, ty2, eqs2 = check_abstraction state (ty1, annotation) comp2 in
-      (ty2, eqs1 @ eqs2)
+      let ty1 = unify_subs infer_computation state comp1 in
+      check_abstraction state (ty1, annotation) comp2
 
   | Ast.Apply (expr1,expr2) -> (
-    let (ty1, eqs1) = infer_expression state expr1 in
+    let ty1 = unify_subs infer_expression state expr1 in
     match ty1 with
     | Ast.TyArrow(ty',ty'') -> (
-      let (ty2, eqs2) = check_expression state ty' expr2 in 
-      if ty'' = annotation then (annotation, eqs1 @ eqs2) else Error.typing "Wrong annotation"
-      )
-    | _ -> Error.typing "Expected Arrow")
+      match annotation with
+      | ty'' -> check_expression state ty' expr2
+      | _ -> Error.typing "Wrong annotation")
+    | _ -> Error.typing "Expected Arrow" )
 
   | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
     let ty1 = Ast.OperationMap.find op state.operations
-    and (ty2, eqs1) = check_expression state ty1 expr
-    and (ty3, eqs2) = check_computation state annotation comp in
-    (ty3, eqs1 @ eqs2)
+    and _ = check_expression state ty1 expr
+    and _ = check_computation state annotation comp in
+    ()
 
-  | Ast.Await (e, abs) ->
-      let pty1, eqs1 = infer_expression state e in 
+  | Ast.Await (e, abs) -> (
+      let pty1 = unify_subs infer_expression state e in 
       match pty1 with
       | Ast.TyPromise ty1 -> 
-          let ty1', ty2, eqs2 = check_abstraction state (pty1, annotation) abs in
-          (ty2, eqs1 @ eqs2)
-      | _ -> Error.typing "Expected Promise"
+          check_abstraction state (ty1, annotation) abs
+      | _ -> Error.typing "Expected Promise" )
 
   | Ast.Match (e, cases) ->
-      let ty1, eqs = infer_expression state e in
-      let fold eqs abs =
-        let ty1', ty2', eqs' = check_abstraction state (ty1, annotation) abs in
-        eqs' @ eqs
-      in
-      (annotation, List.fold_left fold eqs cases)
-
+      let ty1 = unify_subs infer_expression state e in
+      let _ = List.map (check_abstraction state (ty1, annotation)) cases in
+      ()
 
   | Ast.Handler (op, abs, p, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations
-      and ty1', ty2, eqs1 = check_infer_abstraction state ty1 abs in
+      and ty2 = check_infer_abstraction state ty1 abs in
       let state' = extend_variables state [ (p, ty2) ] in
-      let (ty3, eqs2) = check_computation state' annotation comp in
-      (ty3, eqs1 @ eqs2)
-
+      check_computation state' annotation comp
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in
@@ -339,17 +367,18 @@ and infer_abstraction state (pat, comp) =
   let ty', eqs' = infer_computation state' comp in
   (ty, ty', eqs @ eqs')
 
+(**state type abs -> () *))
 and check_abstraction state (pat_ty, comp_ty) (pat, comp) = 
-  let ty1, vars, eqs = check_pattern state pat_ty pat in
+  let vars = check_pattern state pat_ty pat in
   let state' = extend_variables state vars in
-  let (ty2, eqs') = check_computation state' comp_ty comp in
-  (pat_ty, comp_ty, eqs @ eqs')
+  check_computation state' comp_ty comp
 
+(**state pat_ty abs -> com_ty *))
 and check_infer_abstraction state pat_ty (pat, comp) = 
-  let ty1, vars, eqs = check_pattern state pat_ty pat in
+  let vars = check_pattern state pat_ty pat in
   let state' = extend_variables state vars in
-  let (ty2, eqs') = infer_computation state' comp in
-  (pat_ty, ty2, eqs @ eqs')
+  let ty2 = unify_subs infer_computation state' comp in
+  ty2
 
 let subst_equations sbst =
   let subst_equation (t1, t2) =
@@ -381,39 +410,6 @@ let unfold state ty_name args =
         List.combine params args |> List.to_seq |> Ast.TyParamMap.of_seq
       in
       Ast.substitute_ty subst ty
-
-let rec unify state = function
-  | [] -> Ast.TyParamMap.empty
-  | (t1, t2) :: eqs when t1 = t2 -> unify state eqs
-  | (Ast.TyApply (ty_name1, args1), Ast.TyApply (ty_name2, args2)) :: eqs
-    when ty_name1 = ty_name2 ->
-      unify state (List.combine args1 args2 @ eqs)
-  | (Ast.TyApply (ty_name, args), ty) :: eqs
-    when is_transparent_type state ty_name ->
-      unify state ((unfold state ty_name args, ty) :: eqs)
-  | (ty, Ast.TyApply (ty_name, args)) :: eqs
-    when is_transparent_type state ty_name ->
-      unify state ((ty, unfold state ty_name args) :: eqs)
-  | (Ast.TyTuple tys1, Ast.TyTuple tys2) :: eqs
-    when List.length tys1 = List.length tys2 ->
-      unify state (List.combine tys1 tys2 @ eqs)
-  | (Ast.TyArrow (t1, t1'), Ast.TyArrow (t2, t2')) :: eqs ->
-      unify state ((t1, t2) :: (t1', t2') :: eqs)
-  | (Ast.TyPromise ty1, Ast.TyPromise ty2) :: eqs ->
-      unify state ((ty1, ty2) :: eqs)
-  | (Ast.TyReference ty1, Ast.TyReference ty2) :: eqs ->
-      unify state ((ty1, ty2) :: eqs)
-  | (Ast.TyParam a, t) :: eqs when not (occurs a t) ->
-      add_subst a t
-        (unify state (subst_equations (Ast.TyParamMap.singleton a t) eqs))
-  | (t, Ast.TyParam a) :: eqs when not (occurs a t) ->
-      add_subst a t
-        (unify state (subst_equations (Ast.TyParamMap.singleton a t) eqs))
-  | (t1, t2) :: _ ->
-      let print_param = Ast.new_print_param () in
-      Error.typing "Cannot unify %t = %t"
-        (Ast.print_ty print_param t1)
-        (Ast.print_ty print_param t2)
 
 let infer state e =
   let t, eqs = infer_computation state e in
