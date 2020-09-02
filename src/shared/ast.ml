@@ -143,7 +143,6 @@ type expression =
   | RecLambda of variable * abstraction
   | Fulfill of expression
   | Reference of expression ref
-  | Unknown
 
 and computation =
   | Return of expression

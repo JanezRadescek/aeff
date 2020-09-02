@@ -147,7 +147,7 @@ let rec check_pattern state annotation = function
 let rec infer_expression state expr = function
   let ty = Ast.TypeMap.Find expr  in (* TODO Ast.TypeMap.Find če še nismp izračunali tip ga poračunajmo sicer le vrnemo*))
   match ty with
-  | Ast.Unknown -> infer_expression1 state expr
+  | ?TODO -> infer_expression1 state expr
   | x -> (x, [])
 
 let rec infer_expression1 state = function
@@ -190,26 +190,18 @@ let rec infer_expression1 state = function
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
 
-
-(* Včasih imamo le delne anotatine *)
-and check_expression state annotation = 
-  match annotation with 
-  | Ast.Unknown -> infer_expression state
-  | _ -> (annotation, check_expression1 state annotation)
-
-(* state * annotation * expresion -> type * unsolved equations ?      we should save (hard) results *)
-and check_expression1 state annotation = function
-
-let fold expr (tys, eqs) =
-        let ty', eqs' = infer_expression state expr in
-        (ty' :: tys, eqs' @ eqs)
-      in
-      let tys, eqs = List.fold_right fold exprs ([], []) in
-      (Ast.TyTuple tys, eqs)
-
+(* state * annotation * expresion -> type * unsolved equations ?      we should save manual results *)
+and check_expression state annotation = function
+  | Ast.Var x ->
+      let params, ty = Ast.VariableMap.find x state.variables in
+      let subst = refreshing_subst params in
+      (Ast.substitute_ty subst ty, [])
+  | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [])
+  | Ast.Annotated (expr, ty) ->
+      if ty = annotation then check_expression state ty expr else Error.typing "Annotations do not match."
   | Ast.Tuple expr ->
       match annotation with
-      | Ast.PTuple annotations -> (
+      | Ast.PTuple annotations when List.length expr = List.length annotations -> (
         let fold (anno,expr) (tys, eqs) =
           let ty', eqs' = check_expression state anno expr in
           (anno :: tys, eqs' @ eqs)
@@ -253,9 +245,7 @@ let fold expr (tys, eqs) =
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )    
 
-  | _ expr ->
-      let (ty,eqs) = infer_expression state expr in
-      if ty = annotation then (annotation, eqs) else Error.typing "Wrong annotated type." 
+  | _ -> Error.typing "Type does not exist" 
 
 and infer_computation state = function
   | Ast.Return expr ->
@@ -300,7 +290,7 @@ and check_computation state annotation = function
 
   | Ast.Do (comp1, comp2) ->
       let ty1, eqs1 = infer_computation state comp1 in
-      let _, ty2, eqs2 = check_abstraction state (ty1, Ast.Unknown) comp2 in
+      let _, ty2, eqs2 = check_abstraction state (ty1, annotation) comp2 in
       (ty2, eqs1 @ eqs2)
 
   | Ast.Apply (expr1,expr2) -> (
@@ -319,9 +309,12 @@ and check_computation state annotation = function
     (ty3, eqs1 @ eqs2)
 
   | Ast.Await (e, abs) ->
-      let pty1, eqs1 = infer_expression state e
-      and ty1, ty2, eqs2 = check_abstraction state (pty1, annotation) abs in
-      (ty2, ((pty1, Ast.TyPromise ty1) :: eqs1) @ eqs2)
+      let pty1, eqs1 = infer_expression state e in 
+      match pty1 with
+      | Ast.TyPromise ty1 -> 
+          let ty1', ty2, eqs2 = check_abstraction state (pty1, annotation) abs in
+          (ty2, eqs1 @ eqs2)
+      | _ -> Error.typing "Expected Promise"
 
   | Ast.Match (e, cases) ->
       let ty1, eqs = infer_expression state e in
@@ -334,7 +327,7 @@ and check_computation state annotation = function
 
   | Ast.Handler (op, abs, p, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations
-      and ty1', ty2, eqs1 = check_abstraction state (ty1,Ast.Unknown) abs in
+      and ty1', ty2, eqs1 = check_infer_abstraction state ty1 abs in
       let state' = extend_variables state [ (p, ty2) ] in
       let (ty3, eqs2) = check_computation state' annotation comp in
       (ty3, eqs1 @ eqs2)
@@ -351,6 +344,12 @@ and check_abstraction state (pat_ty, comp_ty) (pat, comp) =
   let state' = extend_variables state vars in
   let (ty2, eqs') = check_computation state' comp_ty comp in
   (pat_ty, comp_ty, eqs @ eqs')
+
+and check_infer_abstraction state pat_ty (pat, comp) = 
+  let ty1, vars, eqs = check_pattern state pat_ty pat in
+  let state' = extend_variables state vars in
+  let (ty2, eqs') = infer_computation state' comp in
+  (pat_ty, ty2, eqs @ eqs')
 
 let subst_equations sbst =
   let subst_equation (t1, t2) =
