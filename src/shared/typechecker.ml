@@ -144,6 +144,42 @@ let rec infer_pattern state = function
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
 
+let rec simple_infer_pattern state = function
+  | Ast.PVar x ->
+      let ty = fresh_ty () in
+      (ty, [ (x, ty) ])
+  | Ast.PAs (pat, x) ->
+      let ty, vars = simple_infer_pattern state pat in
+      (ty, (x, ty) :: vars)
+  | Ast.PAnnotated (pat, ty) ->
+      let ty', vars = simple_infer_pattern state pat in
+      match ty with
+      | ty' -> (ty, vars)
+      | _ -> Error.typing "Wrong annotation."
+      
+  | Ast.PConst c -> (Ast.TyConst (Const.infer_ty c), [])
+  | Ast.PNonbinding ->
+      let ty = fresh_ty () in
+      (ty, [])
+  | Ast.PTuple pats ->
+      let fold pat (tys, vars) =
+        let ty', vars' = simple_infer_pattern state pat in
+        (ty' :: tys, vars' @ vars)
+      in
+      let tys, vars = List.fold_right fold pats ([], []) in
+      (Ast.TyTuple tys, vars)
+  | Ast.PVariant (lbl, pat) -> (
+      let ty_in, ty_out = infer_variant state lbl in
+      match (ty_in, pat) with
+      | None, None -> (ty_out, [])
+      | Some ty_in, Some pat ->
+          let ty, vars = simple_infer_pattern state pat in
+          match ty with
+          | ty_in -> (ty_out, vars)
+          | _ -> Error.typing "Variant optional argument mismatch" )
+      | None, Some _ | Some _, None ->
+          Error.typing "Variant optional argument mismatch" )
+
 let rec check_pattern state annotation = function
   | Ast.PVar x ->
       [ (x, annotation) ]
@@ -180,13 +216,53 @@ let rec check_pattern state annotation = function
       | None, Some _, _| Some _, None, _ ->
           Error.typing "Variant optional argument mismatch" )
 
+(* state * expresion -> type  ?    *)
 let rec infer_expression state expr = function
   let ty = Ast.TypeMap.Find expr  in (* TODO Ast.TypeMap.Find če še nismp izračunali tip ga poračunajmo sicer le vrnemo*))
   match ty with
-  | ?TODO? -> infer_expression1 state expr
-  | x -> (x, [])
+  | ?TODO? -> simple_infer_expression state expr
+  | x -> x
 
-let rec infer_expression1 state = function
+(* state * expresion -> type  ?    *)
+and simple_infer_expression state = function
+  | Ast.Var x ->
+      let params, ty = Ast.VariableMap.find x state.variables in
+      let subst = refreshing_subst params in
+      Ast.substitute_ty subst ty
+  | Ast.Const c -> Ast.TyConst (Const.infer_ty c)
+  | Ast.Annotated (expr, ty) ->
+      let _ = check_expression state ty expr in
+      ty
+  | Ast.Tuple exprs ->
+      let fold expr tys =
+        let ty' = infer_expression state expr in
+        ty' :: tys
+      in
+      let tys, eqs = List.fold_right fold exprs [] in
+      Ast.TyTuple tys
+  | Ast.Lambda abs ->
+      Error.typing "Function must be annotated"
+  | Ast.RecLambda (f, abs) ->
+      Error.typing "Function must be annotated"
+  | Ast.Fulfill expr ->
+      let ty = infer_expression state expr in
+      Ast.TyPromise ty
+  | Ast.Reference expr_ref ->
+      let ty = infer_expression state !expr_ref in
+      Ast.TyReference ty
+  | Ast.Variant (lbl, expr) -> (
+      let ty_in, ty_out = infer_variant state lbl in
+      match (ty_in, expr) with
+      | None, None -> ty_out
+      | Some ty_in, Some expr ->
+          let ty = infer_expression state expr in
+          match ty_in with
+          | ty -> ty_out
+          | _ -> Error.typing "Variant optional argument mismatch"
+      | None, Some _ | Some _, None ->
+          Error.typing "Variant optional argument mismatch" )
+
+and infer_expression1 state = function
   | Ast.Var x ->
       let params, ty = Ast.VariableMap.find x state.variables in
       let subst = refreshing_subst params in
@@ -226,12 +302,16 @@ let rec infer_expression1 state = function
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
 
-(* state * annotation * expresion -> type * unsolved equations ?      we should save manual results *)
+(* state * annotation * expresion -> unit ?      we should save results for annotated functions*)
 and check_expression state annotation = function
   | Ast.Var x ->
       let params, ty = Ast.VariableMap.find x state.variables in
       let subst = refreshing_subst params in
-      (Ast.substitute_ty subst ty, [])
+      let ty' = Ast.substitute_ty subst ty in 
+      match annotation with
+      | ty' -> ()
+      | _ -> Error.typing "Annotations do not match."
+      
   | Ast.Const c -> 
       match annotation with
       | Ast.TyConst (Const.infer_ty c) -> ()
@@ -282,6 +362,50 @@ and check_expression state annotation = function
           Error.typing "Variant optional argument mismatch" )    
 
   | _ -> Error.typing "Type does not exist" 
+
+(* state * computation -> type  ?    *)
+and simple_infer_computation state = function
+  | Ast.Return expr ->
+      let ty = simple_infer_expression state expr in
+      ty
+  | Ast.Do (comp1, comp2) ->
+      let ty1 = simple_infer_computation state comp1 in
+      let ty2 = check_infer_abstraction state ty1 comp2 in
+      ty2
+  | Ast.Apply (e1, e2) ->
+      let t1 = infer_expression state e1
+      and t2 = infer_expression state e2
+      match t1 with
+      | Ast.TyArrow (t2, t3) -> t3
+      | _ -> Error.typing "Cannot apply."
+  | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
+      let ty1 = Ast.OperationMap.find op state.operations
+      and ty2 = infer_expression state expr
+      and ty3 = simple_infer_computation state comp in
+      match ty1 with 
+      | ty2 -> ty3
+      | _ -> Error.typing "Unknown operation."
+  | Ast.Await (e, abs) ->
+      let pty1 = infer_expression state e
+      match pty1 with
+      | Ast.TyPromise ty1 -> check_infer_abstraction state ty1 abs
+      | _ -> Error.typing "Expected Await."
+  | Ast.Match (e, cases) ->
+      let ty1 = infer_expression state e in
+      let fold ty2 abs =
+        let ty2' = check_infer_abstraction state ty1 abs in
+        match ty2 with
+        | "TOBECALCULATED" -> ty2'
+        | ty2' -> ty2
+        | _ -> Error.typing "Cases do not have the same type."
+      in
+      List.fold_left fold "TOBECALCULATED" cases
+  | Ast.Handler (op, abs, p, comp) ->
+      let ty1 = Ast.OperationMap.find op state.operations
+      and ty2 = check_infer_abstraction state ty1 abs
+      let state' = extend_variables state [ (p, ty2) ] in
+      let ty = simple_infer_computation state' comp in
+      ty
 
 and infer_computation state = function
   | Ast.Return expr ->
@@ -339,10 +463,9 @@ and check_computation state annotation = function
 
   | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
     let ty1 = Ast.OperationMap.find op state.operations
-    and _ = check_expression state ty1 expr
-    and _ = check_computation state annotation comp in
-    ()
-
+    and _ = check_expression state ty1 expr in
+    check_computation state annotation comp
+    
   | Ast.Await (e, abs) -> (
       let pty1 = unify_subs infer_expression state e in 
       match pty1 with
@@ -367,18 +490,17 @@ and infer_abstraction state (pat, comp) =
   let ty', eqs' = infer_computation state' comp in
   (ty, ty', eqs @ eqs')
 
-(**state type abs -> () *))
+(**state type abs -> () *)
 and check_abstraction state (pat_ty, comp_ty) (pat, comp) = 
   let vars = check_pattern state pat_ty pat in
   let state' = extend_variables state vars in
   check_computation state' comp_ty comp
 
-(**state pat_ty abs -> com_ty *))
+(**state pat_ty abs -> com_ty *)
 and check_infer_abstraction state pat_ty (pat, comp) = 
   let vars = check_pattern state pat_ty pat in
   let state' = extend_variables state vars in
-  let ty2 = unify_subs infer_computation state' comp in
-  ty2
+  simple_infer_computation state' comp
 
 let subst_equations sbst =
   let subst_equation (t1, t2) =
