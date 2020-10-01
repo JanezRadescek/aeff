@@ -74,33 +74,33 @@ let infer_variant state lbl =
 let check_subtype ty1 ty2 =
   if ty1 <> ty2 then
     let print_param = Ast.new_print_param () in
-    Error.typing "%t does not match %t" (Ast.print_ty print_param ty1) (Ast.print_ty print_param ty2)
+    Error.typing "%t does not match %t"
+      (Ast.print_ty print_param ty1)
+      (Ast.print_ty print_param ty2)
 
 let rec check_pattern state annotation = function
-  | Ast.PVar x ->
-      [ (x, annotation) ]
+  | Ast.PVar x -> [ (x, annotation) ]
   | Ast.PAs (pat, x) ->
-      let vars= check_pattern state annotation pat in
+      let vars = check_pattern state annotation pat in
       (x, annotation) :: vars
   | Ast.PAnnotated (pat, ty) ->
       check_subtype annotation ty;
       check_pattern state annotation pat
-  | Ast.PConst c -> 
+  | Ast.PConst c ->
       let ty = Ast.TyConst (Const.infer_ty c) in
       check_subtype annotation ty;
       []
-  | Ast.PNonbinding ->
-      []
+  | Ast.PNonbinding -> []
   | Ast.PTuple pats -> (
       match annotation with
-      | Ast.TyTuple annotations when List.length pats = List.length annotations ->
-        let fold (anno,pat) vars =
-          let vars' = check_pattern state anno pat in
-          vars' @ vars
-        in
-        List.fold_right fold (List.combine annotations pats) []
-      | _ -> Error.typing "Expected pattern tuple"
-      )
+      | Ast.TyTuple annotations when List.length pats = List.length annotations
+        ->
+          let fold (anno, pat) vars =
+            let vars' = check_pattern state anno pat in
+            vars' @ vars
+          in
+          List.fold_right fold (List.combine annotations pats) []
+      | _ -> Error.typing "Expected pattern tuple" )
   | Ast.PVariant (lbl, pat) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, pat) with
@@ -110,7 +110,7 @@ let rec check_pattern state annotation = function
       | Some ty_in, Some pat ->
           check_subtype annotation ty_out;
           check_pattern state ty_in pat
-      | None, Some _| Some _, None ->
+      | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
 
 (* state * expresion -> type  ?    *)
@@ -130,8 +130,7 @@ let rec infer_expression state = function
       in
       let tys = List.fold_right fold exprs [] in
       Ast.TyTuple tys
-  | Ast.Lambda _ | Ast.RecLambda _ ->
-      Error.typing "Function must be annotated"
+  | Ast.Lambda _ | Ast.RecLambda _ -> Error.typing "Function must be annotated"
   | Ast.Fulfill expr ->
       let ty = infer_expression state expr in
       Ast.TyPromise ty
@@ -151,49 +150,43 @@ let rec infer_expression state = function
 
 (* state * annotation * expresion -> unit ?      we should save results for annotated functions*)
 and check_expression state annotation = function
-  Ast.Tuple exprs ->
-      (match annotation with
-     | Ast.TyTuple annotations when List.length exprs = List.length annotations -> 
-        List.iter2 (check_expression state) annotations exprs
+  | Ast.Tuple exprs -> (
+      match annotation with
+      | Ast.TyTuple annotations when List.length exprs = List.length annotations
+        ->
+          List.iter2 (check_expression state) annotations exprs
       | _ -> Error.typing "Expected tuple." )
-        
-  | Ast.Lambda (pat, com) ->
-      (match annotation with
-      | Ast.TyArrow(pat_anno,com_anno) -> (
+  | Ast.Lambda (pat, com) -> (
+      match annotation with
+      | Ast.TyArrow (pat_anno, com_anno) ->
           let vars = check_pattern state pat_anno pat in
           let state' = extend_variables state vars in
-          check_computation state' com_anno com )
+          check_computation state' com_anno com
       | _ -> Error.typing "Expected Lambda." )
-
-  | Ast.RecLambda (f, (pat, com)) ->
-      (match annotation with
-      | Ast.TyArrow(pat_anno,com_anno) -> (
+  | Ast.RecLambda (f, (pat, com)) -> (
+      match annotation with
+      | Ast.TyArrow (pat_anno, com_anno) ->
           let vars = check_pattern state pat_anno pat in
           let state' = extend_variables state ((f, annotation) :: vars) in
-          check_computation state' com_anno com )
+          check_computation state' com_anno com
       | _ -> Error.typing "Expected Rec Lambda." )
-
-  | Ast.Fulfill expr ->
-      (match annotation with
-      | Ast.TyPromise anno -> check_expression state anno expr 
-      | _ -> Error.typing "Expected Promise."  )
-
-  | Ast.Reference expr_ref ->
-      (match annotation with
+  | Ast.Fulfill expr -> (
+      match annotation with
+      | Ast.TyPromise anno -> check_expression state anno expr
+      | _ -> Error.typing "Expected Promise." )
+  | Ast.Reference expr_ref -> (
+      match annotation with
       | Ast.TyReference anno -> check_expression state anno !expr_ref
-      | _ -> Error.typing "Expected Reference" ) 
-
+      | _ -> Error.typing "Expected Reference" )
   | Ast.Variant (lbl, expr) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, expr) with
-      | None, None ->
-          check_subtype ty_out annotation
+      | None, None -> check_subtype ty_out annotation
       | Some ty_in, Some expr ->
           check_expression state ty_in expr;
           check_subtype ty_out annotation
       | None, Some _ | Some _, None ->
-          Error.typing "Variant optional argument mismatch" )    
-
+          Error.typing "Variant optional argument mismatch" )
   | (Ast.Var _ | Ast.Const _ | Ast.Annotated _) as expr ->
       let ty = infer_expression state expr in
       check_subtype ty annotation
@@ -207,28 +200,27 @@ and infer_computation state = function
       let ty1 = infer_computation state comp1 in
       let ty2 = check_infer_abstraction state ty1 comp2 in
       ty2
-  | Ast.Apply (e1, e2) ->
-      let ty1 = infer_expression state e1
-      and ty2 = infer_expression state e2 in
-      (match ty1 with
+  | Ast.Apply (e1, e2) -> (
+      let ty1 = infer_expression state e1 and ty2 = infer_expression state e2 in
+      match ty1 with
       | Ast.TyArrow (ty1_in, ty1_out) ->
           check_subtype ty2 ty1_in;
           ty1_out
-      | _ -> Error.typing "Cannot apply.")
+      | _ -> Error.typing "Cannot apply." )
   | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations
       and ty_expr = infer_expression state expr
       and ty_comp = infer_computation state comp in
       check_subtype ty_expr ty_op;
       ty_comp
-  | Ast.Await (e, abs) ->
+  | Ast.Await (e, abs) -> (
       let pty1 = infer_expression state e in
-      (match pty1 with
+      match pty1 with
       | Ast.TyPromise ty1 -> check_infer_abstraction state ty1 abs
-      | _ -> Error.typing "Expected Await.")
+      | _ -> Error.typing "Expected Await." )
   | Ast.Match (_, []) ->
       Error.typing "Cannot infer the type of a match with no cases"
-  | Ast.Match (e, (case :: cases)) ->
+  | Ast.Match (e, case :: cases) ->
       let ty1 = infer_expression state e in
       let ty2 = check_infer_abstraction state ty1 case in
       let check_case case' =
@@ -245,38 +237,30 @@ and infer_computation state = function
       ty
 
 and check_computation state annotation = function
-  | Ast.Return expr ->
-    check_expression state annotation expr
-
+  | Ast.Return expr -> check_expression state annotation expr
   | Ast.Do (comp1, comp2) ->
       let ty1 = infer_computation state comp1 in
       check_abstraction state (ty1, annotation) comp2
-
-  | Ast.Apply (expr1,expr2) -> (
-    let ty1 = infer_expression state expr1 in
-    match ty1 with
-    | Ast.TyArrow (ty1_in,ty1_out) ->
-        check_expression state ty1_in expr2;
-        check_subtype ty1_out annotation
-    | _ -> Error.typing "Expected Arrow" )
-
+  | Ast.Apply (expr1, expr2) -> (
+      let ty1 = infer_expression state expr1 in
+      match ty1 with
+      | Ast.TyArrow (ty1_in, ty1_out) ->
+          check_expression state ty1_in expr2;
+          check_subtype ty1_out annotation
+      | _ -> Error.typing "Expected Arrow" )
   | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
-    let ty1 = Ast.OperationMap.find op state.operations in
-    check_expression state ty1 expr;
-    check_computation state annotation comp
-    
+      let ty1 = Ast.OperationMap.find op state.operations in
+      check_expression state ty1 expr;
+      check_computation state annotation comp
   | Ast.Await (e, abs) -> (
-      let pty1 = infer_expression state e in 
+      let pty1 = infer_expression state e in
       match pty1 with
-      | Ast.TyPromise ty1 -> 
-          check_abstraction state (ty1, annotation) abs
+      | Ast.TyPromise ty1 -> check_abstraction state (ty1, annotation) abs
       | _ -> Error.typing "Expected Promise" )
-
   | Ast.Match (e, cases) ->
       let ty1 = infer_expression state e in
       let _ = List.map (check_abstraction state (ty1, annotation)) cases in
       ()
-
   | Ast.Handler (op, abs, p, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations in
       let ty2 = check_infer_abstraction state ty1 abs in
@@ -284,13 +268,13 @@ and check_computation state annotation = function
       check_computation state' annotation comp
 
 (**state type abs -> () *)
-and check_abstraction state (pat_ty, comp_ty) (pat, comp) = 
+and check_abstraction state (pat_ty, comp_ty) (pat, comp) =
   let vars = check_pattern state pat_ty pat in
   let state' = extend_variables state vars in
   check_computation state' comp_ty comp
 
 (**state pat_ty abs -> com_ty *)
-and check_infer_abstraction state pat_ty (pat, comp) = 
+and check_infer_abstraction state pat_ty (pat, comp) =
   let vars = check_pattern state pat_ty pat in
   let state' = extend_variables state vars in
   infer_computation state' comp
