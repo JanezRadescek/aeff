@@ -81,6 +81,10 @@ let print_ty_scheme (_params, ty) ppf =
   let print_param = new_print_param () in
   Utils.print ppf "@[%t@]" (print_ty print_param ty)
 
+let pretty_print_ty ty ppf =
+  let print_param = new_print_param () in
+  Utils.print ppf "@[%t@]" (print_ty print_param ty)
+
 let rec substitute_ty subst = function
   | TyConst _ as ty -> ty
   | TyParam a as ty -> (
