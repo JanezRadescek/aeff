@@ -71,25 +71,10 @@ let infer_variant state lbl =
   and ty' = Option.map (Ast.substitute_ty subst) ty in
   (ty', Ast.TyApply (ty_name, args))
 
-let check_equaltype ty1 ty2 =
+let check_subtype ty1 ty2 =
   if ty1 <> ty2 then
     let print_param = Ast.new_print_param () in
     Error.typing "%t does not match %t"
-      (Ast.print_ty print_param ty1)
-      (Ast.print_ty print_param ty2)
-
-let rec check_subtype ty1 ty2 =
-  match (ty1, ty2) with
-  | (Ast.TyConst c1, Ast.TyConst c2) -> check_equaltype ty1 ty2
-  | (Ast.TyApply (_, tys1), Ast.TyApply (_, tys2)) -> List.iter2 check_subtype tys1 tys2
-  | (_, Ast.TyParam _) -> ()
-  | (Ast.TyTuple tys1, Ast.TyTuple tys2) -> List.iter2 check_subtype tys1 tys2
-  | (Ast.TyArrow (ty1_in,ty1_out) , Ast.TyArrow (ty2_in,ty2_out)) -> check_subtype ty1_in ty2_in;check_subtype ty1_out ty2_out
-  | (Ast.TyPromise typ1, Ast.TyPromise typ2) -> check_subtype typ1 typ2
-  | (Ast.TyReference tyr1, Ast.TyReference tyr2) -> check_subtype tyr1 tyr2
-  | _ -> 
-      let print_param = Ast.new_print_param () in
-      Error.typing "%t does not match %t"
       (Ast.print_ty print_param ty1)
       (Ast.print_ty print_param ty2)
 
