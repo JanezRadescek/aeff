@@ -1,3 +1,11 @@
-let f = (function | a |-> a + a : int -> int)
+let f = (function a |-> a + a : int -> int)
+(*let f a = a + a : int -> int *)
+
+let rec g = (function 
+    | 0 |-> 0 
+    | n |-> n + g (n-1) 
+    : int -> int)
+
+(*let id = (function x |-> x : α -> α) *)
 
 run f 3
