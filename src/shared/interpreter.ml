@@ -94,6 +94,8 @@ let rec eval_function state = function
       match Ast.VariableMap.find_opt x state.variables with
       | Some expr -> eval_function state expr
       | None -> Ast.VariableMap.find x state.builtin_functions )
+  | Ast.Annotated (expr, _ty) ->
+      eval_function state expr
   | expr ->
       Error.runtime "Function expected but got %t" (Ast.print_expression expr)
 
