@@ -6,6 +6,15 @@ let rec g = (function
     | n |-> n + g (n-1) 
     : int -> int)
 
+type 'a option = None | Some of 'a
+
+let rec assoc = (function x d |-> 
+    match d with
+        | [] |-> None
+        | (key, v) :: lst |-> if x = key then Some v else assoc x lst
+    : string -> (string x int) list -> int)
+
 (*let id = (function x |-> x : α -> α) *)
 
 run f 3
+run f (g 4)
