@@ -260,22 +260,28 @@ and desugar_promise_abstraction ~loc state abs2 =
   | _ -> Error.syntax ~loc "Variable or underscore expected"
 
 and desugar_let_rec_def state (f, { it = exp; at = loc }) =
-  let f' = Ast.Variable.fresh f in
-  let state' = add_fresh_variables state [ (f, f') ] in
-  let abs' =
-    match exp with
-    | S.Lambda a -> desugar_abstraction state' a
-    | S.Function cs ->
-        let x = Ast.Variable.fresh "rf" in
-        let cs = List.map (desugar_abstraction state') cs in
-        let new_match = Ast.Match (Ast.Var x, cs) in
-        (Ast.PVar x, new_match)
-    | _ ->
-        Error.syntax ~loc
-          "This kind of expression is not allowed in a recursive definition"
-  in
-  let expr = Ast.RecLambda (f', abs') in
-  (state', f', expr)
+  match exp with
+  | S.Annotated (exp', ty') ->
+    let state_desu, f_desu, exp_desu = desugar_let_rec_def state (f,exp') in
+    let ty_desu = desugar_ty state ty' in
+    (state_desu, f_desu, Ast.Annotated(exp_desu, ty_desu))
+  | _ ->
+    let f' = Ast.Variable.fresh f in
+    let state' = add_fresh_variables state [ (f, f') ] in
+    let abs' =
+      match exp with
+      | S.Lambda a -> desugar_abstraction state' a
+      | S.Function cs ->
+          let x = Ast.Variable.fresh "rf" in
+          let cs = List.map (desugar_abstraction state') cs in
+          let new_match = Ast.Match (Ast.Var x, cs) in
+          (Ast.PVar x, new_match)
+      | _ ->
+          Error.syntax ~loc
+            "This kind of expression is not allowed in a recursive definition"
+    in
+    let expr = Ast.RecLambda (f', abs') in
+    (state', f', expr)
 
 and desugar_expressions state = function
   | [] -> ([], [])
