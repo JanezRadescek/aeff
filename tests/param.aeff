@@ -1,0 +1,6 @@
+type aa = 'a
+
+let a = (5 : aa)
+let b = (4 : 'bbbb)
+
+run 1 + 2
