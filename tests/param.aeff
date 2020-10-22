@@ -2,5 +2,6 @@ type aa = 'a
 
 let a = (5 : aa)
 let b = (4 : 'bbbb)
+(* let c = (3 : α) *)
 
 run 1 + 2
