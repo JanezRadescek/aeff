@@ -1,3 +1,5 @@
+open Utils
+
 let parse_commands lexbuf =
   try Parser.commands Lexer.token lexbuf with
   | Parser.Error ->
@@ -40,7 +42,7 @@ let initial_state =
     typechecker = Typechecker.initial_state;
     top_computations = [];
   }
-  |> fun state -> Utils.fold load_function state BuiltIn.functions
+  |> fun state -> List.fold load_function state BuiltIn.functions
 
 let execute_command state = function
   | Ast.TyDef ty_defs ->
@@ -71,7 +73,7 @@ let execute_command state = function
 
 let load_commands state cmds =
   let desugarer_state', cmds' =
-    Utils.fold_map Desugarer.desugar_command state.desugarer cmds
+    List.fold_map Desugarer.desugar_command state.desugarer cmds
   in
   let state' = { state with desugarer = desugarer_state' } in
   List.fold_left execute_command state' cmds'
@@ -99,3 +101,6 @@ let make_process state =
       List.fold_left
         (fun proc comp -> Ast.Parallel (proc, Ast.Run comp))
         (Ast.Run comp) comps
+
+(** The module Stdlib_aeff is automatically generated from stdlib.aeff. Check the dune file for details. *)
+let stdlib_source = Stdlib_aeff.contents

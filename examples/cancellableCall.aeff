@@ -8,29 +8,20 @@ let callWith callCounter =
         let callNo = !callCounter in
         send call (x, callNo);
         callCounter := callNo + 1;
-        let rec awaitLoop () =
-            promise (result (y, callNo') |->
-                if callNo = callNo' then
-                    <<y>>
-                else
-                    awaitLoop ()
-            ) as resultPromise in return resultPromise
-        in
-        let actualPromise = awaitLoop () in
-        let valueThunk () = awaitValue actualPromise in
+        promise (result (y, callNo') when callNo = callNo' |->
+            return <<y>>
+        ) as p in
+        let valueThunk () = awaitValue p in
         let cancelThunk () = send cancel callNo in
         let changeMind x = cancelThunk (); send call (x, callNo) in
         return (valueThunk, cancelThunk, changeMind)
 
 let rec awaitCancel callNo runBeforeStall =
-    promise (cancel callNo' |->
-        if callNo = callNo' then
-            promise (dummy empty |-> return <<empty>>) as dummyPromise in
-            runBeforeStall ();
-            awaitValue dummyPromise;
-            awaitCancel callNo runBeforeStall
-        else
-            awaitCancel callNo runBeforeStall
+    promise (cancel callNo' when callNo = callNo'|->
+        promise (dummy empty |-> return <<empty>>) as dummyPromise in
+        runBeforeStall ();
+        awaitValue dummyPromise;
+        awaitCancel callNo runBeforeStall
     ) as p in return p
 
 let remote f =
@@ -76,10 +67,10 @@ let remoteCallReInvoker () =
 
 run
     let callCounter = ref 0 in
-    let result1, cancel1, changeMind1 = callWith callCounter 10 in
-    let result2, cancel2, changeMind2 = callWith callCounter 20 in
+    let result1, cancel1, changeMind1 = callWith callCounter 1 in
+    let result2, cancel2, changeMind2 = callWith callCounter 2 in
     cancel1 ();
-    let result3, cancel3, changeMind3 = callWith callCounter 30 in
+    let result3, cancel3, changeMind3 = callWith callCounter 3 in
     changeMind3 (result2 ());
     result3 ()
 
@@ -87,4 +78,4 @@ run
     remoteCallReInvoker ()
 
 run
-    remote (fun x |-> 10 * (20 * (30 * x)))
+    remote (fun x |-> 4 * (5 * (6 * x)))

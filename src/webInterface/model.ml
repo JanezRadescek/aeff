@@ -1,7 +1,7 @@
-module Ast = Shared__Ast
-module Loader = Shared__Loader
-module Runner = Shared__Runner
-module Error = Shared__Error
+open Utils
+module Ast = Core.Ast
+module Interpreter = Core.Interpreter
+module Loader = Core.Loader
 
 type operation =
   | In of Ast.operation * Ast.expression
@@ -12,7 +12,9 @@ type snapshot = { process : Ast.process; operations : operation list }
 type loaded_code = {
   snapshot : snapshot;
   history : snapshot list;
-  loader_state : Loader.state;
+  interpreter_state : Interpreter.state;
+  operations : Ast.ty Ast.OperationMap.t;
+  parse_payload : Ast.operation -> string -> Ast.expression;
 }
 
 type model = {
@@ -31,7 +33,7 @@ type msg =
   | ChangeSource of string
   | LoadSource
   | SelectReduction of int option
-  | Step of Runner.top_step
+  | Step of Interpreter.top_step
   | RandomStep
   | ChangeRandomStepSize of int
   | ChangeInterruptOperation of Ast.operation
@@ -52,8 +54,8 @@ let init =
   }
 
 let step_snapshot snapshot = function
-  | Runner.Step proc' -> { snapshot with process = proc' }
-  | Runner.TopOut (op, expr, proc') ->
+  | Interpreter.Step proc' -> { snapshot with process = proc' }
+  | Interpreter.TopOut (op, expr, proc') ->
       { process = proc'; operations = Out (op, expr) :: snapshot.operations }
 
 let apply_to_code_if_loaded f model =
@@ -62,7 +64,7 @@ let apply_to_code_if_loaded f model =
   | Error _ -> model
 
 let steps code =
-  Runner.top_steps code.loader_state.interpreter code.snapshot.process
+  Interpreter.top_steps code.interpreter_state code.snapshot.process
 
 let move_to_snapshot snapshot code =
   { code with snapshot; history = code.snapshot :: code.history }
@@ -71,7 +73,7 @@ let step_code step code =
   move_to_snapshot (step_snapshot code.snapshot step) code
 
 let interrupt op expr code =
-  let proc' = Runner.incoming_operation code.snapshot.process op expr in
+  let proc' = Interpreter.incoming_operation code.snapshot.process op expr in
   move_to_snapshot
     { process = proc'; operations = In (op, expr) :: code.snapshot.operations }
     code
@@ -90,7 +92,7 @@ let parse_step_size input =
   |> Option.to_result ~none:(input ^ " is not an integer")
 
 let parse_payload code op input =
-  try Ok (Loader.parse_payload code.loader_state op input) with
+  try Ok (code.parse_payload op input) with
   | Error.Error (_, kind, msg) -> Error (kind ^ ": " ^ msg)
   | _ -> Error "Parser error"
 
@@ -102,7 +104,9 @@ let parse_source source =
       {
         snapshot = { process = proc; operations = [] };
         history = [];
-        loader_state = state;
+        interpreter_state = state.interpreter;
+        parse_payload = Loader.parse_payload state;
+        operations = state.typechecker.operations;
       }
   with Error.Error (_, _, msg) -> Error msg
 
@@ -127,7 +131,7 @@ let update model = function
         model with
         loaded_code =
           parse_source
-            ( (if model.use_stdlib then Examples.stdlib else "")
+            ( (if model.use_stdlib then Loader.stdlib_source else "")
             ^ "\n\n\n" ^ model.unparsed_code );
       }
   | ChangeRandomStepSize random_step_size -> { model with random_step_size }

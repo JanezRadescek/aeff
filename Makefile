@@ -1,10 +1,13 @@
-.PHONY: default release clean
-
-default:
+default: format
 	dune build
 
-release:
+format:
+	dune build @fmt --auto-promote
+
+release: format
 	dune build --profile release
 
 clean:
 	dune clean
+
+.PHONY: default format release clean

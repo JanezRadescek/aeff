@@ -2,6 +2,7 @@
 
 open Utils
 module S = Syntax
+module StringMap = Map.Make (String)
 
 type state = {
   ty_names : Ast.ty_name StringMap.t;
@@ -46,7 +47,7 @@ let lookup_operation ~loc state = find_symbol ~loc state.operations
 
 let lookup_label ~loc state = find_symbol ~loc state.labels
 
-let rec desugar_ty state { it = plain_ty; at = loc } =
+let rec desugar_ty state { it = plain_ty; Location.at = loc } =
   desugar_plain_ty ~loc state plain_ty
 
 and desugar_plain_ty ~loc state = function
@@ -68,7 +69,7 @@ and desugar_plain_ty ~loc state = function
   | S.TyReference ty -> Ast.TyReference (desugar_ty state ty)
   | S.TyPromise ty -> Ast.TyPromise (desugar_ty state ty)
 
-let rec desugar_pattern state { it = pat; at = loc } =
+let rec desugar_pattern state { it = pat; Location.at = loc } =
   let vars, pat' = desugar_plain_pattern ~loc state pat in
   (vars, pat')
 
@@ -110,7 +111,7 @@ let add_operation state op =
   let op' = Ast.Operation.fresh op in
   (op', { state with operations = StringMap.add op op' state.operations })
 
-let rec desugar_expression state { it = term; at = loc } =
+let rec desugar_expression state { it = term; Location.at = loc } =
   let binds, expr = desugar_plain_expression ~loc state term in
   (binds, expr)
 
@@ -146,7 +147,7 @@ and desugar_plain_expression ~loc state = function
   | ( S.Apply _ | S.Match _ | S.Let _ | S.LetRec _ | S.Conditional _
     | S.Handler _ | S.Await _ | S.Send _ ) as term ->
       let x = Ast.Variable.fresh "b" in
-      let comp = desugar_computation state (add_loc ~loc term) in
+      let comp = desugar_computation state (Location.add_loc ~loc term) in
       let hoist = (Ast.PVar x, comp) in
       ([ hoist ], Ast.Var x)
 
@@ -262,26 +263,26 @@ and desugar_promise_abstraction ~loc state abs2 =
 and desugar_let_rec_def state (f, { it = exp; at = loc }) =
   match exp with
   | S.Annotated (exp', ty') ->
-    let state_desu, f_desu, exp_desu = desugar_let_rec_def state (f,exp') in
-    let ty_desu = desugar_ty state ty' in
-    (state_desu, f_desu, Ast.Annotated(exp_desu, ty_desu))
+      let state_desu, f_desu, exp_desu = desugar_let_rec_def state (f, exp') in
+      let ty_desu = desugar_ty state ty' in
+      (state_desu, f_desu, Ast.Annotated (exp_desu, ty_desu))
   | _ ->
-    let f' = Ast.Variable.fresh f in
-    let state' = add_fresh_variables state [ (f, f') ] in
-    let abs' =
-      match exp with
-      | S.Lambda a -> desugar_abstraction state' a
-      | S.Function cs ->
-          let x = Ast.Variable.fresh "rf" in
-          let cs = List.map (desugar_abstraction state') cs in
-          let new_match = Ast.Match (Ast.Var x, cs) in
-          (Ast.PVar x, new_match)
-      | _ ->
-          Error.syntax ~loc
-            "This kind of expression is not allowed in a recursive definition"
-    in
-    let expr = Ast.RecLambda (f', abs') in
-    (state', f', expr)
+      let f' = Ast.Variable.fresh f in
+      let state' = add_fresh_variables state [ (f, f') ] in
+      let abs' =
+        match exp with
+        | S.Lambda a -> desugar_abstraction state' a
+        | S.Function cs ->
+            let x = Ast.Variable.fresh "rf" in
+            let cs = List.map (desugar_abstraction state') cs in
+            let new_match = Ast.Match (Ast.Var x, cs) in
+            (Ast.PVar x, new_match)
+        | _ ->
+            Error.syntax ~loc
+              "This kind of expression is not allowed in a recursive definition"
+      in
+      let expr = Ast.RecLambda (f', abs') in
+      (state', f', expr)
 
 and desugar_expressions state = function
   | [] -> ([], [])
@@ -319,7 +320,7 @@ let desugar_ty_def state = function
         let state' = add_label state label label' in
         (state', (label', ty'))
       in
-      let state', variants' = fold_map aux state variants in
+      let state', variants' = List.fold_map aux state variants in
       (state', Ast.TySum variants')
 
 let desugar_command state = function

@@ -1,7 +1,6 @@
-module Ast = Shared__Ast
-module Interpreter = Shared__Interpreter
-module Runner = Shared__Runner
 open Vdom
+module Ast = Core.Ast
+module Interpreter = Core.Interpreter
 
 let panel ?(a = []) heading blocks =
   div ~a:(class_ "panel" :: a)
@@ -55,24 +54,24 @@ let rec view_computation_reduction = function
   | Interpreter.InCtx red -> view_computation_reduction red
   | Interpreter.OutCtx red -> view_computation_reduction red
   | Interpreter.DoCtx red -> view_computation_reduction red
-  | Interpreter.Redex redex -> view_computation_redex redex
+  | Interpreter.ComputationRedex redex -> view_computation_redex redex
 
 let view_process_redex = function
-  | Runner.RunOut -> "runOut"
-  | Runner.ParallelOut1 -> "parallelOut1"
-  | Runner.ParallelOut2 -> "parallelOut2"
-  | Runner.InRun -> "inRun"
-  | Runner.InParallel -> "inParallel"
-  | Runner.InOut -> "inOut"
-  | Runner.TopOut -> "topOut"
+  | Interpreter.RunOut -> "runOut"
+  | Interpreter.ParallelOut1 -> "parallelOut1"
+  | Interpreter.ParallelOut2 -> "parallelOut2"
+  | Interpreter.InRun -> "inRun"
+  | Interpreter.InParallel -> "inParallel"
+  | Interpreter.InOut -> "inOut"
+  | Interpreter.TopOut -> "topOut"
 
 let rec view_process_reduction = function
-  | Runner.LeftCtx red -> view_process_reduction red
-  | Runner.RightCtx red -> view_process_reduction red
-  | Runner.InCtx red -> view_process_reduction red
-  | Runner.OutCtx red -> view_process_reduction red
-  | Runner.RunCtx red -> view_computation_reduction red
-  | Runner.Redex redex -> view_process_redex redex
+  | Interpreter.LeftCtx red -> view_process_reduction red
+  | Interpreter.RightCtx red -> view_process_reduction red
+  | Interpreter.InCtx red -> view_process_reduction red
+  | Interpreter.OutCtx red -> view_process_reduction red
+  | Interpreter.RunCtx red -> view_computation_reduction red
+  | Interpreter.ProcessRedex redex -> view_process_redex redex
 
 let step_action (red, step) =
   elt "li" [ button (view_process_reduction red) (Model.Step step) ]
@@ -198,9 +197,7 @@ let view_steps (model : Model.model) (code : Model.loaded_code) steps =
                       Ast.string_of_operation
                       (fun operation ->
                         Some operation = model.interrupt_operation)
-                      ( Ast.OperationMap.bindings
-                          code.loader_state.typechecker.operations
-                      |> List.map fst );
+                      (Ast.OperationMap.bindings code.operations |> List.map fst);
                   ];
                 elt "p" ~a:[ class_ "control" ]
                   [
@@ -323,7 +320,8 @@ let view_compiler (model : Model.model) =
                   (fun (_, source) -> Model.ChangeSource source)
                   (fun (title, _) -> title)
                   (fun _ -> false)
-                  Examples.examples;
+                  (* The module Examples_aeff is semi-automatically generated from examples/*.aeff. Check the dune file for details. *)
+                  Examples_aeff.examples;
               ];
           ];
       ]
@@ -349,7 +347,9 @@ let view_source model =
   div ~a:[ class_ "columns" ]
     [
       div ~a:[ class_ "column is-three-quarters" ] [ view_editor model ];
-      div ~a:[ class_ "column is-one-quarter" ] [ view_compiler model ];
+      div
+        ~a:[ class_ "column is-one-quarter is-sticky" ]
+        [ view_compiler model ];
     ]
 
 let view_code (model : Model.model) (code : Model.loaded_code) =
@@ -365,7 +365,7 @@ let view_code (model : Model.model) (code : Model.loaded_code) =
         ~a:[ class_ "column is-three-quarters" ]
         [ view_process selected_red code.snapshot.process ];
       div
-        ~a:[ class_ "column is-one-quarter" ]
+        ~a:[ class_ "column is-one-quarter is-sticky" ]
         [ view_steps model code steps; view_history code.snapshot.operations ];
     ]
 
