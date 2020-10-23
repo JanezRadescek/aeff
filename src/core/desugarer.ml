@@ -47,6 +47,10 @@ let lookup_operation ~loc state = find_symbol ~loc state.operations
 
 let lookup_label ~loc state = find_symbol ~loc state.labels
 
+let free_params_in_ty _ =
+  (* POPRAVI *)
+  []
+
 let rec desugar_ty state { it = plain_ty; Location.at = loc } =
   desugar_plain_ty ~loc state plain_ty
 
@@ -68,6 +72,13 @@ and desugar_plain_ty ~loc state = function
   | S.TyConst c -> Ast.TyConst c
   | S.TyReference ty -> Ast.TyReference (desugar_ty state ty)
   | S.TyPromise ty -> Ast.TyPromise (desugar_ty state ty)
+
+let desugar_ty_scheme state ty =
+  let params = free_params_in_ty ty in
+  let params' = List.map Ast.TyParam.fresh params in
+  let state' = (* razširi z params -> params' *) state in
+  let ty' = desugar_ty state' ty in
+  (state', (params', ty'))
 
 let rec desugar_pattern state { it = pat; Location.at = loc } =
   let vars, pat' = desugar_plain_pattern ~loc state pat in
@@ -339,17 +350,20 @@ let desugar_command state = function
       in
       let state'', defs' = List.fold_right2 aux defs new_names (state', []) in
       (state'', Ast.TyDef defs')
-  | Syntax.TopLet (x, term) ->
+  | Syntax.TopLet (x, ty, term) ->
       let x' = Ast.Variable.fresh x in
-      let state' = add_fresh_variables state [ (x, x') ] in
+      let state', ty_sch = desugar_ty_scheme state ty in
+      let state'' = add_fresh_variables state [ (x, x') ] in
       let expr = desugar_pure_expression state' term in
-      (state', Ast.TopLet (x', expr))
+      (state'', Ast.TopLet (x', ty_sch, expr))
   | Syntax.TopDo term ->
       let comp = desugar_computation state term in
       (state, Ast.TopDo comp)
-  | Syntax.TopLetRec (f, term) ->
-      let state', f, expr = desugar_let_rec_def state (f, term) in
-      (state', Ast.TopLet (f, expr))
+  | Syntax.TopLetRec (_f, _ty, _term) ->
+      failwith "Not yet implemented"
+      (* let state', ty_sch = desugar_ty_scheme state ty in
+         let state'', f, expr = desugar_let_rec_def state' (f, term) in
+         (state'', Ast.TopLet (f, expr)) *)
   | Syntax.Operation (op, ty) ->
       let op', state' = add_operation state op in
       let ty' = desugar_ty state ty in

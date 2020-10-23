@@ -36,6 +36,8 @@ type ty =
   | TyPromise of ty  (** [<<ty>>] *)
   | TyReference of ty  (** [ty ref] *)
 
+type ty_scheme = ty_param list * ty
+
 let rec print_ty ?max_level print_param p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
   match p with
@@ -295,7 +297,7 @@ type ty_def = TySum of (label * ty option) list | TyInline of ty
 type command =
   | TyDef of (ty_param list * ty_name * ty_def) list
   | Operation of operation * ty
-  | TopLet of variable * expression
+  | TopLet of variable * ty_scheme * expression
   | TopDo of computation
 
 let rec print_pattern ?max_level p ppf =

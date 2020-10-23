@@ -60,10 +60,10 @@ commands:
 command:
   | TYPE defs = separated_nonempty_list(AND, ty_def)
     { TyDef defs }
-  | LET x = ident t = lambdas0(EQUAL)
-    { TopLet (x, t) }
+  | LET LPAREN x = ident COLON ty = ty RPAREN t = lambdas0(EQUAL)
+    { TopLet (x, ty, t) }
   | LET REC def = let_rec_def
-    { let (f, t) = def in TopLetRec (f, t) }
+    { let (f, ty, t) = def in TopLetRec (f, ty, t) }
   | RUN trm = term
     { TopDo trm }
   | OPERATION op = operation COLON t = ty
@@ -86,7 +86,7 @@ plain_term:
   | LET def = let_def IN t2 = term
     { let (p, t1) = def in Let (p, t1, t2) }
   | LET REC def = let_rec_def IN t2 = term
-    { let (f, t1) = def in LetRec (f, t1, t2) }
+    { let (f, _ty, t1) = def in LetRec (f, t1, t2) }
   | PROMISE LPAREN op = operation p1 = pattern MAPSTO t1 = term RPAREN AS p2 = pattern IN t2 = term
     { Handler (op, (p1, None, t1), (p2, t2)) }
   | PROMISE LPAREN op = operation p1 = pattern WHEN t = term MAPSTO t1 = term RPAREN AS p2 = pattern IN t2 = term
@@ -224,8 +224,8 @@ let_def:
     { ({it= PVar x.it; at= x.at}, t) }
 
 let_rec_def:
-  | f = ident t = lambdas0(EQUAL)
-    { (f, t) }
+  | LPAREN f = ident COLON ty = ty RPAREN t = lambdas0(EQUAL)
+    { (f, ty, t) }
 
 pattern: mark_position(plain_pattern) { $1 }
 plain_pattern:

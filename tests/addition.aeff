@@ -1,4 +1,4 @@
-let a = (1 : int)
+let (a : int) = 1
 
 run 2 + 1
 run let b = 1 in b + 2

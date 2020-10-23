@@ -85,6 +85,6 @@ type command =
   | TyDef of (ty_param list * ty_name * ty_def) list
       (** [type ('a...1) t1 = def1 and ... and ('a...n) tn = defn] *)
   | Operation of operation * ty  (** [operation op : ty] *)
-  | TopLet of variable * term  (** [let x = t] *)
-  | TopLetRec of variable * term  (** [let rec f = t] *)
+  | TopLet of variable * ty * term  (** [let (x : ty) ... = t] *)
+  | TopLetRec of variable * ty * term  (** [let rec (f : ty) ... = t] *)
   | TopDo of term  (** [do t] *)

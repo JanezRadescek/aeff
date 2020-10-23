@@ -1,7 +1,7 @@
 open Utils
 
 type state = {
-  variables : (Ast.ty_param list * Ast.ty) Ast.VariableMap.t;
+  variables : Ast.ty_scheme Ast.VariableMap.t;
   operations : Ast.ty Ast.OperationMap.t;
   type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
 }
@@ -336,6 +336,10 @@ let infer state e =
   let t = infer_computation state e in
   t
 
+let check_polymorphic_expression state (_params, ty) expr =
+  (* THIS IS WRONG *)
+  check_expression state ty expr
+
 let add_external_function x ty_sch state =
   Format.printf "@[val %t : %t@]@." (Ast.Variable.print x)
     (Ast.print_ty_scheme ty_sch);
@@ -346,10 +350,8 @@ let add_operation state op ty =
     (Ast.print_ty_scheme ([], ty));
   { state with operations = Ast.OperationMap.add op ty state.operations }
 
-let add_top_definition state x expr =
-  let ty = infer_expression state expr in
-  let free_vars = Ast.free_vars ty |> Ast.TyParamSet.elements in
-  let ty_sch = (free_vars, ty) in
+let add_top_definition state x ty_sch expr =
+  check_polymorphic_expression state ty_sch expr;
   add_external_function x ty_sch state
 
 let add_type_definitions state ty_defs =
