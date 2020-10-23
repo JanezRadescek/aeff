@@ -301,23 +301,6 @@ and check_infer_abstraction state pat_ty (pat, comp) =
   let state' = extend_variables state vars in
   infer_computation state' comp
 
-let subst_equations sbst =
-  let subst_equation (t1, t2) =
-    (Ast.substitute_ty sbst t1, Ast.substitute_ty sbst t2)
-  in
-  List.map subst_equation
-
-let add_subst a t sbst = Ast.TyParamMap.add a (Ast.substitute_ty sbst t) sbst
-
-let rec occurs a = function
-  | Ast.TyParam a' -> a = a'
-  | Ast.TyConst _ -> false
-  | Ast.TyArrow (ty1, ty2) -> occurs a ty1 || occurs a ty2
-  | Ast.TyApply (_, tys) -> List.exists (occurs a) tys
-  | Ast.TyTuple tys -> List.exists (occurs a) tys
-  | Ast.TyPromise ty -> occurs a ty
-  | Ast.TyReference ty -> occurs a ty
-
 let is_transparent_type state ty_name =
   match Ast.TyNameMap.find ty_name state.type_definitions with
   | _, Ast.TySum _ -> false
@@ -331,10 +314,6 @@ let unfold state ty_name args =
         List.combine params args |> List.to_seq |> Ast.TyParamMap.of_seq
       in
       Ast.substitute_ty subst ty
-
-let infer state e =
-  let t = infer_computation state e in
-  t
 
 let check_polymorphic_expression state (_params, ty) expr =
   (* THIS IS WRONG *)
