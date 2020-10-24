@@ -47,6 +47,11 @@ let lookup_operation ~loc state = find_symbol ~loc state.operations
 
 let lookup_label ~loc state = find_symbol ~loc state.labels
 
+let add_fresh_ty_params state vars =
+  let aux ty_params (x, x') = StringMap.add x x' ty_params in
+  let ty_params' = List.fold_left aux state.ty_params vars in
+  { state with ty_params = ty_params' }
+
 let rec free_params_in_ty { it = plain_ty; Location.at = _ } =
   let fold sez ty = free_params_in_ty ty @ sez in
   let rec remove_dup = function
@@ -98,9 +103,10 @@ and desugar_plain_ty ~loc state = function
 let desugar_ty_scheme state ty =
   let params = free_params_in_ty ty in
   let params' = List.map Ast.TyParam.fresh params in
-  let state' = (* razširi z params -> params' *) state in
+  let params'' = List.combine params params' in
+  let state' = add_fresh_ty_params state params'' in
   let ty' = desugar_ty state' ty in
-  (state', (params', ty'))
+  (state', (* Ast.ty_scheme *) (params', ty'))
 
 let rec desugar_pattern state { it = pat; Location.at = loc } =
   let vars, pat' = desugar_plain_pattern ~loc state pat in
@@ -338,11 +344,6 @@ let add_fresh_ty_names state vars =
   let aux ty_names (x, x') = StringMap.add x x' ty_names in
   let ty_names' = List.fold_left aux state.ty_names vars in
   { state with ty_names = ty_names' }
-
-let add_fresh_ty_params state vars =
-  let aux ty_params (x, x') = StringMap.add x x' ty_params in
-  let ty_params' = List.fold_left aux state.ty_params vars in
-  { state with ty_params = ty_params' }
 
 let desugar_ty_def state = function
   | Syntax.TyInline ty -> (state, Ast.TyInline (desugar_ty state ty))
