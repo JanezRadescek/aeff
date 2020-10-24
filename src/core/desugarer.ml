@@ -47,9 +47,31 @@ let lookup_operation ~loc state = find_symbol ~loc state.operations
 
 let lookup_label ~loc state = find_symbol ~loc state.labels
 
-let free_params_in_ty _ =
-  (* POPRAVI *)
-  []
+let rec free_params_in_ty { it = plain_ty; Location.at = _ } =
+  let fold sez ty = free_params_in_ty ty @ sez in
+  let rec remove_dup = function
+    | [] -> []
+    | x :: xs ->
+        let xs' = remove_dup xs in
+        if List.mem x xs' then xs else x :: xs'
+  in
+  let result =
+    match plain_ty with
+    | S.TyApply (_y_name, tys) ->
+        let free_params = List.fold_left fold [] tys in
+        free_params
+    | S.TyParam ty_param -> [ ty_param ]
+    | S.TyArrow (ty1, ty2) ->
+        let free_params1 = free_params_in_ty ty1 in
+        let free_params2 = free_params_in_ty ty2 in
+        free_params1 @ free_params2
+    | S.TyTuple tys ->
+        let free_params = List.fold_left fold [] tys in
+        free_params
+    | S.TyConst _c -> []
+    | S.TyReference ty | S.TyPromise ty -> free_params_in_ty ty
+  in
+  remove_dup result
 
 let rec desugar_ty state { it = plain_ty; Location.at = loc } =
   desugar_plain_ty ~loc state plain_ty
