@@ -93,13 +93,17 @@ let infer_variant state lbl =
   and ty' = Option.map (Ast.substitute_ty subst) ty in
   (ty', Ast.TyApply (ty_name, args))
 
+let check_subtype1 state ty1 ty2 =
+  unfold_type_definitions state ty1 <> unfold_type_definitions state ty2
+
 let check_subtype state ty1 ty2 =
-  if unfold_type_definitions state ty1 <> unfold_type_definitions state ty2 then
+  if check_subtype1 state ty1 ty2 then
     let print_param = Ast.new_print_param () in
     Error.typing "%t does not match %t"
       (Ast.print_ty print_param ty1)
       (Ast.print_ty print_param ty2)
 
+(*Če dobimo principal type vrnemo principal types*)
 let rec check_pattern state annotation = function
   | Ast.PVar x -> [ (x, annotation) ]
   | Ast.PAs (pat, x) ->
@@ -170,7 +174,7 @@ let rec infer_expression state = function
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
 
-(* state * annotation * expresion -> unit ?      we should save results for annotated functions*)
+(* state * annotation * expresion -> unit *)
 and check_expression state annotation = function
   | Ast.Tuple exprs -> (
       match annotation with
@@ -223,12 +227,13 @@ and infer_computation state = function
       let ty2 = check_infer_abstraction state ty1 comp2 in
       ty2
   | Ast.Apply (e1, e2) -> (
-      let ty1 = infer_expression state e1 and ty2 = infer_expression state e2 in
-      match ty1 with
-      | Ast.TyArrow (ty1_in, ty1_out) ->
-          check_subtype state ty2 ty1_in;
-          ty1_out
-      | _ -> Error.typing "Cannot apply." )
+      let ty_argument = infer_expression state e2 in
+      match e1 with
+      | Ast.Annotated (Ast.Lambda abs, _ty) ->
+          check_infer_abstraction state ty_argument abs
+      | Ast.Annotated (Ast.RecLambda (_f, _abs), _ty) ->
+          failwith "not implemented"
+      | _ -> Error.typing "Apply needs annotated function type." )
   | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations
       and ty_expr = infer_expression state expr
@@ -243,14 +248,17 @@ and infer_computation state = function
   | Ast.Match (_, []) ->
       Error.typing "Cannot infer the type of a match with no cases"
   | Ast.Match (e, case :: cases) ->
+      (* TODO prva izbira ni nujno prava če imamo podtipe, je pa v smiselnem primeru gotovo njen nadtip.*)
       let ty1 = infer_expression state e in
       let ty2 = check_infer_abstraction state ty1 case in
-      let check_case case' =
+      let check_case ty' case' =
         let ty2' = check_infer_abstraction state ty1 case' in
-        check_subtype state ty2' ty2
+        if check_subtype1 state ty2' ty' then ty'
+        else if check_subtype1 state ty' ty2' then ty2'
+        else Error.typing "Types do not match."
       in
-      List.iter check_case cases;
-      ty2
+      let super_ty = List.fold_left check_case ty2 cases in
+      super_ty
   | Ast.Handler (op, abs, p, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations in
       let ty_abs = check_infer_abstraction state ty_op abs in
@@ -263,13 +271,9 @@ and check_computation state annotation = function
   | Ast.Do (comp1, comp2) ->
       let ty1 = infer_computation state comp1 in
       check_abstraction state (ty1, annotation) comp2
-  | Ast.Apply (expr1, expr2) -> (
-      let ty1 = infer_expression state expr1 in
-      match ty1 with
-      | Ast.TyArrow (ty1_in, ty1_out) ->
-          check_expression state ty1_in expr2;
-          check_subtype state ty1_out annotation
-      | _ -> Error.typing "Expected Arrow" )
+  | Ast.Apply _ as expr ->
+      let ty = infer_computation state expr in
+      check_subtype state ty annotation
   | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations in
       check_expression state ty1 expr;
@@ -294,6 +298,7 @@ and check_abstraction state (pat_ty, comp_ty) (pat, comp) =
   let vars = check_pattern state pat_ty pat in
   let state' = extend_variables state vars in
   check_computation state' comp_ty comp
+  (*če damo principa ty_in dobimo principal ty_out. (za int:number bomo seveda dobili number in ne int kar pa je vredu)*)
 
 (**state pat_ty abs -> com_ty *)
 and check_infer_abstraction state pat_ty (pat, comp) =
@@ -317,6 +322,9 @@ let unfold state ty_name args =
 
 let check_polymorphic_expression state (_params, ty) expr =
   (* THIS IS WRONG *)
+  (* Zakaj? Ko poly funkcijo dodamo je vredu.
+     Edini problem (ki ga jaz vidim) lahko nastane v apply. Recimo, ko uporabimo id a->a na 5 in dobimo, da ima id 5 = 5 tip a kar pa ni res.
+     Kar je pa (mislim da)enostavno popraviti v apply. *)
   check_expression state ty expr
 
 let add_external_function x ty_sch state =
