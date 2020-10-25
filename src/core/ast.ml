@@ -305,7 +305,9 @@ let rec print_pattern ?max_level p ppf =
   match p with
   | PVar x -> print "%t" (Variable.print x)
   | PAs (p, x) -> print "%t as %t" (print_pattern p) (Variable.print x)
-  | PAnnotated (p, _ty) -> print_pattern ?max_level p ppf
+  | PAnnotated (p, ty) -> 
+    let print_param = new_print_param () in
+    print "%t : %t" (print_pattern ?max_level p) (print_ty print_param ty)
   | PConst c -> Const.print c ppf
   | PTuple lst -> Print.print_tuple print_pattern lst ppf
   | PVariant (lbl, None) when lbl = nil_label -> print "[]"
@@ -321,7 +323,9 @@ let rec print_expression ?max_level e ppf =
   match e with
   | Var x -> print "%t" (Variable.print x)
   | Const c -> print "%t" (Const.print c)
-  | Annotated (t, _ty) -> print_expression ?max_level t ppf
+  | Annotated (t, ty) ->
+      let print_param = new_print_param () in
+      print "%t : %t" (print_expression ?max_level t) (print_ty print_param ty)
   | Tuple lst -> Print.print_tuple print_expression lst ppf
   | Variant (lbl, None) when lbl = nil_label -> print "[]"
   | Variant (lbl, None) -> print "%t" (Label.print lbl)

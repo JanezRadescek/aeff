@@ -233,7 +233,11 @@ and infer_computation state = function
           check_infer_abstraction state ty_argument abs
       | Ast.Annotated (Ast.RecLambda (_f, _abs), _ty) ->
           failwith "not implemented"
-      | _ -> Error.typing "Apply needs annotated function type." )
+      | _ ->
+          Error.typing
+            "Apply needs annotated function expression for first argument. Got \
+             %t"
+            (Ast.print_expression e1) )
   | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations
       and ty_expr = infer_expression state expr
