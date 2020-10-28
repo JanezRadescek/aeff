@@ -1,14 +1,16 @@
 open Utils
 
 type state = {
-  variables : Ast.ty_scheme Ast.VariableMap.t;
+  variables_ty : Ast.ty_scheme Ast.VariableMap.t;
+  variables_expr : Ast.expression Ast.VariableMap.t;
   operations : Ast.ty Ast.OperationMap.t;
   type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
 }
 
 let initial_state =
   {
-    variables = Ast.VariableMap.empty;
+    variables_ty = Ast.VariableMap.empty;
+    variables_expr = Ast.VariableMap.empty;
     operations = Ast.OperationMap.empty;
     type_definitions =
       ( Ast.TyNameMap.empty
@@ -66,7 +68,10 @@ let rec unfold_type_definitions state ty =
 let extend_variables state vars =
   List.fold_left
     (fun state (x, ty) ->
-      { state with variables = Ast.VariableMap.add x ([], ty) state.variables })
+      {
+        state with
+        variables_ty = Ast.VariableMap.add x ([], ty) state.variables_ty;
+      })
     state vars
 
 let refreshing_subst params =
@@ -142,7 +147,7 @@ let rec check_pattern state annotation = function
 (* state * expresion -> type  ?    *)
 let rec infer_expression state = function
   | Ast.Var x ->
-      let params, ty = Ast.VariableMap.find x state.variables in
+      let params, ty = Ast.VariableMap.find x state.variables_ty in
       let subst = refreshing_subst params in
       Ast.substitute_ty subst ty
   | Ast.Const c -> Ast.TyConst (Const.infer_ty c)
@@ -182,19 +187,16 @@ and check_expression state annotation = function
         ->
           List.iter2 (check_expression state) annotations exprs
       | _ -> Error.typing "Expected tuple." )
-  | Ast.Lambda (pat, com) -> (
+  | Ast.Lambda abs -> (
       match annotation with
       | Ast.TyArrow (pat_anno, com_anno) ->
-          let vars = check_pattern state pat_anno pat in
-          let state' = extend_variables state vars in
-          check_computation state' com_anno com
+          check_abstraction state (pat_anno, com_anno) abs
       | _ -> Error.typing "Expected Lambda." )
-  | Ast.RecLambda (f, (pat, com)) -> (
+  | Ast.RecLambda (f, abs) -> (
       match annotation with
       | Ast.TyArrow (pat_anno, com_anno) ->
-          let vars = check_pattern state pat_anno pat in
-          let state' = extend_variables state ((f, annotation) :: vars) in
-          check_computation state' com_anno com
+          let state' = extend_variables state [ (f, annotation) ] in
+          check_abstraction state' (pat_anno, com_anno) abs
       | _ -> Error.typing "Expected Rec Lambda." )
   | Ast.Fulfill expr -> (
       match annotation with
@@ -226,18 +228,9 @@ and infer_computation state = function
       let ty1 = infer_computation state comp1 in
       let ty2 = check_infer_abstraction state ty1 comp2 in
       ty2
-  | Ast.Apply (e1, e2) -> (
+  | Ast.Apply (e1, e2) ->
       let ty_argument = infer_expression state e2 in
-      match e1 with
-      | Ast.Annotated (Ast.Lambda abs, _ty) ->
-          check_infer_abstraction state ty_argument abs
-      | Ast.Annotated (Ast.RecLambda (_f, _abs), _ty) ->
-          failwith "not implemented"
-      | _ ->
-          Error.typing
-            "Apply needs annotated function expression for first argument. Got \
-             %t"
-            (Ast.print_expression e1) )
+      check_infer_expr_of_ty_arrow state ty_argument e1
   | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations
       and ty_expr = infer_expression state expr
@@ -269,6 +262,20 @@ and infer_computation state = function
       let state' = extend_variables state [ (p, ty_abs) ] in
       let ty = infer_computation state' comp in
       ty
+
+and check_infer_expr_of_ty_arrow state ty_argument = function
+  | Ast.Annotated (e, _ty) -> check_infer_expr_of_ty_arrow state ty_argument e
+  | Ast.Lambda abs -> check_infer_abstraction state ty_argument abs
+  | Ast.RecLambda (_f, _abs) -> failwith "not implemented"
+  | Ast.Var x ->
+      let e = Ast.VariableMap.find x state.variables_expr in
+      check_infer_expr_of_ty_arrow state ty_argument e
+  | e ->
+      let print_param = Ast.new_print_param () in
+      Error.typing "Cannot apply %t of type %t to an argument of type %t"
+        (Ast.print_expression e)
+        (Ast.print_ty print_param (infer_expression state e))
+        (Ast.print_ty print_param ty_argument)
 
 and check_computation state annotation = function
   | Ast.Return expr -> check_expression state annotation expr
@@ -334,7 +341,7 @@ let check_polymorphic_expression state (_params, ty) expr =
 let add_external_function x ty_sch state =
   Format.printf "@[val %t : %t@]@." (Ast.Variable.print x)
     (Ast.print_ty_scheme ty_sch);
-  { state with variables = Ast.VariableMap.add x ty_sch state.variables }
+  { state with variables_ty = Ast.VariableMap.add x ty_sch state.variables_ty }
 
 let add_operation state op ty =
   Format.printf "@[operation %t : %t@]@." (Ast.Operation.print op)
@@ -343,7 +350,11 @@ let add_operation state op ty =
 
 let add_top_definition state x ty_sch expr =
   check_polymorphic_expression state ty_sch expr;
-  add_external_function x ty_sch state
+  let state' = add_external_function x ty_sch state in
+  {
+    state' with
+    variables_expr = Ast.VariableMap.add x expr state.variables_expr;
+  }
 
 let add_type_definitions state ty_defs =
   List.fold_left
