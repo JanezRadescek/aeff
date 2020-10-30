@@ -99,13 +99,13 @@ let infer_variant state lbl =
   (ty', Ast.TyApply (ty_name, args))
 
 let check_subtype1 state ty1 ty2 =
-  unfold_type_definitions state ty1 <> unfold_type_definitions state ty2
+  unfold_type_definitions state ty1 = unfold_type_definitions state ty2
 
 let check_equaltype1 state ty1 ty2 =
-  unfold_type_definitions state ty1 <> unfold_type_definitions state ty2
+  unfold_type_definitions state ty1 = unfold_type_definitions state ty2
 
 let check_subtype state ty1 ty2 =
-  if check_subtype1 state ty1 ty2 then
+  if not (check_subtype1 state ty1 ty2) then
     let print_param = Ast.new_print_param () in
     Error.typing "%t does not match %t"
       (Ast.print_ty print_param ty1)
