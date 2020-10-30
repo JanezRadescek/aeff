@@ -101,6 +101,9 @@ let infer_variant state lbl =
 let check_subtype1 state ty1 ty2 =
   unfold_type_definitions state ty1 <> unfold_type_definitions state ty2
 
+let check_equaltype1 state ty1 ty2 =
+  unfold_type_definitions state ty1 <> unfold_type_definitions state ty2
+
 let check_subtype state ty1 ty2 =
   if check_subtype1 state ty1 ty2 then
     let print_param = Ast.new_print_param () in
@@ -267,12 +270,55 @@ and check_infer_expr_of_ty_arrow state ty_argument = function
   | Ast.Annotated (e, _ty) -> check_infer_expr_of_ty_arrow state ty_argument e
   | Ast.Lambda abs -> check_infer_abstraction state ty_argument abs
   | Ast.RecLambda (_f, _abs) -> failwith "not implemented"
-  | Ast.Var x ->
-      let e = Ast.VariableMap.find x state.variables_expr in
-      check_infer_expr_of_ty_arrow state ty_argument e
+  | Ast.Var x -> (
+      (*Build in functions can not be polymorphic !!!*)
+      match Ast.VariableMap.find_opt x state.variables_expr with
+      | Some expr -> check_infer_expr_of_ty_arrow state ty_argument expr
+      | None -> (
+          match Ast.VariableMap.find_opt x state.variables_ty with
+          | Some ([], Ast.TyArrow (ty_in, ty_out))
+            when check_equaltype1 state ty_in ty_argument ->
+              ty_out
+          | Some ([], Ast.TyArrow (ty_in, ty_out)) ->
+              let print_param = Ast.new_print_param () in
+              Error.typing
+                "[], ty.arrow :::Cannot apply %t of type %t -> %t to an \
+                 argument of type %t"
+                (Ast.print_expression (Ast.Var x))
+                (Ast.print_ty print_param ty_in)
+                (Ast.print_ty print_param ty_out)
+                (Ast.print_ty print_param ty_argument)
+          | Some ([], Ast.TyApply (ty_name, tys)) ->
+              let print_param = Ast.new_print_param () in
+              Error.typing
+                "[],TyApply ::: Cannot apply %t of type %t to an argument of \
+                 type %t"
+                (Ast.print_expression (Ast.Var x))
+                (Ast.print_ty print_param (Ast.TyApply (ty_name, tys)))
+                (Ast.print_ty print_param ty_argument)
+          | Some ([], wrong_ty) ->
+              let print_param = Ast.new_print_param () in
+              Error.typing
+                "[], wrong_ty :::Cannot apply %t of type %t to an argument of \
+                 type %t"
+                (Ast.print_expression (Ast.Var x))
+                (Ast.print_ty print_param wrong_ty)
+                (Ast.print_ty print_param ty_argument)
+          | Some (_params, wrong_ty) ->
+              let print_param = Ast.new_print_param () in
+              Error.typing
+                "params,wrong_ty ::: Cannot apply %t of type %t to an argument \
+                 of type %t, because it is polymorphic with params but we dont \
+                 have the body."
+                (Ast.print_expression (Ast.Var x))
+                (Ast.print_ty print_param wrong_ty)
+                (Ast.print_ty print_param ty_argument)
+          | None -> Error.typing "Unknown ty_arrow" ) )
   | e ->
       let print_param = Ast.new_print_param () in
-      Error.typing "Cannot apply %t of type %t to an argument of type %t"
+      Error.typing
+        "Cannot apply %t of type %t (this one should be of type Ast.TyArrow) \
+         to an argument of type %t"
         (Ast.print_expression e)
         (Ast.print_ty print_param (infer_expression state e))
         (Ast.print_ty print_param ty_argument)
