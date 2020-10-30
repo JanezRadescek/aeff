@@ -279,41 +279,22 @@ and check_infer_expr_of_ty_arrow state ty_argument = function
           | Some ([], Ast.TyArrow (ty_in, ty_out))
             when check_equaltype1 state ty_in ty_argument ->
               ty_out
-          | Some ([], Ast.TyArrow (ty_in, ty_out)) ->
-              let print_param = Ast.new_print_param () in
-              Error.typing
-                "[], ty.arrow :::Cannot apply %t of type %t -> %t to an \
-                 argument of type %t"
-                (Ast.print_expression (Ast.Var x))
-                (Ast.print_ty print_param ty_in)
-                (Ast.print_ty print_param ty_out)
-                (Ast.print_ty print_param ty_argument)
-          | Some ([], Ast.TyApply (ty_name, tys)) ->
-              let print_param = Ast.new_print_param () in
-              Error.typing
-                "[],TyApply ::: Cannot apply %t of type %t to an argument of \
-                 type %t"
-                (Ast.print_expression (Ast.Var x))
-                (Ast.print_ty print_param (Ast.TyApply (ty_name, tys)))
-                (Ast.print_ty print_param ty_argument)
           | Some ([], wrong_ty) ->
               let print_param = Ast.new_print_param () in
               Error.typing
-                "[], wrong_ty :::Cannot apply %t of type %t to an argument of \
-                 type %t"
+                "Cannot apply %t of type %t to an argument of type %t"
                 (Ast.print_expression (Ast.Var x))
                 (Ast.print_ty print_param wrong_ty)
                 (Ast.print_ty print_param ty_argument)
           | Some (_params, wrong_ty) ->
               let print_param = Ast.new_print_param () in
               Error.typing
-                "params,wrong_ty ::: Cannot apply %t of type %t to an argument \
-                 of type %t, because it is polymorphic with params but we dont \
-                 have the body."
+                "Cannot apply %t of type %t to an argument of type %t, because \
+                 it is polymorphic with params but we dont have the body."
                 (Ast.print_expression (Ast.Var x))
                 (Ast.print_ty print_param wrong_ty)
                 (Ast.print_ty print_param ty_argument)
-          | None -> Error.typing "Unknown ty_arrow" ) )
+          | None -> Error.typing "Unknown variable" ) )
   | e ->
       let print_param = Ast.new_print_param () in
       Error.typing
