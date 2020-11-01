@@ -152,33 +152,33 @@ let rec infer_expression state = function
   | Ast.Var x ->
       let params, ty = Ast.VariableMap.find x state.variables_ty in
       let subst = refreshing_subst params in
-      Ast.substitute_ty subst ty
-  | Ast.Const c -> Ast.TyConst (Const.infer_ty c)
-  | Ast.Annotated (expr, ty) ->
-      let _ = check_expression state ty expr in
-      ty
+      (Ast.Var x, Ast.substitute_ty subst ty)
+  | Ast.Const c -> (Ast.Const c, Ast.TyConst (Const.infer_ty c))
+  | Ast.Annotated (e, ty) ->
+      let expr = check_expression state ty e in
+      (Ast.Annotated (expr, ty), ty)
   | Ast.Tuple exprs ->
-      let fold expr tys =
-        let ty' = infer_expression state expr in
-        ty' :: tys
+      let fold e (exprs, tys) =
+        let expr, ty' = infer_expression state e in
+        (expr :: exprs, ty' :: tys)
       in
-      let tys = List.fold_right fold exprs [] in
-      Ast.TyTuple tys
+      let exprs, tys = List.fold_right fold exprs ([], []) in
+      (Ast.Tuple exprs, Ast.TyTuple tys)
   | Ast.Lambda _ | Ast.RecLambda _ -> Error.typing "Function must be annotated"
-  | Ast.Fulfill expr ->
-      let ty = infer_expression state expr in
-      Ast.TyPromise ty
+  | Ast.Fulfill e ->
+      let expr, ty = infer_expression state e in
+      (Ast.Fulfill expr, Ast.TyPromise ty)
   | Ast.Reference expr_ref ->
-      let ty = infer_expression state !expr_ref in
-      Ast.TyReference ty
-  | Ast.Variant (lbl, expr) -> (
+      let expr, ty = infer_expression state !expr_ref in
+      (Ast.Reference (ref expr), Ast.TyReference ty)
+  | Ast.Variant (lbl, e) -> (
       let ty_in, ty_out = infer_variant state lbl in
-      match (ty_in, expr) with
-      | None, None -> ty_out
-      | Some ty_in, Some expr ->
-          let ty = infer_expression state expr in
+      match (ty_in, e) with
+      | None, None -> (Ast.Variant (lbl, e), ty_out)
+      | Some ty_in, Some ex ->
+          let expr, ty = infer_expression state ex in
           check_subtype state ty ty_in;
-          ty_out
+          (Ast.Variant (lbl, Some expr), ty_out)
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
 
@@ -188,98 +188,119 @@ and check_expression state annotation = function
       match annotation with
       | Ast.TyTuple annotations when List.length exprs = List.length annotations
         ->
-          List.iter2 (check_expression state) annotations exprs
+          let fold (ty, e) exprs =
+            let ex = check_expression state ty e in
+            ex :: exprs
+          in
+          let expr = List.fold_right fold (List.combine annotations exprs) [] in
+          Ast.Tuple expr
       | _ -> Error.typing "Expected tuple." )
   | Ast.Lambda abs -> (
       match annotation with
       | Ast.TyArrow (pat_anno, com_anno) ->
-          check_abstraction state (pat_anno, com_anno) abs
+          let expr = check_abstraction state (pat_anno, com_anno) abs in
+          Ast.Lambda expr
       | _ -> Error.typing "Expected Lambda." )
   | Ast.RecLambda (f, abs) -> (
       match annotation with
       | Ast.TyArrow (pat_anno, com_anno) ->
           let state' = extend_variables state [ (f, annotation) ] in
-          check_abstraction state' (pat_anno, com_anno) abs
+          let expr = check_abstraction state' (pat_anno, com_anno) abs in
+          Ast.RecLambda (f, expr)
       | _ -> Error.typing "Expected Rec Lambda." )
-  | Ast.Fulfill expr -> (
+  | Ast.Fulfill e -> (
       match annotation with
-      | Ast.TyPromise anno -> check_expression state anno expr
+      | Ast.TyPromise anno -> Ast.Fulfill (check_expression state anno e)
       | _ -> Error.typing "Expected Promise." )
   | Ast.Reference expr_ref -> (
       match annotation with
-      | Ast.TyReference anno -> check_expression state anno !expr_ref
+      | Ast.TyReference anno ->
+          Ast.Reference (ref (check_expression state anno !expr_ref))
       | _ -> Error.typing "Expected Reference" )
   | Ast.Variant (lbl, expr) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, expr) with
-      | None, None -> check_subtype state ty_out annotation
+      | None, None ->
+          check_subtype state ty_out annotation;
+          (* nebi mogl bit to obrnjeno? preveri vse subtype*)
+          Ast.Variant (lbl, expr)
       | Some ty_in, Some expr ->
-          check_expression state ty_in expr;
-          check_subtype state ty_out annotation
+          check_subtype state ty_out annotation;
+          check_expression state ty_in expr
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
-  | (Ast.Var _ | Ast.Const _ | Ast.Annotated _) as expr ->
-      let ty = infer_expression state expr in
-      check_subtype state ty annotation
+  | (Ast.Var _ | Ast.Const _ | Ast.Annotated _) as e ->
+      let expr, ty = infer_expression state e in
+      check_subtype state ty annotation;
+      expr
 
 (* state * computation -> type  ?    *)
 and infer_computation state = function
-  | Ast.Return expr ->
-      let ty = infer_expression state expr in
-      ty
+  | Ast.Return e ->
+      let expr, ty = infer_expression state e in
+      (Ast.Return expr, ty)
   | Ast.Do (comp1, comp2) ->
-      let ty1 = infer_computation state comp1 in
-      let ty2 = check_infer_abstraction state ty1 comp2 in
-      ty2
+      let expr1, ty1 = infer_computation state comp1 in
+      let expr2, ty2 = check_infer_abstraction state ty1 comp2 in
+      (Ast.Do (expr1, expr2), ty2)
   | Ast.Apply (e1, e2) ->
-      let ty_argument = infer_expression state e2 in
-      check_infer_expr_of_ty_arrow state ty_argument e1
+      let expr_argument, ty_argument = infer_expression state e2 in
+      let expr_fun, ty = check_infer_expr_of_ty_arrow state ty_argument e1 in
+      (Ast.Apply (expr_fun, expr_argument), ty)
   | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations
-      and ty_expr = infer_expression state expr
-      and ty_comp = infer_computation state comp in
+      and expr_expr, ty_expr = infer_expression state expr
+      and expr_comp, ty_comp = infer_computation state comp in
       check_subtype state ty_expr ty_op;
-      ty_comp
-  | Ast.Await (e, abs) -> (
-      let pty1 = infer_expression state e in
-      match pty1 with
-      | Ast.TyPromise ty1 -> check_infer_abstraction state ty1 abs
-      | _ -> Error.typing "Expected Await." )
+      (Ast.Out (op, expr_expr, expr_comp), ty_comp)
+  | Ast.Await (e, abs) ->
+      let expr_prom, pty1 = infer_expression state e in
+      let expr_abs, ty =
+        match pty1 with
+        | Ast.TyPromise ty1 -> check_infer_abstraction state ty1 abs
+        | _ -> Error.typing "Expected Await."
+      in
+      (Ast.Await (expr_prom, expr_abs), ty)
   | Ast.Match (_, []) ->
       Error.typing "Cannot infer the type of a match with no cases"
   | Ast.Match (e, case :: cases) ->
       (* TODO prva izbira ni nujno prava če imamo podtipe, je pa v smiselnem primeru gotovo njen nadtip.*)
-      let ty1 = infer_expression state e in
-      let ty2 = check_infer_abstraction state ty1 case in
-      let check_case ty' case' =
-        let ty2' = check_infer_abstraction state ty1 case' in
-        if check_subtype1 state ty2' ty' then ty'
-        else if check_subtype1 state ty' ty2' then ty2'
+      let expr_e, ty1 = infer_expression state e in
+      let _, ty2 = check_infer_abstraction state ty1 case in
+      let check_case (expr, ty') case' =
+        let expr_case, ty2' = check_infer_abstraction state ty1 case' in
+        if check_subtype1 state ty2' ty' then (expr_case :: expr, ty')
+        else if check_subtype1 state ty' ty2' then (expr_case :: expr, ty2')
         else Error.typing "Types do not match."
       in
-      let super_ty = List.fold_left check_case ty2 cases in
-      super_ty
+      let expr_cases, super_ty = List.fold_left check_case ([], ty2) cases in
+      (Ast.Match (expr_e, expr_cases), super_ty)
   | Ast.Handler (op, abs, p, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations in
-      let ty_abs = check_infer_abstraction state ty_op abs in
+      let expr_abs, ty_abs = check_infer_abstraction state ty_op abs in
       let state' = extend_variables state [ (p, ty_abs) ] in
-      let ty = infer_computation state' comp in
-      ty
+      let expr_comp, ty = infer_computation state' comp in
+      (Ast.Handler (op, expr_abs, p, expr_comp), ty)
+
+(** TODO je treba pri vsem tem pošiljanju expr kot popravit tudi state??? premisli!!! *)
 
 and check_infer_expr_of_ty_arrow state ty_argument = function
   | Ast.Annotated (e, _ty) ->
-      check_infer_expr_of_ty_arrow state ty_argument e (*TODO *)
-  | Ast.Lambda abs -> check_infer_abstraction state ty_argument abs
+      let expr, ty' = check_infer_expr_of_ty_arrow state ty_argument e in
+      (Ast.Annotated (expr, ty'), ty')
+  | Ast.Lambda abs ->
+      let expr, ty = check_infer_abstraction state ty_argument abs in
+      (Ast.Lambda expr, ty)
   | Ast.RecLambda (_f, _abs) -> failwith "not implemented"
   | Ast.Var x -> (
-      (*Build in functions can not be polymorphic yet.*)
       match Ast.VariableMap.find_opt x state.variables_expr with
       | Some expr -> check_infer_expr_of_ty_arrow state ty_argument expr
       | None -> (
+          (*Build in functions can not be polymorphic yet. preveri če prejš stavek drži. ali se res dodaja samo v toplet.*)
           match Ast.VariableMap.find_opt x state.variables_ty with
           | Some ([], Ast.TyArrow (ty_in, ty_out))
             when check_equaltype1 state ty_in ty_argument ->
-              ty_out
+              (Ast.Var x, ty_out)
           | Some ([], wrong_ty) ->
               let print_param = Ast.new_print_param () in
               Error.typing
@@ -291,59 +312,70 @@ and check_infer_expr_of_ty_arrow state ty_argument = function
               let print_param = Ast.new_print_param () in
               Error.typing
                 "Cannot apply %t of type %t to an argument of type %t, because \
-                 it is polymorphic with params but we dont have the body."
+                 it is polymorphic with params but we dont have the body to \
+                 instantiate."
                 (Ast.print_expression (Ast.Var x))
                 (Ast.print_ty print_param wrong_ty)
                 (Ast.print_ty print_param ty_argument)
           | None -> Error.typing "Unknown variable" ) )
   | e ->
       let print_param = Ast.new_print_param () in
+      let _, ty = infer_expression state e in
       Error.typing
         "Cannot apply %t of type %t (this one should be of type Ast.TyArrow) \
          to an argument of type %t"
         (Ast.print_expression e)
-        (Ast.print_ty print_param (infer_expression state e))
+        (Ast.print_ty print_param ty)
         (Ast.print_ty print_param ty_argument)
 
 and check_computation state annotation = function
-  | Ast.Return expr -> check_expression state annotation expr
+  | Ast.Return expr -> Ast.Return (check_expression state annotation expr)
   | Ast.Do (comp1, comp2) ->
-      let ty1 = infer_computation state comp1 in
-      check_abstraction state (ty1, annotation) comp2
-  | Ast.Apply (_e1, _e2) as expr ->
-      let ty = infer_computation state expr in
-      check_subtype state ty annotation
-  | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
+      let expr1, ty1 = infer_computation state comp1 in
+      let expr2 = check_abstraction state (ty1, annotation) comp2 in
+      Ast.Do (expr1, expr2)
+  | Ast.Apply (_e1, _e2) -> failwith "not implemented yet."
+  | Ast.Out (op, e, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations in
-      check_expression state ty1 expr;
-      check_computation state annotation comp
+      let expr1 = check_expression state ty1 e in
+      let expr2 = check_computation state annotation comp in
+      Ast.Out (op, expr1, expr2)
+  | Ast.In (op, e, comp) ->
+      let ty1 = Ast.OperationMap.find op state.operations in
+      let expr1 = check_expression state ty1 e in
+      let expr2 = check_computation state annotation comp in
+      Ast.In (op, expr1, expr2)
   | Ast.Await (e, abs) -> (
-      let pty1 = infer_expression state e in
+      let expr_prom, pty1 = infer_expression state e in
       match pty1 with
-      | Ast.TyPromise ty1 -> check_abstraction state (ty1, annotation) abs
+      | Ast.TyPromise ty1 ->
+          Ast.Await (expr_prom, check_abstraction state (ty1, annotation) abs)
       | _ -> Error.typing "Expected Promise" )
   | Ast.Match (e, cases) ->
-      let ty1 = infer_expression state e in
-      let _ = List.map (check_abstraction state (ty1, annotation)) cases in
-      ()
+      let expr, ty1 = infer_expression state e in
+      let exprs = List.map (check_abstraction state (ty1, annotation)) cases in
+      Ast.Match (expr, exprs)
   | Ast.Handler (op, abs, p, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations in
-      let ty2 = check_infer_abstraction state ty1 abs in
+      let expr1, ty2 = check_infer_abstraction state ty1 abs in
       let state' = extend_variables state [ (p, ty2) ] in
-      check_computation state' annotation comp
+      let expr2 = check_computation state' annotation comp in
+      Ast.Handler (op, expr1, p, expr2)
 
 (**state type abs -> () *)
 and check_abstraction state (pat_ty, comp_ty) (pat, comp) =
   let vars = check_pattern state pat_ty pat in
   let state' = extend_variables state vars in
-  check_computation state' comp_ty comp
+  let expr = check_computation state' comp_ty comp in
+  (pat, expr)
   (*če damo principa ty_in dobimo principal ty_out. (za int:number bomo seveda dobili number in ne int kar pa je vredu)*)
 
 (**state pat_ty abs -> com_ty *)
 and check_infer_abstraction state pat_ty (pat, comp) =
   let vars = check_pattern state pat_ty pat in
   let state' = extend_variables state vars in
-  infer_computation state' comp
+  let expr, ty = infer_computation state' comp in
+  ((pat, expr), ty)
 
 let is_transparent_type state ty_name =
   match Ast.TyNameMap.find ty_name state.type_definitions with
@@ -364,7 +396,8 @@ let check_polymorphic_expression state (_params, ty) expr =
   (* Zakaj? Ko poly funkcijo dodamo je vredu.
      Edini problem (ki ga jaz vidim) lahko nastane v apply. Recimo, ko uporabimo id a->a na 5 in dobimo, da ima id 5 = 5 tip a kar pa ni res.
      Kar je pa (mislim da)enostavno popraviti v apply. *)
-  check_expression state ty expr
+  let _expr = check_expression state ty expr in
+  ()
 
 let add_external_function x ty_sch state =
   Format.printf "@[val %t : %t@]@." (Ast.Variable.print x)
