@@ -198,14 +198,14 @@ and check_expression state annotation = function
   | Ast.Lambda abs -> (
       match annotation with
       | Ast.TyArrow (pat_anno, com_anno) ->
-          let expr = check_abstraction state (pat_anno, com_anno) abs in
+          let expr = check_check_abstraction state (pat_anno, com_anno) abs in
           Ast.Lambda expr
       | _ -> Error.typing "Expected Lambda." )
   | Ast.RecLambda (f, abs) -> (
       match annotation with
       | Ast.TyArrow (pat_anno, com_anno) ->
           let state' = extend_variables state [ (f, annotation) ] in
-          let expr = check_abstraction state' (pat_anno, com_anno) abs in
+          let expr = check_check_abstraction state' (pat_anno, com_anno) abs in
           Ast.RecLambda (f, expr)
       | _ -> Error.typing "Expected Rec Lambda." )
   | Ast.Fulfill e -> (
@@ -332,9 +332,14 @@ and check_computation state annotation = function
   | Ast.Return expr -> Ast.Return (check_expression state annotation expr)
   | Ast.Do (comp1, comp2) ->
       let expr1, ty1 = infer_computation state comp1 in
-      let expr2 = check_abstraction state (ty1, annotation) comp2 in
+      let expr2 = check_check_abstraction state (ty1, annotation) comp2 in
       Ast.Do (expr1, expr2)
-  | Ast.Apply (_e1, _e2) -> failwith "not implemented yet."
+  | Ast.Apply (e1, e2) ->
+      let expr_argument, ty_argument = infer_expression state e2 in
+      let expr_fun =
+        check_check_expr_of_ty_arrow state (ty_argument, annotation) e1
+      in
+      Ast.Apply (expr_fun, expr_argument)
   | Ast.Out (op, e, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations in
       let expr1 = check_expression state ty1 e in
@@ -349,11 +354,14 @@ and check_computation state annotation = function
       let expr_prom, pty1 = infer_expression state e in
       match pty1 with
       | Ast.TyPromise ty1 ->
-          Ast.Await (expr_prom, check_abstraction state (ty1, annotation) abs)
+          Ast.Await
+            (expr_prom, check_check_abstraction state (ty1, annotation) abs)
       | _ -> Error.typing "Expected Promise" )
   | Ast.Match (e, cases) ->
       let expr, ty1 = infer_expression state e in
-      let exprs = List.map (check_abstraction state (ty1, annotation)) cases in
+      let exprs =
+        List.map (check_check_abstraction state (ty1, annotation)) cases
+      in
       Ast.Match (expr, exprs)
   | Ast.Handler (op, abs, p, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations in
@@ -362,8 +370,51 @@ and check_computation state annotation = function
       let expr2 = check_computation state' annotation comp in
       Ast.Handler (op, expr1, p, expr2)
 
+and check_check_expr_of_ty_arrow state (ty_in, ty_out) = function
+  | Ast.Annotated (e, ty) ->
+      let expr = check_check_expr_of_ty_arrow state (ty_in, ty_out) e in
+      Ast.Annotated (expr, ty)
+  | Ast.Lambda abs ->
+      let expr = check_check_abstraction state (ty_in, ty_out) abs in
+      Ast.Lambda expr
+  | Ast.RecLambda (_f, _abs) -> failwith "not implemented"
+  | Ast.Var x -> (
+      match Ast.VariableMap.find_opt x state.variables_expr with
+      | Some expr -> check_check_expr_of_ty_arrow state (ty_in, ty_out) expr
+      | None -> (
+          (*Build in functions can not be polymorphic yet. preveri če prejš stavek drži. ali se res dodaja samo v toplet.*)
+          match Ast.VariableMap.find_opt x state.variables_ty with
+          | Some ([], Ast.TyArrow (ty_in', ty_out'))
+            when check_equaltype1 state ty_in ty_in'
+                 && check_equaltype1 state ty_out ty_out' ->
+              Ast.Var x
+          | Some ([], wrong_ty) ->
+              let print_param = Ast.new_print_param () in
+              Error.typing
+                "Got %t of type %t but we expected something of type %t->%t"
+                (Ast.print_expression (Ast.Var x))
+                (Ast.print_ty print_param wrong_ty)
+                (Ast.print_ty print_param ty_in)
+                (Ast.print_ty print_param ty_out)
+          | Some (_params, wrong_ty) ->
+              let print_param = Ast.new_print_param () in
+              Error.typing
+                "Got polymorphic %t of type %t. We dont have the body to \
+                 instantiate. Probably problem with build in functions"
+                (Ast.print_expression (Ast.Var x))
+                (Ast.print_ty print_param wrong_ty)
+          | None -> Error.typing "Unknown variable" ) )
+  | e ->
+      let print_param = Ast.new_print_param () in
+      let _, ty = infer_expression state e in
+      Error.typing "Got %t of type %t but we expected something of type %t->%t"
+        (Ast.print_expression e)
+        (Ast.print_ty print_param ty)
+        (Ast.print_ty print_param ty_in)
+        (Ast.print_ty print_param ty_out)
+
 (**state type abs -> () *)
-and check_abstraction state (pat_ty, comp_ty) (pat, comp) =
+and check_check_abstraction state (pat_ty, comp_ty) (pat, comp) =
   let vars = check_pattern state pat_ty pat in
   let state' = extend_variables state vars in
   let expr = check_computation state' comp_ty comp in
