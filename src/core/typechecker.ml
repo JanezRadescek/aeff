@@ -267,11 +267,12 @@ and infer_computation state = function
       ty
 
 and check_infer_expr_of_ty_arrow state ty_argument = function
-  | Ast.Annotated (e, _ty) -> check_infer_expr_of_ty_arrow state ty_argument e
+  | Ast.Annotated (e, _ty) ->
+      check_infer_expr_of_ty_arrow state ty_argument e (*TODO *)
   | Ast.Lambda abs -> check_infer_abstraction state ty_argument abs
   | Ast.RecLambda (_f, _abs) -> failwith "not implemented"
   | Ast.Var x -> (
-      (*Build in functions can not be polymorphic !!!*)
+      (*Build in functions can not be polymorphic yet.*)
       match Ast.VariableMap.find_opt x state.variables_expr with
       | Some expr -> check_infer_expr_of_ty_arrow state ty_argument expr
       | None -> (
@@ -309,7 +310,7 @@ and check_computation state annotation = function
   | Ast.Do (comp1, comp2) ->
       let ty1 = infer_computation state comp1 in
       check_abstraction state (ty1, annotation) comp2
-  | Ast.Apply _ as expr ->
+  | Ast.Apply (_e1, _e2) as expr ->
       let ty = infer_computation state expr in
       check_subtype state ty annotation
   | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
