@@ -1,2 +1,4 @@
 let (par : int -> int -> int * int) a b = (a, b)
+
+run par 1
 run let a = par 1 in a 2

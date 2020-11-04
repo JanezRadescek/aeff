@@ -241,7 +241,9 @@ and infer_computation state = function
       (Ast.Return expr, ty)
   | Ast.Do (comp1, comp2) ->
       let expr1, ty1 = infer_computation state comp1 in
+
       let expr2, ty2 = check_infer_abstraction state ty1 comp2 in
+      (* Povej comp2 da uporabi expr1 ne pa comp1 *)
       (Ast.Do (expr1, expr2), ty2)
   | Ast.Apply (e1, e2) ->
       let expr_argument, ty_argument = infer_expression state e2 in
@@ -285,9 +287,15 @@ and infer_computation state = function
 (** TODO je treba pri vsem tem pošiljanju expr kot popravit tudi state??? premisli!!! *)
 
 and check_infer_expr_of_ty_arrow state ty_argument = function
-  | Ast.Annotated (e, _ty) ->
-      let expr, ty' = check_infer_expr_of_ty_arrow state ty_argument e in
-      (Ast.Annotated (expr, ty'), ty')
+  | Ast.Annotated (e, ty) -> (
+      match ty with
+      | Ast.TyArrow (ty_in, ty_out) ->
+          check_subtype state ty_argument ty_in;
+          let expr =
+            check_check_expr_of_ty_arrow state (ty_argument, ty_out) e
+          in
+          (Ast.Annotated (expr, ty), ty)
+      | _ -> failwith "Canot apply something that is not of type arrow." )
   | Ast.Lambda abs ->
       let expr, ty = check_infer_abstraction state ty_argument abs in
       (Ast.Lambda expr, ty)
