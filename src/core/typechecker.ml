@@ -111,6 +111,44 @@ let check_subtype state ty1 ty2 =
       (Ast.print_ty print_param ty1)
       (Ast.print_ty print_param ty2)
 
+let calculate_super_type _state _ty1 _ty2 =
+  failwith "Super_type is not implemented yet."
+
+let rec izracunaj_vzorec state patter_type = function
+  | Ast.PVar x -> [ (x, patter_type) ]
+  | Ast.PAs (pat, x) ->
+      let vars = izracunaj_vzorec state patter_type pat in
+      (x, patter_type) :: vars
+  | Ast.PAnnotated (pat, ty) ->
+      check_subtype state patter_type ty;
+      izracunaj_vzorec state patter_type pat
+  | Ast.PConst c ->
+      let ty = Ast.TyConst (Const.infer_ty c) in
+      check_subtype state patter_type ty;
+      []
+  | Ast.PNonbinding -> []
+  | Ast.PTuple pats -> (
+      match patter_type with
+      | Ast.TyTuple patter_types
+        when List.length pats = List.length patter_types ->
+          let fold (pat_ty, pat) vars =
+            let vars' = izracunaj_vzorec state pat_ty pat in
+            vars' @ vars
+          in
+          List.fold_right fold (List.combine patter_types pats) []
+      | _ -> Error.typing "Expected pattern tuple" )
+  | Ast.PVariant (lbl, pat) -> (
+      let ty_in, ty_out = infer_variant state lbl in
+      match (ty_in, pat) with
+      | None, None ->
+          check_subtype state patter_type ty_out;
+          []
+      | Some ty_in, Some pat ->
+          check_subtype state patter_type ty_out;
+          izracunaj_vzorec state ty_in pat
+      | None, Some _ | Some _, None ->
+          Error.typing "Variant optional argument mismatch" )
+
 (*Če dobimo principal type vrnemo principal types*)
 let rec check_pattern state annotation = function
   | Ast.PVar x -> [ (x, annotation) ]
@@ -146,6 +184,150 @@ let rec check_pattern state annotation = function
           check_pattern state ty_in pat
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
+
+let rec izracunaj_izraz state = function
+  | Ast.Var x ->
+      let params, ty = Ast.VariableMap.find x state.variables_ty in
+      let subst = refreshing_subst params in
+      Ast.substitute_ty subst ty
+  | Ast.Const c -> Ast.TyConst (Const.infer_ty c)
+  | Ast.Annotated (e, ty) ->
+      izracunaj_izraz_z_anno state ty e (*Premisli če je res z namigom ali *)
+  | Ast.Tuple exprs ->
+      let fold e tys =
+        let ty' = izracunaj_izraz state e in
+        ty' :: tys
+      in
+      let tys = List.fold_right fold exprs [] in
+      Ast.TyTuple tys
+  | Ast.Lambda _ | Ast.RecLambda _ -> Error.typing "Function must be annotated"
+  | Ast.Fulfill e ->
+      let ty = izracunaj_izraz state e in
+      Ast.TyPromise ty
+  | Ast.Reference e ->
+      let ty = izracunaj_izraz state !e in
+      Ast.TyReference ty
+  | Ast.Variant (lbl, e) -> (
+      let ty_in, ty_out = infer_variant state lbl in
+      match (ty_in, e) with
+      | None, None -> ty_out
+      | Some ty_in, Some expr ->
+          let ty = izracunaj_izraz state expr in
+          check_subtype state ty ty_in;
+          ty_out
+      | None, Some _ | Some _, None ->
+          Error.typing "Variant optional argument mismatch" )
+
+and izracunaj_izraz_z_anno state annotation = function
+  | Ast.Var x ->
+      let params, ty = Ast.VariableMap.find x state.variables_ty in
+      let subst = refreshing_subst params in
+      let ty' = Ast.substitute_ty subst ty in
+      check_subtype state ty' annotation;
+      ty'
+  | _ -> failwith "Not implemented yet"
+
+and preveri_izraz_anno state annotation = function
+  | Ast.Var x ->
+      let params, ty = Ast.VariableMap.find x state.variables_ty in
+      let subst = refreshing_subst params in
+      let ty' = Ast.substitute_ty subst ty in
+      check_subtype state ty' annotation
+  | _ -> failwith "Not implemented yet"
+
+let rec izracunaj_racun state = function
+  | Ast.Return e ->
+      let ty = izracunaj_izraz state e in
+      ty
+  | Ast.Do (comp, abs) ->
+      let ty_comp = izracunaj_racun state comp in
+      (* tu moramo v state dodati še comp kot anotiran *)
+      let ty_abs = preveri_izracunaj_abstraction state ty_comp abs in
+      ty_abs
+  | Ast.Apply (e1, e2) ->
+      let ty_arg = izracunaj_izraz state e2 in
+      let ty_app = preveri_izracunaj_arrow state ty_arg e1 in
+      ty_app
+  | Ast.Out (op, e, comp) | Ast.In (op, e, comp) ->
+      let ty_op = Ast.OperationMap.find op state.operations
+      and ty_e = izracunaj_izraz state e
+      and ty_comp = izracunaj_racun state comp in
+      check_subtype state ty_e ty_op;
+      ty_comp
+  | Ast.Await (e, abs) -> (
+      let ty_promise = izracunaj_izraz state e in
+      match ty_promise with
+      | Ast.TyPromise ty1 ->
+          let ty_comp = preveri_izracunaj_abstraction state ty1 abs in
+          ty_comp
+      | _ -> Error.typing "Expected Await." )
+  | Ast.Match (_, []) ->
+      Error.typing "Cannot infer the type of a match with no cases"
+  | Ast.Match (e, case :: cases) ->
+      (* TODO prva izbira ni nujno prava če imamo podtipe, je pa v smiselnem primeru gotovo njen nadtip.*)
+      let ty_e = izracunaj_izraz state e in
+      let ty1 = preveri_izracunaj_abstraction state ty_e case in
+      let infer_super_type candidate case' =
+        let ty_current = preveri_izracunaj_abstraction state ty_e case' in
+        if check_subtype1 state ty_current candidate then candidate
+        else calculate_super_type state ty_current candidate
+      in
+      let ty_super = List.fold_left infer_super_type ty1 cases in
+      ty_super
+  | Ast.Handler (op, abs, p, comp) ->
+      let ty_op = Ast.OperationMap.find op state.operations in
+      let ty_abs = preveri_izracunaj_abstraction state ty_op abs in
+      let state' = extend_variables state [ (p, ty_abs) ] in
+      let ty_comp = izracunaj_racun state' comp in
+      ty_comp
+
+and preveri_izracunaj_arrow state ty_arg = function
+  | Ast.Annotated (e, anno) -> (
+      match e with
+      | Ast.Var x -> (
+          match Ast.VariableMap.find_opt x state.variables_expr with
+          | Some expr ->
+              preveri_izracunaj_arrow state ty_arg (Ast.Annotated (expr, anno))
+          | None -> Error.typing "Unknown variable" )
+      | Ast.Lambda abs -> preveri_izracunaj_abstraction state ty_arg abs
+      | Ast.RecLambda (_f, _abs) -> failwith "not implemented yet"
+      | Ast.Annotated _ as annotated ->
+          preveri_izracunaj_arrow state ty_arg annotated
+      | _ -> Error.typing "Expected arrow type." )
+  | Ast.Var x -> (
+      match Ast.VariableMap.find_opt x state.variables_expr with
+      | Some e -> preveri_izracunaj_arrow state ty_arg e
+      | None -> (
+          (* This is here because i dont know how to save expresions of build in functions into state. Its ugly and should be fixed*)
+          match Ast.VariableMap.find_opt x state.variables_ty with
+          | Some ([], Ast.TyArrow (ty_in, ty_out))
+            when check_equaltype1 state ty_arg ty_in ->
+              ty_out
+          | Some ([], wrong_ty) ->
+              let print_param = Ast.new_print_param () in
+              Error.typing
+                "Cannot apply %t of type %t to an argument of type %t"
+                (Ast.print_expression (Ast.Var x))
+                (Ast.print_ty print_param wrong_ty)
+                (Ast.print_ty print_param ty_arg)
+          | Some (_params, wrong_ty) ->
+              let print_param = Ast.new_print_param () in
+              Error.typing
+                "Cannot apply %t of type %t to an argument of type %t, because \
+                 it is polymorphic with params but we dont have the body to \
+                 instantiate."
+                (Ast.print_expression (Ast.Var x))
+                (Ast.print_ty print_param wrong_ty)
+                (Ast.print_ty print_param ty_arg)
+          | None -> Error.typing "Unknown variable" ) )
+  | Ast.Lambda _ | Ast.RecLambda _ -> Error.typing "Function must be annotated"
+  | _ -> Error.typing "Expected arrow type."
+
+and preveri_izracunaj_abstraction state ty_argument (pat, comp) =
+  let vars = check_pattern state ty_argument pat in
+  let state' = extend_variables state vars in
+  let ty_comp = izracunaj_racun state' comp in
+  ty_comp
 
 (* state * expresion -> type  ?    *)
 let rec infer_expression state = function
