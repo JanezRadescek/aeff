@@ -2,7 +2,7 @@ open Utils
 
 type state = {
   variables_ty : Ast.ty_scheme Ast.VariableMap.t;
-  variables_expr : Ast.expression Ast.VariableMap.t;
+  variables_expr : (Ast.expression * Ast.ty_scheme) Ast.VariableMap.t;
   operations : Ast.ty Ast.OperationMap.t;
   type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
 }
@@ -157,7 +157,7 @@ let rec infer_expression state = function
       Ast.substitute_ty subst ty
   | Ast.Const c -> Ast.TyConst (Const.infer_ty c)
   | Ast.Annotated (e, ty) ->
-      check_expression state ty e;
+      let _ = check_expression state ty e in
       ty
   | Ast.Tuple exprs ->
       let fold e tys =
@@ -188,18 +188,19 @@ let rec infer_expression state = function
 and check_expression state annotation = function
   | Ast.Tuple exprs -> (
       match annotation with
-      | Ast.TyTuple annos -> List.iter2 (check_expression state) annos exprs
+      | Ast.TyTuple annos ->
+          Ast.TyTuple (List.map2 (check_expression state) annos exprs)
       | _ -> Error.typing "Wrong annotation." )
   | Ast.Lambda abs -> (
       match annotation with
       | Ast.TyArrow (ty_in, ty_out) ->
-          check_check_abstraction state (ty_in, ty_out) abs
+          Ast.TyArrow (ty_in, check_check_abstraction state (ty_in, ty_out) abs)
       | _ -> Error.typing "Wrong annotation." )
   | Ast.RecLambda (f, abs) -> (
       match annotation with
       | Ast.TyArrow (ty_in, ty_out) ->
           let state' = extend_variables state [ (f, annotation) ] in
-          check_check_abstraction state' (ty_in, ty_out) abs
+          Ast.TyArrow (ty_in, check_check_abstraction state' (ty_in, ty_out) abs)
       | _ -> Error.typing "Wrong annotation." )
   | Ast.Fulfill e -> (
       match annotation with
@@ -212,15 +213,19 @@ and check_expression state annotation = function
   | Ast.Variant (lbl, e) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, e) with
-      | None, None -> check_subtype state ty_out annotation
+      | None, None ->
+          check_subtype state ty_out annotation;
+          ty_out
       | Some ty_in, Some expr ->
           check_subtype state ty_out annotation;
-          check_expression state ty_in expr
+          let _ = check_expression state ty_in expr in
+          ty_out
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
   | (Ast.Var _ | Ast.Const _ | Ast.Annotated _) as e ->
       let ty = infer_expression state e in
-      check_subtype state ty annotation
+      check_subtype state ty annotation;
+      ty
 
 and infer_computation state = function
   | Ast.Return e ->
@@ -276,19 +281,28 @@ and check_computation state annotation = function
   | Ast.Apply (e1, e2) ->
       let ty_argument = infer_expression state e2 in
       let ty = check_check_arrow state (ty_argument, annotation) e1 in
-      check_subtype state ty annotation
+      check_subtype state ty annotation;
+      ty
   | Ast.Out (op, e, comp) | Ast.In (op, e, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations in
-      check_expression state ty1 e;
+      let _ = check_expression state ty1 e in
       check_computation state annotation comp
   | Ast.Await (e, abs) -> (
       let ty_promise = infer_expression state e in
       match ty_promise with
       | Ast.TyPromise ty -> check_check_abstraction state (ty, annotation) abs
       | _ -> Error.typing "Expected Promise" )
-  | Ast.Match (e, cases) ->
+  | Ast.Match (_e, []) -> Error.typing "Canot check match without cases."
+  | Ast.Match (e, case :: cases) ->
       let ty1 = infer_expression state e in
-      List.iter (check_check_abstraction state (ty1, annotation)) cases
+      let ty2 = check_check_abstraction state (ty1, annotation) case in
+      let fold' ty' case' =
+        let ty_current =
+          check_check_abstraction state (ty1, annotation) case'
+        in
+        calculate_super_type state ty' ty_current
+      in
+      List.fold_left fold' ty2 cases
   | Ast.Handler (op, abs, p, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations in
       let ty2 = check_infer_abstraction state ty1 abs in
@@ -296,12 +310,16 @@ and check_computation state annotation = function
       check_computation state' annotation comp
 
 and check_infer_arrow state ty_arg = function
-  | Ast.Annotated (e, anno) ->
-      let ty = check_check_arrow state (ty_arg, anno) e in
-      ty
+  | Ast.Annotated (e, anno) -> (
+      match anno with
+      | Ast.TyArrow (ty_in, ty_out) ->
+          check_subtype state ty_arg ty_in;
+          check_check_arrow state (ty_arg, ty_out) e
+      | _ -> Error.typing "Expected arrow type." )
   | Ast.Var x -> (
       match Ast.VariableMap.find_opt x state.variables_expr with
-      | Some e -> check_infer_arrow state ty_arg e
+      | Some (e, (_params, ty)) ->
+          check_infer_arrow state ty_arg (Ast.Annotated (e, ty))
       | None -> (
           (* This is here because i dont know how to save expresions of build in functions into state. Its ugly and should be fixed*)
           match Ast.VariableMap.find_opt x state.variables_ty with
@@ -325,8 +343,9 @@ and check_infer_arrow state ty_arg = function
                 (Ast.print_ty print_param wrong_ty)
                 (Ast.print_ty print_param ty_arg)
           | None -> Error.typing "Unknown variable" ) )
-  | Ast.Lambda _ | Ast.RecLambda _ ->
-      Error.typing "Arrow : Function must be annotated"
+  | (Ast.Lambda _ | Ast.RecLambda _) as e ->
+      Error.typing "Arrow : Function %t must be annotated"
+        (Ast.print_expression e)
   | _ -> Error.typing "Expected arrow type."
 
 and check_check_arrow state (ty_in, ty_out) = function
@@ -339,10 +358,18 @@ and check_check_arrow state (ty_in, ty_out) = function
       | _ -> Error.typing "Expected arrow type." )
   | Ast.Var x -> (
       match Ast.VariableMap.find_opt x state.variables_expr with
-      | Some e -> (
+      | Some (e, (_params, ty)) -> (
           match e with
-          | Ast.RecLambda _ -> failwith "not implemented yet"
-          | _ -> check_check_arrow state (ty_in, ty_out) e )
+          | Ast.RecLambda _ ->
+              failwith "not implemented yet"
+              (*we should do something to prevent infinite recursion*)
+          | _ -> (
+              match ty with
+              | Ast.TyArrow (ty_in', ty_out') ->
+                  check_subtype state ty_in ty_in';
+                  check_subtype state ty_out' ty_out;
+                  check_check_arrow state (ty_in, ty_out) e
+              | _ -> Error.typing "Expected arrow type." ) )
       | None -> (
           (* This is here because i dont know how to save expresions of build in functions into state. Its ugly and should be fixed*)
           match Ast.VariableMap.find_opt x state.variables_ty with
@@ -367,7 +394,7 @@ and check_check_arrow state (ty_in, ty_out) = function
                 (Ast.print_ty print_param ty_in)
           | None -> Error.typing "Unknown variable" ) )
   | Ast.Lambda abs ->
-      let ty = check_infer_abstraction state ty_in abs in
+      let ty = check_check_abstraction state (ty_in, ty_out) abs in
       check_subtype state ty ty_out;
       ty
   | Ast.RecLambda _ -> failwith "not implemented yet"
@@ -421,7 +448,7 @@ let add_top_definition state x ty_sch expr =
   let state' = add_external_function x ty_sch state in
   {
     state' with
-    variables_expr = Ast.VariableMap.add x expr state.variables_expr;
+    variables_expr = Ast.VariableMap.add x (expr, ty_sch) state.variables_expr;
   }
 
 let add_type_definitions state ty_defs =
