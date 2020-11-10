@@ -1,3 +1,7 @@
 let (par : int -> int -> int * int) a b = (a, b)
+let (parpoly : 'c -> 'd -> 'c * 'd) a b = (a, b)
 
-run par 1
+
+run let a = par 1 in a 2
+(*run let a = par true in a 2*)
+run let a = parpoly true in a 2

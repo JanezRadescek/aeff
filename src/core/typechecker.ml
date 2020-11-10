@@ -98,8 +98,44 @@ let infer_variant state lbl =
   and ty' = Option.map (Ast.substitute_ty subst) ty in
   (ty', Ast.TyApply (ty_name, args))
 
-let check_subtype1 state ty1 ty2 =
-  unfold_type_definitions state ty1 = unfold_type_definitions state ty2
+(**replace all ty_old with ty_new in ty_poly*)
+let rec instantian_poly state ty_new ty_old ty_poly =
+  let ty_new' = unfold_type_definitions state ty_new
+  and ty_old' = unfold_type_definitions state ty_old
+  and ty_poly' = unfold_type_definitions state ty_poly in
+  match ty_poly' with
+  | Ast.TyConst _ as tyc -> tyc
+  | Ast.TyParam _ as typ ->
+      if unfold_type_definitions state typ = ty_old' then ty_new' else ty_old'
+  | Ast.TyApply (_ty_name, _tys) -> failwith "Not implemented yet."
+  | Ast.TyTuple tys ->
+      Ast.TyTuple (List.map (instantian_poly state ty_new ty_old) tys)
+  | Ast.TyArrow (ty_in, ty_out) ->
+      Ast.TyArrow
+        ( instantian_poly state ty_new ty_old ty_in,
+          instantian_poly state ty_new ty_old ty_out )
+  | Ast.TyPromise ty -> Ast.TyPromise (instantian_poly state ty_new ty_old ty)
+  | Ast.TyReference ty ->
+      Ast.TyReference (instantian_poly state ty_new ty_old ty)
+
+let rec check_subtype1 state ty1 ty2 =
+  let ty11 = unfold_type_definitions state ty1
+  and ty22 = unfold_type_definitions state ty2 in
+  match (ty11, ty22) with
+  | Ast.TyConst c1, Ast.TyConst c2 -> c1 == c2
+  | Ast.TyApply (_name1, _tys1), Ast.TyApply (_name2, _tys2) ->
+      failwith "Not implemented yet."
+  | _, Ast.TyParam _ -> true
+  | Ast.TyArrow (in1, out1), Ast.TyArrow (in2, out2) ->
+      check_subtype1 state in1 in2 && check_subtype1 state out1 out2
+  | Ast.TyTuple tys1, Ast.TyTuple tys2 when List.length tys1 = List.length tys2
+    ->
+      let fold' result ty1' ty2' = result && check_subtype1 state ty1' ty2' in
+      List.fold_left2 fold' true tys1 tys2
+  | Ast.TyPromise t1, Ast.TyPromise t2 | Ast.TyReference t1, Ast.TyReference t2
+    ->
+      check_subtype1 state t1 t2
+  | _ -> false
 
 let check_equaltype1 state ty1 ty2 =
   unfold_type_definitions state ty1 = unfold_type_definitions state ty2
@@ -112,8 +148,11 @@ let check_subtype state ty1 ty2 =
       (Ast.print_ty print_param ty2)
 
 (**takes types ty1 and ty2 and returns the smallest ty3 such that subtype1 state ty1 ty3 && subtype1 state ty2 ty3 == true*)
-let calculate_super_type _state _ty1 _ty2 =
-  failwith "Super_type is not implemented yet."
+let calculate_super_type state ty1 ty2 =
+  if check_equaltype1 state ty1 ty2 then ty1
+  else
+    failwith
+      "Super_type is not implemented yet, because we dont have subtypes yet."
 
 let rec check_pattern state patter_type = function
   | Ast.PVar x -> [ (x, patter_type) ]
@@ -241,10 +280,9 @@ and infer_computation state = function
       let ty_app = check_infer_arrow state ty_arg e1 in
       ty_app
   | Ast.Out (op, e, comp) | Ast.In (op, e, comp) ->
-      let ty_op = Ast.OperationMap.find op state.operations
-      and ty_e = infer_expression state e
+      let ty_op = Ast.OperationMap.find op state.operations in
+      let _ = check_expression state ty_op e
       and ty_comp = infer_computation state comp in
-      check_subtype state ty_e ty_op;
       ty_comp
   | Ast.Await (e, abs) -> (
       let ty_promise = infer_expression state e in
@@ -294,15 +332,15 @@ and check_computation state annotation = function
       | _ -> Error.typing "Expected Promise" )
   | Ast.Match (_e, []) -> Error.typing "Canot check match without cases."
   | Ast.Match (e, case :: cases) ->
-      let ty1 = infer_expression state e in
-      let ty2 = check_check_abstraction state (ty1, annotation) case in
+      let ty_e = infer_expression state e in
+      let ty1 = check_check_abstraction state (ty_e, annotation) case in
       let fold' ty' case' =
         let ty_current =
-          check_check_abstraction state (ty1, annotation) case'
+          check_check_abstraction state (ty_e, annotation) case'
         in
         calculate_super_type state ty' ty_current
       in
-      List.fold_left fold' ty2 cases
+      List.fold_left fold' ty1 cases
   | Ast.Handler (op, abs, p, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations in
       let ty2 = check_infer_abstraction state ty1 abs in
@@ -319,13 +357,17 @@ and check_infer_arrow state ty_arg = function
   | Ast.Var x -> (
       match Ast.VariableMap.find_opt x state.variables_expr with
       | Some (e, (_params, ty)) ->
+          (* This are top variables*)
           check_infer_arrow state ty_arg (Ast.Annotated (e, ty))
       | None -> (
-          (* This is here because i dont know how to save expresions of build in functions into state. Its ugly and should be fixed*)
+          (* All other variables including build in functions for now.*)
           match Ast.VariableMap.find_opt x state.variables_ty with
           | Some ([], Ast.TyArrow (ty_in, ty_out))
             when check_equaltype1 state ty_arg ty_in ->
               ty_out
+          | Some ([], Ast.TyArrow (ty_in, ty_out))
+            when check_subtype1 state ty_arg ty_in ->
+              instantian_poly state ty_arg ty_in ty_out
           | Some ([], wrong_ty) ->
               let print_param = Ast.new_print_param () in
               Error.typing
@@ -359,17 +401,12 @@ and check_check_arrow state (ty_in, ty_out) = function
   | Ast.Var x -> (
       match Ast.VariableMap.find_opt x state.variables_expr with
       | Some (e, (_params, ty)) -> (
-          match e with
-          | Ast.RecLambda _ ->
-              failwith "not implemented yet"
-              (*we should do something to prevent infinite recursion*)
-          | _ -> (
-              match ty with
-              | Ast.TyArrow (ty_in', ty_out') ->
-                  check_subtype state ty_in ty_in';
-                  check_subtype state ty_out' ty_out;
-                  check_check_arrow state (ty_in, ty_out) e
-              | _ -> Error.typing "Expected arrow type." ) )
+          match ty with
+          | Ast.TyArrow (ty_in', ty_out') ->
+              check_subtype state ty_in ty_in';
+              check_subtype state ty_out' ty_out;
+              check_check_arrow state (ty_in, ty_out) e
+          | _ -> Error.typing "Expected arrow type." )
       | None -> (
           (* This is here because i dont know how to save expresions of build in functions into state. Its ugly and should be fixed*)
           match Ast.VariableMap.find_opt x state.variables_ty with
@@ -397,7 +434,9 @@ and check_check_arrow state (ty_in, ty_out) = function
       let ty = check_check_abstraction state (ty_in, ty_out) abs in
       check_subtype state ty ty_out;
       ty
-  | Ast.RecLambda _ -> failwith "not implemented yet"
+  | Ast.RecLambda _ ->
+      failwith "not implemented yet"
+      (* We cant use the same idea as in lambda. we should do something to prevent infinite recursion.*)
   | _ -> Error.typing "Expected arrow type."
 
 and check_infer_abstraction state ty_argument (pat, comp) =
