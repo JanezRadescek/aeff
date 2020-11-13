@@ -131,7 +131,8 @@ let rec instantian_poly state ty_new ty_old ty_poly =
   | Ast.TyConst _ as tyc -> tyc
   | Ast.TyParam _ as typ ->
       if unfold_type_definitions state typ = ty_old' then ty_new' else ty_old'
-  | Ast.TyApply (_ty_name, _tys) -> failwith "Not implemented yet."
+  | Ast.TyApply (name, tys) ->
+      Ast.TyApply (name, List.map (instantian_poly state ty_new ty_old) tys)
   | Ast.TyTuple tys ->
       Ast.TyTuple (List.map (instantian_poly state ty_new ty_old) tys)
   | Ast.TyArrow (ty_in, ty_out) ->
@@ -147,8 +148,10 @@ let rec check_subtype1 state ty1 ty2 =
   and ty22 = unfold_type_definitions state ty2 in
   match (ty11, ty22) with
   | Ast.TyConst c1, Ast.TyConst c2 -> c1 == c2
-  | Ast.TyApply (_name1, _tys1), Ast.TyApply (_name2, _tys2) ->
-      failwith "Not implemented yet."
+  | Ast.TyApply (name1, tys1), Ast.TyApply (name2, tys2)
+    when name1 = name2 && List.length tys1 = List.length tys2 ->
+      let fold' result ty1' ty2' = result && check_subtype1 state ty1' ty2' in
+      List.fold_left2 fold' true tys1 tys2
   | _, Ast.TyParam _ -> true
   | Ast.TyArrow (in1, out1), Ast.TyArrow (in2, out2) ->
       check_subtype1 state in1 in2 && check_subtype1 state out1 out2
