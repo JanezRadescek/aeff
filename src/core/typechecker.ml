@@ -359,32 +359,9 @@ and check_infer_arrow state ty_arg = function
       | Some (e, (_params, ty)) ->
           (* This are top variables*)
           check_infer_arrow state ty_arg (Ast.Annotated (e, ty))
-      | None -> (
+      | None ->
           (* All other variables including build in functions for now.*)
-          match Ast.VariableMap.find_opt x state.variables_ty with
-          | Some ([], Ast.TyArrow (ty_in, ty_out))
-            when check_equaltype1 state ty_arg ty_in ->
-              ty_out
-          | Some ([], Ast.TyArrow (ty_in, ty_out))
-            when check_subtype1 state ty_arg ty_in ->
-              instantian_poly state ty_arg ty_in ty_out
-          | Some ([], wrong_ty) ->
-              let print_param = Ast.new_print_param () in
-              Error.typing
-                "Cannot apply %t of type %t to an argument of type %t"
-                (Ast.print_expression (Ast.Var x))
-                (Ast.print_ty print_param wrong_ty)
-                (Ast.print_ty print_param ty_arg)
-          | Some (_params, wrong_ty) ->
-              let print_param = Ast.new_print_param () in
-              Error.typing
-                "Cannot apply %t of type %t to an argument of type %t, because \
-                 it is polymorphic with params but we dont have the body to \
-                 instantiate."
-                (Ast.print_expression (Ast.Var x))
-                (Ast.print_ty print_param wrong_ty)
-                (Ast.print_ty print_param ty_arg)
-          | None -> Error.typing "Unknown variable" ) )
+          inst_var state ty_arg x )
   | (Ast.Lambda _ | Ast.RecLambda _) as e ->
       Error.typing "Arrow : Function %t must be annotated"
         (Ast.print_expression e)
@@ -407,29 +384,7 @@ and check_check_arrow state (ty_in, ty_out) = function
               check_subtype state ty_out' ty_out;
               check_check_arrow state (ty_in, ty_out) e
           | _ -> Error.typing "Expected arrow type." )
-      | None -> (
-          (* This is here because i dont know how to save expresions of build in functions into state. Its ugly and should be fixed*)
-          match Ast.VariableMap.find_opt x state.variables_ty with
-          | Some ([], Ast.TyArrow (ty_in', ty_out'))
-            when check_equaltype1 state ty_in ty_in' ->
-              ty_out'
-          | Some ([], wrong_ty) ->
-              let print_param = Ast.new_print_param () in
-              Error.typing
-                "Cannot apply %t of type %t to an argument of type %t"
-                (Ast.print_expression (Ast.Var x))
-                (Ast.print_ty print_param wrong_ty)
-                (Ast.print_ty print_param ty_in)
-          | Some (_params, wrong_ty) ->
-              let print_param = Ast.new_print_param () in
-              Error.typing
-                "Cannot apply %t of type %t to an argument of type %t, because \
-                 it is polymorphic with params but we dont have the body to \
-                 instantiate."
-                (Ast.print_expression (Ast.Var x))
-                (Ast.print_ty print_param wrong_ty)
-                (Ast.print_ty print_param ty_in)
-          | None -> Error.typing "Unknown variable" ) )
+      | None -> inst_var state ty_in x )
   | Ast.Lambda abs ->
       let ty = check_check_abstraction state (ty_in, ty_out) abs in
       check_subtype state ty ty_out;
@@ -438,6 +393,30 @@ and check_check_arrow state (ty_in, ty_out) = function
       failwith "not implemented yet"
       (* We cant use the same idea as in lambda. we should do something to prevent infinite recursion.*)
   | _ -> Error.typing "Expected arrow type."
+
+and inst_var state ty_arg x =
+  match Ast.VariableMap.find_opt x state.variables_ty with
+  | Some ([], Ast.TyArrow (ty_in, ty_out))
+    when check_equaltype1 state ty_arg ty_in ->
+      ty_out
+  | Some ([], Ast.TyArrow (ty_in, ty_out))
+    when check_subtype1 state ty_arg ty_in ->
+      instantian_poly state ty_arg ty_in ty_out
+  | Some ([], wrong_ty) ->
+      let print_param = Ast.new_print_param () in
+      Error.typing "Cannot apply %t of type %t to an argument of type %t"
+        (Ast.print_expression (Ast.Var x))
+        (Ast.print_ty print_param wrong_ty)
+        (Ast.print_ty print_param ty_arg)
+  | Some (_params, wrong_ty) ->
+      let print_param = Ast.new_print_param () in
+      Error.typing
+        "Cannot apply %t of type %t to an argument of type %t, because it is \
+         polymorphic with params but we dont have the body to instantiate."
+        (Ast.print_expression (Ast.Var x))
+        (Ast.print_ty print_param wrong_ty)
+        (Ast.print_ty print_param ty_arg)
+  | None -> Error.typing "Unknown variable"
 
 and check_infer_abstraction state ty_argument (pat, comp) =
   let vars = check_pattern state ty_argument pat in
