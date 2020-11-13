@@ -1,6 +1,8 @@
-let a = [1;2;3]
+let (a: int list) = [1;2]
 
 run [1;2;3]
 run []
 run [[1;2]]
 run [1]
+
+run a

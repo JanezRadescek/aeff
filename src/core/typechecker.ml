@@ -164,6 +164,33 @@ let rec check_subtype1 state ty1 ty2 =
       check_subtype1 state t1 t2
   | _ -> false
 
+let rec check_subtype2 state ty1 ty2 =
+  let ty11 = unfold_type_definitions state ty1
+  and ty22 = unfold_type_definitions state ty2 in
+  let fold' result ty1' ty2' =
+    match (check_subtype2 state ty1' ty2', result) with
+    | Some r, Some rs -> Some (r @ rs)
+    | _ -> None
+  in
+  match (ty11, ty22) with
+  | Ast.TyConst c1, Ast.TyConst c2 when c1 = c2 -> Some []
+  | Ast.TyApply (name1, tys1), Ast.TyApply (name2, tys2)
+    when name1 = name2 && List.length tys1 = List.length tys2 ->
+      List.fold_left2 fold' (Some []) tys1 tys2
+  | Ast.TyParam _, Ast.TyParam _ -> Some []
+  | ty, (Ast.TyParam _ as p) -> Some [ (ty, p) ]
+  | Ast.TyArrow (in1, out1), Ast.TyArrow (in2, out2) -> (
+      match (check_subtype2 state in1 in2, check_subtype2 state out1 out2) with
+      | Some r1, Some r2 -> Some (r1 @ r2)
+      | _ -> None )
+  | Ast.TyTuple tys1, Ast.TyTuple tys2 when List.length tys1 = List.length tys2
+    ->
+      List.fold_left2 fold' (Some []) tys1 tys2
+  | Ast.TyPromise t1, Ast.TyPromise t2 | Ast.TyReference t1, Ast.TyReference t2
+    ->
+      check_subtype2 state t1 t2
+  | _ -> None
+
 let check_equaltype1 state ty1 ty2 =
   unfold_type_definitions state ty1 = unfold_type_definitions state ty2
 
@@ -244,10 +271,22 @@ let rec infer_expression state = function
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, e) with
       | None, None -> ty_out
-      | Some ty_in, Some expr ->
-          let ty = infer_expression state expr in
-          check_subtype state ty ty_in;
-          ty_out
+      | Some ty_in', Some expr ->
+          let ty_e = infer_expression state expr in
+          check_subtype state ty_e ty_in';
+          let fold' ty_out' (ty_new, ty_old) =
+            instantian_poly state ty_new ty_old ty_out'
+          in
+          let ty_out'' =
+            match check_subtype2 state ty_e ty_in' with
+            | Some sez -> List.fold_left fold' ty_out sez
+            | None ->
+                let print_param = Ast.new_print_param () in
+                Error.typing "%t does not match %t"
+                  (Ast.print_ty print_param ty_e)
+                  (Ast.print_ty print_param ty_in')
+          in
+          ty_out''
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
 
@@ -282,10 +321,18 @@ and check_expression state annotation = function
       | None, None ->
           check_subtype state ty_out annotation;
           ty_out
-      | Some ty_in, Some expr ->
-          check_subtype state ty_out annotation;
-          let _ = check_expression state ty_in expr in
-          ty_out
+      | Some ty_in', Some expr ->
+          let ty_e = check_expression state ty_in' expr in
+          let fold' ty_out' (ty_n, ty_o) =
+            instantian_poly state ty_n ty_o ty_out'
+          in
+          let ty_out'' =
+            match check_subtype2 state ty_e ty_in' with
+            | Some sez -> List.fold_left fold' ty_out sez
+            | None -> ty_out
+          in
+          check_subtype state ty_out'' annotation;
+          ty_out''
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
   | (Ast.Var _ | Ast.Const _ | Ast.Annotated _) as e ->
@@ -462,7 +509,7 @@ let check_polymorphic_expression state (_params, ty) expr =
   (* Zakaj? Ko poly funkcijo dodamo je vredu.
      Edini problem (ki ga jaz vidim) lahko nastane v apply. Recimo, ko uporabimo id a->a na 5 in dobimo, da ima id 5 = 5 tip a kar pa ni res.
      Kar je pa (mislim da)enostavno popraviti v apply. *)
-  let _expr = check_expression state ty expr in
+  let _ = check_expression state ty expr in
   ()
 
 let add_external_function x ty_sch state =
