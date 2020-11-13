@@ -401,8 +401,7 @@ and check_check_arrow state (ty_in, ty_out) = function
       let params = free_params_in_ty ty_out in
       match params with
       | [] -> check_check_abstraction state (ty_in, ty_out) abs
-      | _ :: _ -> Error.typing "Poly functions must be defined in top let."
-      )
+      | _ :: _ -> Error.typing "Poly functions must be defined in top let." )
   | Ast.RecLambda (f, abs) -> (
       (* We only allow poly function in toplet*)
       let params = free_params_in_ty ty_out in

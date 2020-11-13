@@ -1,10 +1,24 @@
 let (par : int -> int -> int * int) a b = (a, b)
+let rec (recpar : int -> int -> int * int) a b = (a, b)
+
 let (parpoly : 'c -> 'd -> 'c * 'd) a b = (a, b)
-(* let rec (recpar : int -> int -> int * int) a b = (a, b) *)
+let rec (recparpoly : 'c -> 'd -> 'c * 'd) a b = (a, b)
+
+let rec (fib : int -> int) n = 
+    match n with 
+        0 |-> 1 
+        1 |-> 1
+        x |-> (fib (x-1) + fib (x-2) )
 
 
 run let a = par 1 in a 2
-(*run let a = par true in a 2*)
+run par 1
 
-run parpoly true
+run let a = recpar 1 in a 2
+run recpar 1
+
 run let a = parpoly true in a 2
+run parpoly true
+
+run let a = recparpoly true in a 2
+run recparpoly true

@@ -383,11 +383,10 @@ let desugar_command state = function
   | Syntax.TopDo term ->
       let comp = desugar_computation state term in
       (state, Ast.TopDo comp)
-  | Syntax.TopLetRec (_f, _ty, _term) ->
-      failwith "Not yet implemented"
-      (* let state', ty_sch = desugar_ty_scheme state ty in
-         let state'', f, expr = desugar_let_rec_def state' (f, term) in
-         (state'', Ast.TopLet (f, expr)) *)
+  | Syntax.TopLetRec (f, ty, term) ->
+      let state', ty_sch = desugar_ty_scheme state ty in
+      let state'', f', expr = desugar_let_rec_def state' (f, term) in
+      (state'', Ast.TopLet (f', ty_sch, expr))
   | Syntax.Operation (op, ty) ->
       let op', state' = add_operation state op in
       let ty' = desugar_ty state ty in
