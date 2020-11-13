@@ -2,7 +2,6 @@ open Utils
 
 type state = {
   variables_ty : Ast.ty_scheme Ast.VariableMap.t;
-  variables_expr : (Ast.expression * Ast.ty_scheme) Ast.VariableMap.t;
   operations : Ast.ty Ast.OperationMap.t;
   type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
 }
@@ -10,7 +9,6 @@ type state = {
 let initial_state =
   {
     variables_ty = Ast.VariableMap.empty;
-    variables_expr = Ast.VariableMap.empty;
     operations = Ast.OperationMap.empty;
     type_definitions =
       ( Ast.TyNameMap.empty
@@ -64,6 +62,32 @@ let rec unfold_type_definitions state ty =
         (unfold_type_definitions state ty1, unfold_type_definitions state ty2)
   | Ast.TyPromise ty -> Ast.TyPromise (unfold_type_definitions state ty)
   | Ast.TyReference ty -> Ast.TyReference (unfold_type_definitions state ty)
+
+let rec free_params_in_ty ty =
+  let fold sez ty = free_params_in_ty ty @ sez in
+  let rec remove_dup = function
+    | [] -> []
+    | x :: xs ->
+        let xs' = remove_dup xs in
+        if List.mem x xs' then xs else x :: xs'
+  in
+  let result =
+    match ty with
+    | Ast.TyApply (_y_name, tys) ->
+        let free_params = List.fold_left fold [] tys in
+        free_params
+    | Ast.TyParam ty_param -> [ ty_param ]
+    | Ast.TyArrow (ty1, ty2) ->
+        let free_params1 = free_params_in_ty ty1 in
+        let free_params2 = free_params_in_ty ty2 in
+        free_params1 @ free_params2
+    | Ast.TyTuple tys ->
+        let free_params = List.fold_left fold [] tys in
+        free_params
+    | Ast.TyConst _c -> []
+    | Ast.TyReference ty | Ast.TyPromise ty -> free_params_in_ty ty
+  in
+  remove_dup result
 
 let extend_variables state vars =
   List.fold_left
@@ -354,14 +378,7 @@ and check_infer_arrow state ty_arg = function
           check_subtype state ty_arg ty_in;
           check_check_arrow state (ty_arg, ty_out) e
       | _ -> Error.typing "Expected arrow type." )
-  | Ast.Var x -> (
-      match Ast.VariableMap.find_opt x state.variables_expr with
-      | Some (e, (_params, ty)) ->
-          (* This are top variables*)
-          check_infer_arrow state ty_arg (Ast.Annotated (e, ty))
-      | None ->
-          (* All other variables including build in functions for now.*)
-          inst_var state ty_arg x )
+  | Ast.Var x -> greedy_inst_var state ty_arg x
   | (Ast.Lambda _ | Ast.RecLambda _) as e ->
       Error.typing "Arrow : Function %t must be annotated"
         (Ast.print_expression e)
@@ -375,44 +392,39 @@ and check_check_arrow state (ty_in, ty_out) = function
           check_subtype state ty_out' ty_out;
           check_check_arrow state (ty_in, ty_out) e
       | _ -> Error.typing "Expected arrow type." )
-  | Ast.Var x -> (
-      match Ast.VariableMap.find_opt x state.variables_expr with
-      | Some (e, (_params, ty)) -> (
-          match ty with
-          | Ast.TyArrow (ty_in', ty_out') ->
-              check_subtype state ty_in ty_in';
-              check_subtype state ty_out' ty_out;
-              check_check_arrow state (ty_in, ty_out) e
-          | _ -> Error.typing "Expected arrow type." )
-      | None -> inst_var state ty_in x )
-  | Ast.Lambda abs ->
-      let ty = check_check_abstraction state (ty_in, ty_out) abs in
+  | Ast.Var x ->
+      let ty = greedy_inst_var state ty_in x in
       check_subtype state ty ty_out;
       ty
-  | Ast.RecLambda _ ->
-      failwith "not implemented yet"
-      (* We cant use the same idea as in lambda. we should do something to prevent infinite recursion.*)
+  | Ast.Lambda abs -> (
+      (* We only allow poly function in toplet*)
+      let params = free_params_in_ty ty_out in
+      match params with
+      | [] -> check_check_abstraction state (ty_in, ty_out) abs
+      | _ :: _ -> Error.typing "Poly functions must be defined in top let."
+      )
+  | Ast.RecLambda (f, abs) -> (
+      (* We only allow poly function in toplet*)
+      let params = free_params_in_ty ty_out in
+      match params with
+      | [] ->
+          let state' = extend_variables state [ (f, ty_out) ] in
+          check_check_abstraction state' (ty_in, ty_out) abs
+      | _ :: _ -> Error.typing "Poly rec functions must be defined in top let."
+      )
   | _ -> Error.typing "Expected arrow type."
 
-and inst_var state ty_arg x =
+and greedy_inst_var state ty_arg x =
   match Ast.VariableMap.find_opt x state.variables_ty with
-  | Some ([], Ast.TyArrow (ty_in, ty_out))
+  | Some (_, Ast.TyArrow (ty_in, ty_out))
     when check_equaltype1 state ty_arg ty_in ->
       ty_out
-  | Some ([], Ast.TyArrow (ty_in, ty_out))
-    when check_subtype1 state ty_arg ty_in ->
+  | Some (_, Ast.TyArrow (ty_in, ty_out)) when check_subtype1 state ty_arg ty_in
+    ->
       instantian_poly state ty_arg ty_in ty_out
-  | Some ([], wrong_ty) ->
+  | Some (_, wrong_ty) ->
       let print_param = Ast.new_print_param () in
       Error.typing "Cannot apply %t of type %t to an argument of type %t"
-        (Ast.print_expression (Ast.Var x))
-        (Ast.print_ty print_param wrong_ty)
-        (Ast.print_ty print_param ty_arg)
-  | Some (_params, wrong_ty) ->
-      let print_param = Ast.new_print_param () in
-      Error.typing
-        "Cannot apply %t of type %t to an argument of type %t, because it is \
-         polymorphic with params but we dont have the body to instantiate."
         (Ast.print_expression (Ast.Var x))
         (Ast.print_ty print_param wrong_ty)
         (Ast.print_ty print_param ty_arg)
@@ -464,10 +476,7 @@ let add_operation state op ty =
 let add_top_definition state x ty_sch expr =
   check_polymorphic_expression state ty_sch expr;
   let state' = add_external_function x ty_sch state in
-  {
-    state' with
-    variables_expr = Ast.VariableMap.add x (expr, ty_sch) state.variables_expr;
-  }
+  state'
 
 let add_type_definitions state ty_defs =
   List.fold_left
