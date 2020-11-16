@@ -164,33 +164,6 @@ let rec check_subtype1 state ty1 ty2 =
       check_subtype1 state t1 t2
   | _ -> false
 
-let rec check_subtype2 state ty1 ty2 =
-  let ty11 = unfold_type_definitions state ty1
-  and ty22 = unfold_type_definitions state ty2 in
-  let fold' result ty1' ty2' =
-    match (check_subtype2 state ty1' ty2', result) with
-    | Some r, Some rs -> Some (r @ rs)
-    | _ -> None
-  in
-  match (ty11, ty22) with
-  | Ast.TyConst c1, Ast.TyConst c2 when c1 = c2 -> Some []
-  | Ast.TyApply (name1, tys1), Ast.TyApply (name2, tys2)
-    when name1 = name2 && List.length tys1 = List.length tys2 ->
-      List.fold_left2 fold' (Some []) tys1 tys2
-  | Ast.TyParam _, Ast.TyParam _ -> Some []
-  | ty, (Ast.TyParam _ as p) -> Some [ (ty, p) ]
-  | Ast.TyArrow (in1, out1), Ast.TyArrow (in2, out2) -> (
-      match (check_subtype2 state in1 in2, check_subtype2 state out1 out2) with
-      | Some r1, Some r2 -> Some (r1 @ r2)
-      | _ -> None )
-  | Ast.TyTuple tys1, Ast.TyTuple tys2 when List.length tys1 = List.length tys2
-    ->
-      List.fold_left2 fold' (Some []) tys1 tys2
-  | Ast.TyPromise t1, Ast.TyPromise t2 | Ast.TyReference t1, Ast.TyReference t2
-    ->
-      check_subtype2 state t1 t2
-  | _ -> None
-
 let check_equaltype1 state ty1 ty2 =
   unfold_type_definitions state ty1 = unfold_type_definitions state ty2
 
@@ -200,6 +173,34 @@ let check_subtype state ty1 ty2 =
     Error.typing "%t does not match %t"
       (Ast.print_ty print_param ty1)
       (Ast.print_ty print_param ty2)
+
+      let rec find_differences state ty1 ty2 =
+        check_subtype state ty1 ty2; 
+        let ty11 = unfold_type_definitions state ty1
+        and ty22 = unfold_type_definitions state ty2 in
+        let fold' result ty1' ty2' =
+          match (find_differences state ty1' ty2', result) with
+          | Some r, Some rs -> Some (r @ rs)
+          | _ -> None
+        in
+        match (ty11, ty22) with
+        | Ast.TyConst c1, Ast.TyConst c2 when c1 = c2 -> Some []
+        | Ast.TyApply (name1, tys1), Ast.TyApply (name2, tys2)
+          when name1 = name2 && List.length tys1 = List.length tys2 ->
+            List.fold_left2 fold' (Some []) tys1 tys2
+        | Ast.TyParam _, Ast.TyParam _ -> Some []
+        | ty, (Ast.TyParam _ as p) -> Some [ (ty, p) ]
+        | Ast.TyArrow (in1, out1), Ast.TyArrow (in2, out2) -> (
+            match (find_differences state in1 in2, find_differences state out1 out2) with
+            | Some r1, Some r2 -> Some (r1 @ r2)
+            | _ -> None )
+        | Ast.TyTuple tys1, Ast.TyTuple tys2 when List.length tys1 = List.length tys2
+          ->
+            List.fold_left2 fold' (Some []) tys1 tys2
+        | Ast.TyPromise t1, Ast.TyPromise t2 | Ast.TyReference t1, Ast.TyReference t2
+          ->
+            find_differences state t1 t2
+        | _ -> None
 
 (**takes types ty1 and ty2 and returns the smallest ty3 such that subtype1 state ty1 ty3 && subtype1 state ty2 ty3 == true*)
 let calculate_super_type state ty1 ty2 =
@@ -278,7 +279,7 @@ let rec infer_expression state = function
             instantian_poly state ty_new ty_old ty_out'
           in
           let ty_out'' =
-            match check_subtype2 state ty_e ty_in' with
+            match find_differences state ty_e ty_in' with
             | Some sez -> List.fold_left fold' ty_out sez
             | None ->
                 let print_param = Ast.new_print_param () in
@@ -327,7 +328,7 @@ and check_expression state annotation = function
             instantian_poly state ty_n ty_o ty_out'
           in
           let ty_out'' =
-            match check_subtype2 state ty_e ty_in' with
+            match find_differences state ty_e ty_in' with
             | Some sez -> List.fold_left fold' ty_out sez
             | None -> ty_out
           in
