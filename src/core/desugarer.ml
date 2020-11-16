@@ -212,7 +212,6 @@ and desugar_plain_computation ~loc state =
       let c2 = desugar_computation state t2 in
       (binds1, if_then_else e1 c1 c2)
   | S.Apply (t1, t2) ->
-      (*TODO !!! user might be lazy and didnt write down type of e1. As such we should check if he has and i case he didnt we should try to calculate it for him.*)
       let binds1, e1 = desugar_expression state t1 in
       let binds2, e2 = desugar_expression state t2 in
       (binds1 @ binds2, Ast.Apply (e1, e2))
