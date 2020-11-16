@@ -147,7 +147,7 @@ let rec check_subtype1 state ty1 ty2 =
   let ty11 = unfold_type_definitions state ty1
   and ty22 = unfold_type_definitions state ty2 in
   match (ty11, ty22) with
-  | Ast.TyConst c1, Ast.TyConst c2 -> c1 == c2
+  | Ast.TyConst c1, Ast.TyConst c2 -> c1 = c2
   | Ast.TyApply (name1, tys1), Ast.TyApply (name2, tys2)
     when name1 = name2 && List.length tys1 = List.length tys2 ->
       let fold' result ty1' ty2' = result && check_subtype1 state ty1' ty2' in
@@ -164,45 +164,110 @@ let rec check_subtype1 state ty1 ty2 =
       check_subtype1 state t1 t2
   | _ -> false
 
+let rec check_subtype2 state ty1 ty2 =
+  let ty11 = unfold_type_definitions state ty1
+  and ty22 = unfold_type_definitions state ty2 in
+  match ty22 with
+  | Ast.TyConst c2 -> (
+      match ty11 with Ast.TyConst c1 -> (c1 = c2, []) | _ -> (false, []) )
+  | Ast.TyApply (name2, tys2) -> (
+      match ty11 with
+      | Ast.TyApply (name1, tys1)
+        when name1 = name2 && List.length tys1 = List.length tys2 ->
+          let fold' (resultBool, resultArray) ty1' ty2' =
+            let resultBool1, resultArray1 = check_subtype2 state ty1' ty2' in
+            (resultBool && resultBool1, resultArray1 @ resultArray)
+          in
+          List.fold_left2 fold' (true, []) tys1 tys2
+      | _ -> (false, []) )
+  | Ast.TyTuple tys2 -> (
+      match ty11 with
+      | Ast.TyTuple tys1 when List.length tys1 = List.length tys2 ->
+          let fold' (resultBool, resultArray) ty1' ty2' =
+            let resultBool1, resultArray1 = check_subtype2 state ty1' ty2' in
+            (resultBool && resultBool1, resultArray1 @ resultArray)
+          in
+          List.fold_left2 fold' (true, []) tys1 tys2
+      | _ -> (false, []) )
+  | Ast.TyParam _ -> (true, [ (ty22, ty11) ])
+  | Ast.TyArrow (in2, out2) -> (
+      match ty11 with
+      | Ast.TyArrow (in1, out1) ->
+          let resultBool1, resultArray1 = check_subtype2 state in1 in2 in
+          let resultBool2, resultArray2 = check_subtype2 state out1 out2 in
+          (resultBool1 && resultBool2, resultArray1 @ resultArray2)
+      | _ -> (false, []) )
+  | Ast.TyPromise t2 -> (
+      match ty11 with
+      | Ast.TyPromise t1 -> check_subtype2 state t1 t2
+      | _ -> (false, []) )
+  | Ast.TyReference t2 -> (
+      match ty11 with
+      | Ast.TyReference t1 -> check_subtype2 state t1 t2
+      | _ -> (false, []) )
+
+and check_subtype3 state ty1 ty2 =
+  match check_subtype2 state ty1 ty2 with
+  | false, _ -> false
+  | true, eqs -> solve state eqs
+
+and solve state = function
+  | [] -> true
+  | (ty1, ty2) :: eqs -> (
+      match List.assoc_opt ty1 eqs with
+      | Some ty2' -> (
+          match (ty2, ty2') with
+          | Ast.TyParam p1, Ast.TyParam p2 when p1 = p2 -> solve state eqs
+          | Ast.TyParam _, _ | _, Ast.TyParam _ -> false
+          | _ ->
+              if check_subtype3 state ty2 ty2' then solve state eqs
+              else if check_subtype3 state ty2' ty2 then
+                solve state (eqs @ [ (ty1, ty2) ])
+              else false )
+      | None -> solve state eqs )
+
 let check_equaltype1 state ty1 ty2 =
   unfold_type_definitions state ty1 = unfold_type_definitions state ty2
 
 let check_subtype state ty1 ty2 =
-  if not (check_subtype1 state ty1 ty2) then
+  if not (check_subtype3 state ty1 ty2) then
     let print_param = Ast.new_print_param () in
-    Error.typing "%t does not match %t"
+    Error.typing "%t is not subtype of %t"
       (Ast.print_ty print_param ty1)
       (Ast.print_ty print_param ty2)
 
-      let rec find_differences state ty1 ty2 =
-        check_subtype state ty1 ty2; 
-        let ty11 = unfold_type_definitions state ty1
-        and ty22 = unfold_type_definitions state ty2 in
-        let fold' result ty1' ty2' =
-          match (find_differences state ty1' ty2', result) with
-          | Some r, Some rs -> Some (r @ rs)
-          | _ -> None
-        in
-        match (ty11, ty22) with
-        | Ast.TyConst c1, Ast.TyConst c2 when c1 = c2 -> Some []
-        | Ast.TyApply (name1, tys1), Ast.TyApply (name2, tys2)
-          when name1 = name2 && List.length tys1 = List.length tys2 ->
-            List.fold_left2 fold' (Some []) tys1 tys2
-        | Ast.TyParam _, Ast.TyParam _ -> Some []
-        | ty, (Ast.TyParam _ as p) -> Some [ (ty, p) ]
-        | Ast.TyArrow (in1, out1), Ast.TyArrow (in2, out2) -> (
-            match (find_differences state in1 in2, find_differences state out1 out2) with
-            | Some r1, Some r2 -> Some (r1 @ r2)
-            | _ -> None )
-        | Ast.TyTuple tys1, Ast.TyTuple tys2 when List.length tys1 = List.length tys2
-          ->
-            List.fold_left2 fold' (Some []) tys1 tys2
-        | Ast.TyPromise t1, Ast.TyPromise t2 | Ast.TyReference t1, Ast.TyReference t2
-          ->
-            find_differences state t1 t2
-        | _ -> None
+let rec find_differences state ty1 ty2 =
+  check_subtype state ty1 ty2;
+  (*This implementation depends on ty1 actually being subtype of ty2 *)
+  let ty11 = unfold_type_definitions state ty1
+  and ty22 = unfold_type_definitions state ty2 in
+  let fold' result ty1' ty2' =
+    match (find_differences state ty1' ty2', result) with
+    | Some r, Some rs -> Some (r @ rs)
+    | _ -> None
+  in
+  match (ty11, ty22) with
+  | Ast.TyConst c1, Ast.TyConst c2 when c1 = c2 -> Some []
+  | Ast.TyApply (name1, tys1), Ast.TyApply (name2, tys2)
+    when name1 = name2 && List.length tys1 = List.length tys2 ->
+      List.fold_left2 fold' (Some []) tys1 tys2
+  | Ast.TyParam _, Ast.TyParam _ -> Some []
+  | ty, (Ast.TyParam _ as p) -> Some [ (ty, p) ]
+  | Ast.TyArrow (in1, out1), Ast.TyArrow (in2, out2) -> (
+      match
+        (find_differences state in1 in2, find_differences state out1 out2)
+      with
+      | Some r1, Some r2 -> Some (r1 @ r2)
+      | _ -> None )
+  | Ast.TyTuple tys1, Ast.TyTuple tys2 when List.length tys1 = List.length tys2
+    ->
+      List.fold_left2 fold' (Some []) tys1 tys2
+  | Ast.TyPromise t1, Ast.TyPromise t2 | Ast.TyReference t1, Ast.TyReference t2
+    ->
+      find_differences state t1 t2
+  | _ -> None
 
-(**takes types ty1 and ty2 and returns the smallest ty3 such that subtype1 state ty1 ty3 && subtype1 state ty2 ty3 == true*)
+(**takes types ty1 and ty2 and returns the smallest ty3 such that subtype1 state ty1 ty3 && subtype1 state ty2 ty3 = true*)
 let calculate_super_type state ty1 ty2 =
   if check_equaltype1 state ty1 ty2 then ty1
   else
@@ -283,7 +348,7 @@ let rec infer_expression state = function
             | Some sez -> List.fold_left fold' ty_out sez
             | None ->
                 let print_param = Ast.new_print_param () in
-                Error.typing "%t does not match %t"
+                Error.typing "Variant : %t does not match %t"
                   (Ast.print_ty print_param ty_e)
                   (Ast.print_ty print_param ty_in')
           in
@@ -374,7 +439,7 @@ and infer_computation state = function
       let ty1 = check_infer_abstraction state ty_e case in
       let infer_super_type candidate case' =
         let ty_current = check_infer_abstraction state ty_e case' in
-        if check_subtype1 state ty_current candidate then candidate
+        if check_subtype3 state ty_current candidate then candidate
         else calculate_super_type state ty_current candidate
       in
       let ty_super = List.fold_left infer_super_type ty1 cases in
@@ -469,7 +534,7 @@ and greedy_inst_var state ty_arg x =
   | Some (_, Ast.TyArrow (ty_in, ty_out))
     when check_equaltype1 state ty_arg ty_in ->
       ty_out
-  | Some (_, Ast.TyArrow (ty_in, ty_out)) when check_subtype1 state ty_arg ty_in
+  | Some (_, Ast.TyArrow (ty_in, ty_out)) when check_subtype3 state ty_arg ty_in
     ->
       instantian_poly state ty_arg ty_in ty_out
   | Some (_, wrong_ty) ->
