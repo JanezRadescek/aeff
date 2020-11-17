@@ -1,8 +1,6 @@
-let a = 1
-let b x = 
-    return (x,x)
-let c () = 
-    return 3
+let (a : int) = 7
+let (b : 'a -> 'a * 'a) x = (x,x)
+let (c : unit -> int) () = 3
 
 run let c = 2 in let d = b c in (a,a) :: d :: []
 run let c = 2 in let d = b c in (a,1+1+1+1+1) :: d :: []

@@ -268,7 +268,7 @@ let rec check_pattern state patter_type = function
       check_subtype state patter_type ty;
       []
   | Ast.PNonbinding -> []
-  | Ast.PTuple pats -> (
+  | Ast.PTuple pats as p -> (
       match patter_type with
       | Ast.TyTuple patter_types
         when List.length pats = List.length patter_types ->
@@ -277,7 +277,11 @@ let rec check_pattern state patter_type = function
             vars' @ vars
           in
           List.fold_right fold (List.combine patter_types pats) []
-      | _ -> Error.typing "Expected pattern tuple" )
+      | _ ->
+          let print_param = Ast.new_print_param () in
+          Error.typing "Expected tuple. we got %t but per anno expected %t"
+            (Ast.print_pattern p)
+            (Ast.print_ty print_param patter_type) )
   | Ast.PVariant (lbl, pat) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, pat) with
