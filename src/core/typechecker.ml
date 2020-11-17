@@ -122,7 +122,7 @@ let infer_variant state lbl =
   and ty' = Option.map (Ast.substitute_ty subst) ty in
   (ty', Ast.TyApply (ty_name, args))
 
-let rec check_subtype1 state ty1 ty2 =
+(*let rec check_subtype1 state ty1 ty2 =
   let ty11 = unfold_type_definitions state ty1
   and ty22 = unfold_type_definitions state ty2 in
   match (ty11, ty22) with
@@ -141,7 +141,7 @@ let rec check_subtype1 state ty1 ty2 =
   | Ast.TyPromise t1, Ast.TyPromise t2 | Ast.TyReference t1, Ast.TyReference t2
     ->
       check_subtype1 state t1 t2
-  | _ -> false
+  | _ -> false*)
 
 let rec check_subtype2 state ty1 ty2 =
   let ty11 = unfold_type_definitions state ty1
@@ -230,30 +230,30 @@ let rec apply_substitution state subs poly_type =
         (unfold_type_definitions state par, unfold_type_definitions state ty))
       subs
   in
-  let subs'' = reduce_substitution state subs' in
+  (*let subs'' = reduce_substitution state subs' in*)
   let map' ty = apply_substitution state subs' ty in
   match poly_type' with
   | Ast.TyConst _c -> poly_type'
   | Ast.TyApply (name, tys) -> Ast.TyApply (name, List.map map' tys)
   | Ast.TyParam _p -> (
-      match List.assoc_opt poly_type' subs'' with
+      match List.assoc_opt poly_type' subs' with
       | Some ty -> ty
       | None -> poly_type' )
   | Ast.TyArrow (ty_in, ty_out) ->
       Ast.TyArrow
-        ( apply_substitution state subs'' ty_in,
-          apply_substitution state subs'' ty_out )
+        ( apply_substitution state subs' ty_in,
+          apply_substitution state subs' ty_out )
   | Ast.TyTuple tys -> Ast.TyTuple (List.map map' tys)
-  | Ast.TyPromise ty -> Ast.TyPromise (apply_substitution state subs'' ty)
-  | Ast.TyReference ty -> Ast.TyReference (apply_substitution state subs'' ty)
+  | Ast.TyPromise ty -> Ast.TyPromise (apply_substitution state subs' ty)
+  | Ast.TyReference ty -> Ast.TyReference (apply_substitution state subs' ty)
 
-and reduce_substitution state = function
+(*and reduce_substitution state = function
   | [] -> []
   | sub :: subs ->
       let subs' =
         List.map (fun (a, b) -> (a, apply_substitution state [ sub ] b)) subs
       in
-      sub :: subs'
+      sub :: subs'*)
 
 let rec check_pattern state patter_type = function
   | Ast.PVar x -> [ (x, patter_type) ]
