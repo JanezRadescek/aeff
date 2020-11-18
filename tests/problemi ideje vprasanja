@@ -1,0 +1,24 @@
+1 problem unit vs () multiple.aeff
+2 problem podpora annotated v interpreterju. 
+3 problem podpora spremenljivk addition.aeff
+4 vprašanje scope parametrov?
+5 problem če je b -> int podtip a potem je treba popravljati substitucijo. Kako preprečiti neskončne zanke a = b * c,  b = c * a ? Se to sploh lahko zgodi?
+6 vprašanje tip funkcije rec f a = f(a) ?
+7 problem tip [](ali katere druge variante)
+
+
+8 vprašanje Kaj je tip fx, če je: 1. f : cat -> cat in x : cat.  fx : cat
+                                    2. f: cat -> cat  in x : tom. fx : cat
+                                    3. f: a -> a  in x : tom. fx : tom
+                                    Problem v praksi recimo v javi, Java.Lang.Class ni isto kot tip parameter a. Vse je podtipa Java.Lang.Class. Vse je podtipa parametra a. Ampak to ni isto.
+                                    a je sup ni maximum
+                                    class je pa sup in maximum
+                                    Glavni vir grde kode
+9 odgovor funkcijo arrow sem uporabil namesto splošnega check_expression ker bi check_expression za cat->cat(tom) vrnil tom čeprov bi moral vrniti cat. 
+        tekom implementacije se je najbrž izgubila prvotna ideja in potem je ratalo kar je.
+10 problem 1) kako ločiti Java.Lang.Class in parameter.
+            2) Kako ločiti (int,... ,a list, b->a, b->Java.Lang.Class * b) in (int, ...,Java.Lang.Class, b->a, b-> a * b)
+
+
+11 vprašanje če imamo funkcijo f tipa int -> a. Kašnega tipa je f 5 ? 1) Kaj bi moralo biti? 2) kako izračunamo?
+12 vprašanje Ali kašne vrste tipov ne dovolimo?
