@@ -36,21 +36,21 @@ type computation_reduction =
 let rec eval_tuple state = function
   | Ast.Tuple exprs -> exprs
   | Ast.Var x -> eval_tuple state (Ast.VariableMap.find x state.variables)
-  | Ast.Annotated (e,_anno) -> eval_tuple state e
+  | Ast.Annotated (e, _anno) -> eval_tuple state e
   | expr ->
       Error.runtime "Tuple expected but got %t" (Ast.print_expression expr)
 
 let rec eval_variant state = function
   | Ast.Variant (lbl, expr) -> (lbl, expr)
   | Ast.Var x -> eval_variant state (Ast.VariableMap.find x state.variables)
-  | Ast.Annotated (e,_anno) -> eval_variant state e
+  | Ast.Annotated (e, _anno) -> eval_variant state e
   | expr ->
       Error.runtime "Variant expected but got %t" (Ast.print_expression expr)
 
 let rec eval_const state = function
   | Ast.Const c -> c
   | Ast.Var x -> eval_const state (Ast.VariableMap.find x state.variables)
-  | Ast.Annotated (e,_anno) -> eval_const state e
+  | Ast.Annotated (e, _anno) -> eval_const state e
   | expr ->
       Error.runtime "Const expected but got %t" (Ast.print_expression expr)
 
