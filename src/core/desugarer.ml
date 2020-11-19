@@ -52,32 +52,6 @@ let add_fresh_ty_params state vars =
   let ty_params' = List.fold_left aux state.ty_params vars in
   { state with ty_params = ty_params' }
 
-let rec free_params_in_ty { it = plain_ty; Location.at = _ } =
-  let fold sez ty = free_params_in_ty ty @ sez in
-  let rec remove_dup = function
-    | [] -> []
-    | x :: xs ->
-        let xs' = remove_dup xs in
-        if List.mem x xs' then xs else x :: xs'
-  in
-  let result =
-    match plain_ty with
-    | S.TyApply (_y_name, tys) ->
-        let free_params = List.fold_left fold [] tys in
-        free_params
-    | S.TyParam ty_param -> [ ty_param ]
-    | S.TyArrow (ty1, ty2) ->
-        let free_params1 = free_params_in_ty ty1 in
-        let free_params2 = free_params_in_ty ty2 in
-        free_params1 @ free_params2
-    | S.TyTuple tys ->
-        let free_params = List.fold_left fold [] tys in
-        free_params
-    | S.TyConst _c -> []
-    | S.TyReference ty | S.TyPromise ty -> free_params_in_ty ty
-  in
-  remove_dup result
-
 let rec desugar_ty state { it = plain_ty; Location.at = loc } =
   desugar_plain_ty ~loc state plain_ty
 
@@ -100,13 +74,39 @@ and desugar_plain_ty ~loc state = function
   | S.TyReference ty -> Ast.TyReference (desugar_ty state ty)
   | S.TyPromise ty -> Ast.TyPromise (desugar_ty state ty)
 
+  let rec free_params_in_ty { it = plain_ty; Location.at = _ } =
+  let fold' sez ty = free_params_in_ty ty @ sez in
+  let rec remove_dup = function
+    | [] -> []
+    | x :: xs ->
+        let xs' = remove_dup xs in
+        if List.mem x xs' then xs else x :: xs'
+  in
+  let result =
+    match plain_ty with
+    | S.TyApply (_y_name, tys) ->
+        let free_params = List.fold_left fold' [] tys in
+        free_params
+    | S.TyParam ty_param -> [ ty_param ]
+    | S.TyArrow (ty1, ty2) ->
+        let free_params1 = free_params_in_ty ty1 in
+        let free_params2 = free_params_in_ty ty2 in
+        free_params1 @ free_params2
+    | S.TyTuple tys ->
+        let free_params = List.fold_left fold' [] tys in
+        free_params
+    | S.TyConst _c -> []
+    | S.TyReference ty | S.TyPromise ty -> free_params_in_ty ty
+  in
+  remove_dup result  
+
 let desugar_ty_scheme state ty =
   let params = free_params_in_ty ty in
   let params' = List.map Ast.TyParam.fresh params in
   let params'' = List.combine params params' in
   let state' = add_fresh_ty_params state params'' in
   let ty' = desugar_ty state' ty in
-  (state', (* Ast.ty_scheme *) (params', ty'))
+  (state', (params', ty'))
 
 let rec desugar_pattern state { it = pat; Location.at = loc } =
   let vars, pat' = desugar_plain_pattern ~loc state pat in
