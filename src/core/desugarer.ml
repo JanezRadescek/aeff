@@ -74,7 +74,7 @@ and desugar_plain_ty ~loc state = function
   | S.TyReference ty -> Ast.TyReference (desugar_ty state ty)
   | S.TyPromise ty -> Ast.TyPromise (desugar_ty state ty)
 
-  let rec free_params_in_ty { it = plain_ty; Location.at = _ } =
+let rec free_params_in_ty { it = plain_ty; Location.at = _ } =
   let fold' sez ty = free_params_in_ty ty @ sez in
   let rec remove_dup = function
     | [] -> []
@@ -98,7 +98,7 @@ and desugar_plain_ty ~loc state = function
     | S.TyConst _c -> []
     | S.TyReference ty | S.TyPromise ty -> free_params_in_ty ty
   in
-  remove_dup result  
+  remove_dup result
 
 let desugar_ty_scheme state ty =
   let params = free_params_in_ty ty in
