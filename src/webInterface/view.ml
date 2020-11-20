@@ -68,8 +68,8 @@ let view_process_redex = function
 let rec view_process_reduction = function
   | Interpreter.LeftCtx red -> view_process_reduction red
   | Interpreter.RightCtx red -> view_process_reduction red
-  | Interpreter.InCtx red -> view_process_reduction red
-  | Interpreter.OutCtx red -> view_process_reduction red
+  | Interpreter.InProcCtx red -> view_process_reduction red
+  | Interpreter.OutProcCtx red -> view_process_reduction red
   | Interpreter.RunCtx red -> view_computation_reduction red
   | Interpreter.ProcessRedex redex -> view_process_redex redex
 
@@ -112,7 +112,20 @@ let step_action (red, step) =
     elt "ol" (back_action ::  :: step_actions @ [interrupt_action]) *)
 
 let view_steps (model : Model.model) (code : Model.loaded_code) steps =
-  let view_undo_last_step =
+  let view_edit_source =
+    panel_block
+      [
+        elt "button"
+          ~a:
+            [
+              class_ "button is-outlined is-fullwidth is-small is-danger";
+              onclick (fun _ -> Model.EditSource);
+              attr "title"
+                "Re-editing source code will abort current evaluation";
+            ]
+          [ text "Re-edit source code" ];
+      ]
+  and view_undo_last_step =
     panel_block
       [
         elt "button"
@@ -137,8 +150,7 @@ let view_steps (model : Model.model) (code : Model.loaded_code) steps =
           [ text (view_process_reduction red) ];
       ]
   and view_random_steps steps =
-    div
-      ~a:[ class_ "panel-block"; style "display" "block" ]
+    div ~a:[ class_ "panel-block" ]
       [
         div
           ~a:[ class_ "field has-addons" ]
@@ -240,7 +252,7 @@ let view_steps (model : Model.model) (code : Model.loaded_code) steps =
   in
   panel "Interaction"
     ~a:[ onmousemove (fun _ -> Model.SelectReduction None) ]
-    ( view_undo_last_step :: view_random_steps steps
+    ( view_edit_source :: view_undo_last_step :: view_random_steps steps
       :: List.mapi view_step steps
     @ [ send_interrupt ] )
 
@@ -306,8 +318,7 @@ let view_compiler (model : Model.model) =
       ]
   in
   let load_example =
-    div
-      ~a:[ class_ "panel-block"; style "display" "block" ]
+    div ~a:[ class_ "panel-block" ]
       [
         div ~a:[ class_ "field" ]
           [
@@ -343,14 +354,16 @@ let view_compiler (model : Model.model) =
   in
   panel "Code options" [ use_stdlib; load_example; run_process ]
 
-let view_source model =
-  div ~a:[ class_ "columns" ]
+let view_contents main aside =
+  div
+    ~a:[ class_ "contents columns" ]
     [
-      div ~a:[ class_ "column is-three-quarters" ] [ view_editor model ];
-      div
-        ~a:[ class_ "column is-one-quarter is-sticky" ]
-        [ view_compiler model ];
+      div ~a:[ class_ "main column is-three-quarters" ] main;
+      div ~a:[ class_ "aside column is-one-quarter" ] aside;
     ]
+
+let view_source model =
+  view_contents [ view_editor model ] [ view_compiler model ]
 
 let view_code (model : Model.model) (code : Model.loaded_code) =
   let steps = Model.steps code in
@@ -359,15 +372,9 @@ let view_code (model : Model.model) (code : Model.loaded_code) =
     | None -> None
     | Some i -> List.nth_opt steps i |> Option.map fst
   in
-  div ~a:[ class_ "columns" ]
-    [
-      div
-        ~a:[ class_ "column is-three-quarters" ]
-        [ view_process selected_red code.snapshot.process ];
-      div
-        ~a:[ class_ "column is-one-quarter is-sticky" ]
-        [ view_steps model code steps; view_history code.snapshot.operations ];
-    ]
+  view_contents
+    [ view_process selected_red code.snapshot.process ]
+    [ view_steps model code steps; view_history code.snapshot.operations ]
 
 let view_navbar =
   let view_title =

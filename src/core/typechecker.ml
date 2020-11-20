@@ -426,7 +426,7 @@ and infer_computation state = function
       in
       let ty_super = List.fold_left infer_super_type ty1 cases in
       ty_super
-  | Ast.Handler (op, abs, p, comp) ->
+  | Ast.Promise (op, abs, p, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations in
       let ty_abs = check_infer_abstraction state ty_op abs in
       let state' = extend_variables state [ (p, ty_abs) ] in
@@ -464,7 +464,7 @@ and check_computation state annotation = function
         (calculate_super_type state ty' ty_current, subs_current @ subs')
       in
       List.fold_left fold' ty1 cases
-  | Ast.Handler (op, abs, p, comp) ->
+  | Ast.Promise (op, abs, p, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations in
       let ty2 = check_infer_abstraction state ty1 abs in
       let state' = extend_variables state [ (p, ty2) ] in
