@@ -321,7 +321,8 @@ let rec check_pattern state patter_type = function
           in
           List.fold_right fold (List.combine patter_types pats) []
       | _ ->
-          Error.typing "Expected tuple. we got %t but per anno expected %t"
+          Error.typing
+            "Expected tuple. we got %t but per annotation we expected %t"
             (Ast.print_pattern p)
             (Ast.true_print_ty patter_type) )
   | Ast.PVariant (lbl, pat) -> (
