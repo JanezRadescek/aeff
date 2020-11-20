@@ -33,6 +33,23 @@ type computation_reduction =
   | DoCtx of computation_reduction
   | ComputationRedex of computation_redex
 
+type process_redex =
+  | RunOut
+  | ParallelOut1
+  | ParallelOut2
+  | InRun
+  | InParallel
+  | InOut
+  | TopOut
+
+type process_reduction =
+  | LeftCtx of process_reduction
+  | RightCtx of process_reduction
+  | InProcCtx of process_reduction
+  | OutProcCtx of process_reduction
+  | RunCtx of computation_reduction
+  | ProcessRedex of process_redex
+
 let rec eval_tuple state = function
   | Ast.Tuple exprs -> exprs
   | Ast.Var x -> eval_tuple state (Ast.VariableMap.find x state.variables)
@@ -103,29 +120,33 @@ let rec eval_function state = function
   | expr ->
       Error.runtime "Function expected but got %t" (Ast.print_expression expr)
 
+let step_in_context step state redCtx ctx term =
+  let terms' = step state term in
+  List.map (fun (red, term') -> (redCtx red, ctx term')) terms'
+
 let rec step_computation state = function
   | Ast.Return _ -> []
   | Ast.Out (op, expr, comp) ->
-      step_computation_in_context state
+      step_in_context step_computation state
         (fun red -> OutCtx red)
         (fun comp' -> Ast.Out (op, expr, comp'))
         comp
-  | Ast.Handler (op, op_comp, p, comp) -> (
+  | Ast.Promise (op, op_comp, p, comp) -> (
       let comps' =
-        step_computation_in_context state
+        step_in_context step_computation state
           (fun red -> PromiseCtx red)
-          (fun comp' -> Ast.Handler (op, op_comp, p, comp'))
+          (fun comp' -> Ast.Promise (op, op_comp, p, comp'))
           comp
       in
       match comp with
       | Ast.Out (op', expr', cont') ->
           ( ComputationRedex PromiseOut,
-            Ast.Out (op', expr', Ast.Handler (op, op_comp, p, cont')) )
+            Ast.Out (op', expr', Ast.Promise (op, op_comp, p, cont')) )
           :: comps'
       | _ -> comps' )
   | Ast.In (op, expr, comp) -> (
       let comps' =
-        step_computation_in_context state
+        step_in_context step_computation state
           (fun red -> InCtx red)
           (fun comp' -> Ast.In (op, expr, comp'))
           comp
@@ -137,7 +158,7 @@ let rec step_computation state = function
           ( ComputationRedex InOut,
             Ast.Out (op', expr', Ast.In (op, expr, cont')) )
           :: comps'
-      | Ast.Handler (op', (arg_pat, op_comp), p, comp) when op = op' ->
+      | Ast.Promise (op', (arg_pat, op_comp), p, comp) when op = op' ->
           let subst = match_pattern_with_expression state arg_pat expr in
           let y = Ast.Variable.fresh "y" in
           let comp' =
@@ -149,9 +170,9 @@ let rec step_computation state = function
                       (Ast.PVar p, Ast.In (op, expr, comp)) ) ) )
           in
           (ComputationRedex InPromise, comp') :: comps'
-      | Ast.Handler (op', op_comp, p, comp) ->
+      | Ast.Promise (op', op_comp, p, comp) ->
           ( ComputationRedex InPromise',
-            Ast.Handler (op', op_comp, p, Ast.In (op, expr, comp)) )
+            Ast.Promise (op', op_comp, p, Ast.In (op, expr, comp)) )
           :: comps'
       | _ -> comps' )
   | Ast.Match (expr, cases) ->
@@ -168,7 +189,7 @@ let rec step_computation state = function
       [ (ComputationRedex ApplyFun, f expr2) ]
   | Ast.Do (comp1, comp2) -> (
       let comps1' =
-        step_computation_in_context state
+        step_in_context step_computation state
           (fun red -> DoCtx red)
           (fun comp1' -> Ast.Do (comp1', comp2))
           comp1
@@ -181,9 +202,9 @@ let rec step_computation state = function
       | Ast.Out (op, expr, comp1) ->
           (ComputationRedex DoOut, Ast.Out (op, expr, Ast.Do (comp1, comp2)))
           :: comps1'
-      | Ast.Handler (op, handler, pat, comp1) ->
+      | Ast.Promise (op, op_comp, pat, comp1) ->
           ( ComputationRedex DoPromise,
-            Ast.Handler (op, handler, pat, Ast.Do (comp1, comp2)) )
+            Ast.Promise (op, op_comp, pat, Ast.Do (comp1, comp2)) )
           :: comps1'
       | _ -> comps1' )
   | Ast.Await (expr, (pat, comp)) -> (
@@ -192,27 +213,6 @@ let rec step_computation state = function
           let subst = match_pattern_with_expression state pat expr in
           [ (ComputationRedex AwaitFulfill, substitute subst comp) ]
       | _ -> [] )
-
-and step_computation_in_context state redCtx ctx comp =
-  let comps' = step_computation state comp in
-  List.map (fun (red, comp') -> (redCtx red, ctx comp')) comps'
-
-type process_redex =
-  | RunOut
-  | ParallelOut1
-  | ParallelOut2
-  | InRun
-  | InParallel
-  | InOut
-  | TopOut
-
-type process_reduction =
-  | LeftCtx of process_reduction
-  | RightCtx of process_reduction
-  | InCtx of process_reduction
-  | OutCtx of process_reduction
-  | RunCtx of computation_reduction
-  | ProcessRedex of process_redex
 
 let rec step_process state = function
   | Ast.Run comp -> (
@@ -227,7 +227,7 @@ let rec step_process state = function
   | Ast.Parallel (proc1, proc2) ->
       let proc1_first =
         let procs' =
-          step_process_in_context state
+          step_in_context step_process state
             (fun red -> LeftCtx red)
             (fun proc1' -> Ast.Parallel (proc1', proc2))
             proc1
@@ -242,7 +242,7 @@ let rec step_process state = function
         | _ -> procs'
       and proc2_first =
         let procs' =
-          step_process_in_context state
+          step_in_context step_process state
             (fun red -> RightCtx red)
             (fun proc2' -> Ast.Parallel (proc1, proc2'))
             proc2
@@ -259,8 +259,8 @@ let rec step_process state = function
       proc1_first @ proc2_first
   | Ast.InProc (op, expr, proc) -> (
       let procs' =
-        step_process_in_context state
-          (fun red -> InCtx red)
+        step_in_context step_process state
+          (fun red -> InProcCtx red)
           (fun proc' -> Ast.InProc (op, expr, proc'))
           proc
       in
@@ -278,14 +278,10 @@ let rec step_process state = function
           :: procs'
       | _ -> procs' )
   | Ast.OutProc (op, expr, proc) ->
-      step_process_in_context state
-        (fun red -> OutCtx red)
+      step_in_context step_process state
+        (fun red -> OutProcCtx red)
         (fun proc' -> Ast.OutProc (op, expr, proc'))
         proc
-
-and step_process_in_context state redCtx ctx proc =
-  let procs' = step_process state proc in
-  List.map (fun (red, proc') -> (redCtx red, ctx proc')) procs'
 
 let incoming_operation proc op expr = Ast.InProc (op, expr, proc)
 
