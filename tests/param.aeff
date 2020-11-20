@@ -1,7 +1,6 @@
-type aa = 'a
+type aa = int * 'ab
 
-let a = (5 : aa)
-let b = (4 : 'bbbb)
+let (a : int) = 5
 (* let c = (3 : α) *)
 
 run 1 + 2
