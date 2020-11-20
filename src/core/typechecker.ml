@@ -426,7 +426,7 @@ and infer_computation state = function
       in
       let subs = List.fold_left fold' [] cases in
       (ty_1, subs_e @ subs_1 @ subs)
-  | Ast.Handler (op, abs, p, comp) ->
+  | Ast.Promise (op, abs, p, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations in
       let ty_a, subs_a = check_infer_abstraction state ty_op abs in
       let state' = extend_variables state [ (p, ty_a) ] in
@@ -478,7 +478,7 @@ and check_computation state annotation = function
       in
       let subs = List.fold_left fold' [] cases in
       (ty_1, subs_e @ subs_1 @ subs)
-  | Ast.Handler (op, abs, p, comp) ->
+  | Ast.Promise (op, abs, p, comp) ->
       let ty_1 = Ast.OperationMap.find op state.operations in
       let ty_2, subs_2 = check_infer_abstraction state ty_1 abs in
       let state' = extend_variables state [ (p, ty_2) ] in
