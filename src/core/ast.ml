@@ -64,6 +64,31 @@ let rec print_ty ?max_level print_param p ppf =
   | TyReference ty ->
       print ~at_level:1 "%t ref" (print_ty ~max_level:1 print_param ty)
 
+let rec true_print_ty ?max_level p ppf =
+  let print ?at_level = Print.print ?max_level ?at_level ppf in
+  match p with
+  | TyConst c -> print "%t" (Const.print_ty c)
+  | TyApply (ty_name, []) -> print "%t" (TyName.print ty_name)
+  | TyApply (ty_name, [ ty ]) ->
+      print ~at_level:1 "%t %t"
+        (print_ty ~max_level:1 TyParam.print ty)
+        (TyName.print ty_name)
+  | TyApply (ty_name, tys) ->
+      print ~at_level:1 "%t %t"
+        (Print.print_tuple true_print_ty tys)
+        (TyName.print ty_name)
+  | TyParam a -> print "%t" (TyParam.print a)
+  | TyArrow (ty1, ty2) ->
+      print ~at_level:3 "%t → %t"
+        (true_print_ty ~max_level:2 ty1)
+        (true_print_ty ~max_level:3 ty2)
+  | TyTuple [] -> print "unit"
+  | TyTuple tys ->
+      print ~at_level:2 "%t"
+        (Print.print_sequence " × " (true_print_ty ~max_level:1) tys)
+  | TyPromise ty -> print "⟨%t⟩" (true_print_ty ty)
+  | TyReference ty -> print ~at_level:1 "%t ref" (true_print_ty ~max_level:1 ty)
+
 let new_print_param () =
   let names = ref TyParamMap.empty in
   let counter = ref 0 in

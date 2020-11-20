@@ -1,0 +1,3 @@
+let (singleton : 'a -> 'a list) a = [a]
+
+run singleton 5
