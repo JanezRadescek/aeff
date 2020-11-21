@@ -63,32 +63,6 @@ let rec unfold_type_definitions state ty =
   | Ast.TyPromise ty -> Ast.TyPromise (unfold_type_definitions state ty)
   | Ast.TyReference ty -> Ast.TyReference (unfold_type_definitions state ty)
 
-let rec free_params_in_ty ty =
-  let fold sez ty = free_params_in_ty ty @ sez in
-  let rec remove_dup = function
-    | [] -> []
-    | x :: xs ->
-        let xs' = remove_dup xs in
-        if List.mem x xs' then xs else x :: xs'
-  in
-  let result =
-    match ty with
-    | Ast.TyApply (_y_name, tys) ->
-        let free_params = List.fold_left fold [] tys in
-        free_params
-    | Ast.TyParam ty_param -> [ ty_param ]
-    | Ast.TyArrow (ty1, ty2) ->
-        let free_params1 = free_params_in_ty ty1 in
-        let free_params2 = free_params_in_ty ty2 in
-        free_params1 @ free_params2
-    | Ast.TyTuple tys ->
-        let free_params = List.fold_left fold [] tys in
-        free_params
-    | Ast.TyConst _c -> []
-    | Ast.TyReference ty | Ast.TyPromise ty -> free_params_in_ty ty
-  in
-  remove_dup result
-
 let extend_variables state vars =
   List.fold_left
     (fun state (x, ty) ->
@@ -223,14 +197,10 @@ let rec apply_subs state subs poly_type =
   | Ast.TyPromise ty -> Ast.TyPromise (apply_subs state subs' ty)
   | Ast.TyReference ty -> Ast.TyReference (apply_subs state subs' ty)
 
-let compose_subs state subs_1 subs_2 =
-  subs_1
-  @ List.map (fun (param, ty) -> (param, apply_subs state subs_1 ty)) subs_2
-
 let rec equalizeType_subsOpt state ty_1 ty_2 =
   let fold' subs ty1 ty2 =
     match (subs, equalizeType_subsOpt state ty1 ty2) with
-    | Some subs_1, Some subs_2 -> Some (compose_subs state subs_1 subs_2)
+    | Some subs_1, Some subs_2 -> Some (subs_1 @ subs_2)
     | _ -> None
   in
   match ty_1 with
@@ -273,46 +243,48 @@ let rec equalizeType_subs state ty_1 ty_2 =
   let ty_1' = unfold_type_definitions state ty_1 in
   let ty_2' = unfold_type_definitions state ty_2 in
   match equalizeType_subsOpt state ty_1' ty_2' with
-  | Some subs ->
-      let rec check_sub subs =
-        match subs with
-        | [] -> []
-        | (p1, p2) :: xs -> (
-            match List.assoc_opt p1 xs with
-            | Some p2' when p2' = p2 -> check_sub xs
-            | None -> (p1, p2) :: check_sub xs
-            | Some p2' -> equalizeType_subs state p2 p2' )
-      in
-      check_sub subs
+  | Some subs -> checkReduce_sub state subs
   | None ->
       let print_param = Ast.new_print_param () in
       Error.typing "%t does not have same meaning as %t"
         (Ast.print_ty print_param ty_1)
         (Ast.print_ty print_param ty_2)
 
-(**takes types ty1 and ty2 and returns the smallest ty3 such that subtype1 state ty1 ty3 && subtype1 state ty2 ty3 = true*)
+and checkReduce_sub state subs =
+  match subs with
+  | [] -> []
+  | (p1, p2) :: xs -> (
+      match List.assoc_opt p1 xs with
+      | Some p2' when p2' = p2 -> checkReduce_sub state xs
+      | None ->
+          let xs' =
+            List.map (fun (p, ty) -> (p, apply_subs state [ (p1, p2) ] ty)) xs
+          in
+          (p1, p2) :: checkReduce_sub state xs'
+      | Some p2' -> equalizeType_subs state p2 p2' @ checkReduce_sub state xs )
 
-(*let calculate_super_type state ty1 ty2 =
-  if check_equaltype1 state ty1 ty2 then ty1
-  else
-    failwith
-      "Super_type is not implemented yet, because we dont have subtypes yet."*)
+let compose_subs state subs_1 subs_2 =
+  let subs_2' =
+    List.map (fun (param, ty) -> (param, apply_subs state subs_1 ty)) subs_2
+  in
+  checkReduce_sub state (subs_1 @ subs_2')
 
-let rec check_pattern state patter_type = function
-  | Ast.PVar x -> [ (x, patter_type) ]
+let rec check_pattern state pattern_type = function
+  (*TODO what to do with equalizeType_subs in pattern? *)
+  | Ast.PVar x -> [ (x, pattern_type) ]
   | Ast.PAs (pat, x) ->
-      let vars = check_pattern state patter_type pat in
-      (x, patter_type) :: vars
+      let vars = check_pattern state pattern_type pat in
+      (x, pattern_type) :: vars
   | Ast.PAnnotated (pat, ty) ->
-      let _ = equalizeType_subs state patter_type ty in
-      check_pattern state patter_type pat
+      let _ = equalizeType_subs state pattern_type ty in
+      check_pattern state pattern_type pat
   | Ast.PConst c ->
       let ty = Ast.TyConst (Const.infer_ty c) in
-      let _ = equalizeType_subs state patter_type ty in
+      let _ = equalizeType_subs state pattern_type ty in
       []
   | Ast.PNonbinding -> []
   | Ast.PTuple pats as p -> (
-      match patter_type with
+      match pattern_type with
       | Ast.TyTuple patter_types
         when List.length pats = List.length patter_types ->
           let fold (pat_ty, pat) vars =
@@ -324,15 +296,15 @@ let rec check_pattern state patter_type = function
           Error.typing
             "Expected tuple. we got %t but per annotation we expected %t"
             (Ast.print_pattern p)
-            (Ast.true_print_ty patter_type) )
+            (Ast.true_print_ty pattern_type) )
   | Ast.PVariant (lbl, pat) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, pat) with
       | None, None ->
-          let _ = equalizeType_subs state patter_type ty_out in
+          let _ = equalizeType_subs state pattern_type ty_out in
           []
       | Some ty_in, Some pat ->
-          let _ = equalizeType_subs state patter_type ty_out in
+          let _ = equalizeType_subs state pattern_type ty_out in
           check_pattern state ty_in pat
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
@@ -553,7 +525,6 @@ and check_check_abstraction state (ty_argument, ty_comp) (pat, comp) =
   let vars = check_pattern state ty_argument pat in
   let state' = extend_variables state vars in
   let ty_c, subs_c = check_computation state' ty_comp comp in
-
   (ty_c, subs_c)
 
 let is_transparent_type state ty_name =
