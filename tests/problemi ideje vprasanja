@@ -1,9 +1,9 @@
 1 problem unit vs () multiple.aeff
-2 problem podpora annotated v interpreterju -> bi moralo bi popravljeno 
+><2 problem podpora annotated v interpreterju -> bi moralo bi popravljeno 
 3 problem podpora spremenljivk addition.aeff
 4 vprašanje scope parametrov?
 5 problem če je b -> int podtip a potem je treba popravljati substitucijo. Kako preprečiti neskončne zanke a = b * c,  b = c * a ? Se to sploh lahko zgodi?
-6 vprašanje tip funkcije rec f a = f(a) ?
+><6 vprašanje tip funkcije rec f a = f(a) ?
 7 problem tip [](ali katere druge variante)
 8 vprašanje Kaj je tip fx, če je: 1. f : cat -> cat in x : cat.  fx : cat
                                     2. f: cat -> cat  in x : tom. fx : cat
@@ -12,30 +12,33 @@
                                     a je sup ni maximum
                                     class je pa sup in maximum
                                     Glavni vir grde kode
-9 odgovor funkcijo arrow sem uporabil namesto splošnega check_expression ker bi check_expression za cat->cat(tom) vrnil tom čeprov bi moral vrniti cat. 
+><9 odgovor funkcijo arrow sem uporabil namesto splošnega check_expression ker bi check_expression za cat->cat(tom) vrnil tom čeprov bi moral vrniti cat. 
         tekom implementacije se je najbrž izgubila prvotna ideja in potem je ratalo kar je.
 10 problem 1) kako ločiti Java.Lang.Class in parameter.
             2) Kako ločiti (int,... ,a list, b->a, b->Java.Lang.Class * b) in (int, ...,Java.Lang.Class, b->a, b-> a * b)
 11 vprašanje če imamo funkcijo f tipa int -> a. Kašnega tipa je f 5 ? 1) Kaj bi moralo biti? 2) kako izračunamo?
 12 vprašanje Ali kašne vrste tipov ne dovolimo?
 
-13 vprašanje kaj ko izračunamo da je nekaj tip a * int moralo bi biti pa b * int? Imata isti pomen nista pa ista.
+><13 vprašanje kaj ko izračunamo da je nekaj tip a * int moralo bi biti pa b * int? Imata isti pomen nista pa ista.
 14 problem type aa = int * 'ab ne prepozna ab kot parameter
 15 problem nekje ne pretvori unit v () ali obratno.
 16 problem Runtime error: Integer expected but got a. a je topdef in tipa int.
 
 17 vprašanja substitutions
-        a) Kje uporabiti substitcije
-        b) Kako združevati substitucije
+        ><a) Kje uporabiti substitcije
+        ><b) Kako združevati substitucije
                 i) kaj če     (  a=int b=(c,d)  )   o      (e=(a,g) c=int )  Ni dovolj 1. uporabit 2. uporabiti moramo tudi 2. na 1.
                 iii)            a=(int, c, d)           d=int e=b       Ni dovolj 1. na 2. in 2. na 1. Uporabiti moramo tudi 2. na 2. in simetrično 1. na 1.
                 iv)             a=int                   a=bool          Vrniti bi morali error
                 v)              a=(int,b)               b=(a,int)       Kaj sedaj?
                 vi)             a=(b,c)                 a=(int->bool,c) Dodati moramo b=int->bool in to tudi uporabit na (b,c)
-        c) f2fc132 je intern parametr. Kako uporabniku sporočiti da je to v resnici njegov b.
+        ><c) f2fc132 je intern parametr. Kako uporabniku sporočiti da je to v resnici njegov b. 
         d) Dovolimo let (id : 'a->'a) a=aa
                     let (singleton : a'->['a]) a = a::[]
                     Se pravi scope parametrov je/bi moral biti kakšen?
         e) Kako j z substitucijami v check pattern? Tudi tu bi morali vračati substitucije ali ne?
         f) Smo v check_expr expr = ast.var, anno b. infer expr reče a. Vrnemo a=b ali b=a?
         g) v state imamo x:a. V subs dobimo a=int. Gremo popravljati a v statu ali bomo a popravili naslednjič ko bomo dobili x?
+        h) Kako v extend subs zaznati da imamo problem?
+18) Za janeza. Je še kakšen razlog da check vrača tip? Ali je dobljena sub dovolj?
+19) Malo pomembno. Za tip sistem je a=int, a=bool isto kot a=bool, a=int. Se pravi da check tuple bi moral delovati neodvisno od vrstnega reda.
