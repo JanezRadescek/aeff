@@ -197,12 +197,16 @@ let rec apply_subs state subs poly_type =
   | Ast.TyPromise ty -> Ast.TyPromise (apply_subs state subs' ty)
   | Ast.TyReference ty -> Ast.TyReference (apply_subs state subs' ty)
 
-let rec equalizeType_subsOpt state ty_1 ty_2 =
+let rec equalizeType_subsOpt state subst ty_1 ty_2 =
   let fold' subs ty1 ty2 =
     match (subs, equalizeType_subsOpt state ty1 ty2) with
     | Some subs_1, Some subs_2 -> Some (subs_1 @ subs_2)
     | _ -> None
   in
+
+  match subst_ty subst ty1, subst_ty subst ty2 with
+  | ...
+
   match ty_1 with
   | Ast.TyConst _ -> (
       match ty_2 with
@@ -239,7 +243,7 @@ let rec equalizeType_subsOpt state ty_1 ty_2 =
       | Ast.TyParam p -> Some [ (p, ty_1) ]
       | _ -> None )
 
-let rec equalizeType_subs state ty_1 ty_2 =
+let rec equalizeType_subs state subst ty_1 ty_2 =
   let ty_1' = unfold_type_definitions state ty_1 in
   let ty_2' = unfold_type_definitions state ty_2 in
   match equalizeType_subsOpt state ty_1' ty_2' with
@@ -310,7 +314,7 @@ let rec check_pattern state ty_argument pattern =
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
 
-let rec infer_expression state = function
+let rec infer_expression state subst = function
   | Ast.Var x ->
       let _params, ty = Ast.VariableMap.find x state.variables_ty in
       (*let subst = refreshing_subst params in
@@ -417,12 +421,12 @@ and check_expression state annotation = function
       let subs_a = equalizeType_subs state ty annotation in
       (ty, compose_subs state subs_e subs_a)
 
-and infer_computation state = function
-  | Ast.Return e -> infer_expression state e
+and infer_computation state subst = function
+  | Ast.Return e -> infer_expression state subst e
   | Ast.Do (comp, abs) ->
-      let ty_c, subs_c = infer_computation state comp in
-      let ty_a, subs_a = check_infer_abstraction state ty_c abs in
-      (ty_a, compose_subs state subs_c subs_a)
+      let ty_c, subs_c = infer_computation state subst comp in
+      let ty_a, subs_a = check_infer_abstraction state subs_c ty_c abs in
+      (ty_a, subs_a)
   | Ast.Apply (e1, e2) -> (
       let ty_1, subs_1 = infer_expression state e1 in
       match ty_1 with
@@ -565,9 +569,9 @@ let add_operation state op ty =
   { state with operations = Ast.OperationMap.add op ty state.operations }
 
 let add_top_definition state x ty_sch expr =
-  check_polymorphic_expression state ty_sch expr;
+  let subst = check_polymorphic_expression state ty_sch expr in
   let state' = add_external_function x ty_sch state in
-  state'
+  subst_state subst state'
 
 let add_type_definitions state ty_defs =
   List.fold_left

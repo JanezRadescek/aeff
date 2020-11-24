@@ -27,9 +27,8 @@
 17 vprašanja substitutions
         a) Kje uporabiti substitcije
         b) Kako združevati substitucije
-                i) kaj če       a=int b=(c,d)           e=(a,g) c=int   Ni dovolj 1. uporabit 2. uporabiti moramo tudi 2. na 1.
-                ii)             a=int b=(a,c)           nekaj           prva bi mogla biti neveljavna
-                iii)            a=int b=(c,d)           d=int e=b       Ni dovolj 1. na 2. in 2. na 1. Uporabiti moramo tudi 2. na 2. in simetrično 1. na 1.
+                i) kaj če     (  a=int b=(c,d)  )   o      (e=(a,g) c=int )  Ni dovolj 1. uporabit 2. uporabiti moramo tudi 2. na 1.
+                iii)            a=(int, c, d)           d=int e=b       Ni dovolj 1. na 2. in 2. na 1. Uporabiti moramo tudi 2. na 2. in simetrično 1. na 1.
                 iv)             a=int                   a=bool          Vrniti bi morali error
                 v)              a=(int,b)               b=(a,int)       Kaj sedaj?
                 vi)             a=(b,c)                 a=(int->bool,c) Dodati moramo b=int->bool in to tudi uporabit na (b,c)
