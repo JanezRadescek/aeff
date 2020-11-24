@@ -269,22 +269,23 @@ let compose_subs state subs_1 subs_2 =
   in
   checkReduce_sub state (subs_1 @ subs_2')
 
-let rec check_pattern state pattern_type = function
+let rec check_pattern state ty_argument pattern =
   (*TODO what to do with equalizeType_subs in pattern? *)
-  | Ast.PVar x -> [ (x, pattern_type) ]
+  match pattern with
+  | Ast.PVar x -> [ (x, ty_argument) ]
   | Ast.PAs (pat, x) ->
-      let vars = check_pattern state pattern_type pat in
-      (x, pattern_type) :: vars
+      let vars = check_pattern state ty_argument pat in
+      (x, ty_argument) :: vars
   | Ast.PAnnotated (pat, ty) ->
-      let _ = equalizeType_subs state pattern_type ty in
-      check_pattern state pattern_type pat
+      let _ = equalizeType_subs state ty_argument ty in
+      check_pattern state ty_argument pat
   | Ast.PConst c ->
       let ty = Ast.TyConst (Const.infer_ty c) in
-      let _ = equalizeType_subs state pattern_type ty in
+      let _ = equalizeType_subs state ty_argument ty in
       []
   | Ast.PNonbinding -> []
   | Ast.PTuple pats as p -> (
-      match pattern_type with
+      match ty_argument with
       | Ast.TyTuple patter_types
         when List.length pats = List.length patter_types ->
           let fold (pat_ty, pat) vars =
@@ -296,15 +297,15 @@ let rec check_pattern state pattern_type = function
           Error.typing
             "Expected tuple. we got %t but per annotation we expected %t"
             (Ast.print_pattern p)
-            (Ast.true_print_ty pattern_type) )
+            (Ast.true_print_ty ty_argument) )
   | Ast.PVariant (lbl, pat) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, pat) with
       | None, None ->
-          let _ = equalizeType_subs state pattern_type ty_out in
+          let _ = equalizeType_subs state ty_argument ty_out in
           []
       | Some ty_in, Some pat ->
-          let _ = equalizeType_subs state pattern_type ty_out in
+          let _ = equalizeType_subs state ty_argument ty_out in
           check_pattern state ty_in pat
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
