@@ -96,90 +96,6 @@ let infer_variant state lbl =
   and ty' = Option.map (Ast.substitute_ty subst) ty in
   (ty', Ast.TyApply (ty_name, args))
 
-(*let rec check_subtype2 state ty1 ty2 =
-  let ty11 = unfold_type_definitions state ty1
-  and ty22 = unfold_type_definitions state ty2 in
-  match ty22 with
-  | Ast.TyConst c2 -> (
-      match ty11 with Ast.TyConst c1 -> (c1 = c2, []) | _ -> (false, []) )
-  | Ast.TyApply (name2, tys2) -> (
-      match ty11 with
-      | Ast.TyApply (name1, tys1)
-        when name1 = name2 && List.length tys1 = List.length tys2 ->
-          let fold' (resultBool, resultArray) ty1' ty2' =
-            let resultBool1, resultArray1 = check_subtype2 state ty1' ty2' in
-            (resultBool && resultBool1, resultArray1 @ resultArray)
-          in
-          List.fold_left2 fold' (true, []) tys1 tys2
-      | _ -> (false, []) )
-  | Ast.TyTuple tys2 -> (
-      match ty11 with
-      | Ast.TyTuple tys1 when List.length tys1 = List.length tys2 ->
-          let fold' (resultBool, resultArray) ty1' ty2' =
-            let resultBool1, resultArray1 = check_subtype2 state ty1' ty2' in
-            (resultBool && resultBool1, resultArray1 @ resultArray)
-          in
-          List.fold_left2 fold' (true, []) tys1 tys2
-      | _ -> (false, []) )
-  | Ast.TyParam _ -> (true, [ (ty22, ty11) ])
-  | Ast.TyArrow (in2, out2) -> (
-      match ty11 with
-      | Ast.TyArrow (in1, out1) ->
-          let resultBool1, resultArray1 = check_subtype2 state in1 in2 in
-          let resultBool2, resultArray2 = check_subtype2 state out1 out2 in
-          (resultBool1 && resultBool2, resultArray1 @ resultArray2)
-      | _ -> (false, []) )
-  | Ast.TyPromise t2 -> (
-      match ty11 with
-      | Ast.TyPromise t1 -> check_subtype2 state t1 t2
-      | _ -> (false, []) )
-  | Ast.TyReference t2 -> (
-      match ty11 with
-      | Ast.TyReference t1 -> check_subtype2 state t1 t2
-      | _ -> (false, []) )
-
-and check_subtype3 state ty1 ty2 =
-  match check_subtype2 state ty1 ty2 with
-  | false, _ -> false
-  | true, eqs -> solve state eqs
-
-and solve state = function
-  | [] -> true
-  | (ty1, ty2) :: eqs -> (
-      match List.assoc_opt ty1 eqs with
-      | Some ty2' -> (
-          match (ty2, ty2') with
-          | Ast.TyParam p1, Ast.TyParam p2 when p1 = p2 -> solve state eqs
-          | Ast.TyParam _, _ | _, Ast.TyParam _ -> false
-          | _ ->
-              if check_subtype3 state ty2 ty2' then solve state eqs
-              else if check_subtype3 state ty2' ty2 then
-                solve state (eqs @ [ (ty1, ty2) ])
-              else false )
-      | None -> solve state eqs )*)
-
-(*let check_equaltype1 state ty_1 ty_2 =
-  let ty_1' = unfold_type_definitions state ty_1 in
-  let ty_2' = unfold_type_definitions state ty_2 in
-  ( match ty_1' with
-  | Ast.TyParam p1 -> (
-      match ty_2' with
-      | Ast.TyParam p2 ->
-          Format.printf " EQUAL %t %t EQUAL" (Ast.TyParam.print p1)
-            (Ast.TyParam.print p2)
-      | _ -> () )
-  | _ -> () );
-  ty_1' = ty_2'*)
-
-(*Probalby build in ocamls "=" would do the same job here?*)
-(*let check_equaltype state ty_1 ty_2 source =
-  Format.printf source;
-  if not (check_equaltype1 state ty_1 ty_2) then
-    let print_param = Ast.new_print_param () in
-    Error.typing "Type %t is not equal to type %t"
-      (Ast.print_ty print_param ty_1)
-      (Ast.print_ty print_param ty_2)*)
-
 let rec apply_subs subs poly_type =
   let map' ty = apply_subs subs ty in
   match poly_type with
@@ -193,13 +109,13 @@ let rec apply_subs subs poly_type =
   | Ast.TyPromise ty -> Ast.TyPromise (apply_subs subs ty)
   | Ast.TyReference ty -> Ast.TyReference (apply_subs subs ty)
 
-
 let extend_subs (p, ty) subs =
-  let map (p', ty') =
-    assert (p <> p');
-    (p', apply_subs [ (p, ty) ] ty')
-  in
-  (p, ty) :: List.map map subs
+  match List.assoc_opt p subs with
+  | Some ty' when ty = ty' -> subs
+  | Some _ -> assert false
+  | None ->
+      let map (p', ty') = (p', apply_subs [ (p, ty) ] ty') in
+      (p, ty) :: List.map map subs
 
 let unify state subs ty_1 ty_2 =
   let rec unify_rec state_rec subs_rec ty_1_rec ty_2_rec =
@@ -228,7 +144,7 @@ let unify state subs ty_1 ty_2 =
     | Ast.TyPromise _, _
     | Ast.TyReference _, _ ->
         let print_param = Ast.new_print_param () in
-        Error.typing "%t does not have same meaning as %t"
+        Error.typing "Cannot unify type %t with type %t"
           (Ast.print_ty print_param ty_1_rec)
           (Ast.print_ty print_param ty_2_rec)
   in
@@ -236,44 +152,43 @@ let unify state subs ty_1 ty_2 =
   let ty_2' = apply_subs subs (unfold_type_definitions state ty_2) in
   unify_rec state subs ty_1' ty_2'
 
-let rec check_pattern state subs ty_argument pattern =
-  (*TODO what to do with equalizeType_subs in pattern? *)
+let rec check_pattern state subs ty_argument pattern :
+    (Ast.variable * Ast.ty) list * (Ast.ty_param * Ast.ty) list =
   match pattern with
-  | Ast.PVar x -> [ (x, ty_argument) ]
+  | Ast.PVar x -> ([ (x, ty_argument) ], subs)
   | Ast.PAs (pat, x) ->
-      let vars = check_pattern state subs ty_argument pat in
-      (x, ty_argument) :: vars
+      let vars, subs' = check_pattern state subs ty_argument pat in
+      ((x, ty_argument) :: vars, subs')
   | Ast.PAnnotated (pat, ty) ->
-      let _ = unify state subs ty_argument ty in
-      check_pattern state subs ty_argument pat
+      let subs' = unify state subs ty_argument ty in
+      check_pattern state subs' ty_argument pat
   | Ast.PConst c ->
       let ty = Ast.TyConst (Const.infer_ty c) in
-      let _ = unify state subs ty_argument ty in
-      []
-  | Ast.PNonbinding -> []
+      let subs' = unify state subs ty_argument ty in
+      ([], subs')
+  | Ast.PNonbinding -> ([], subs)
   | Ast.PTuple pats as p -> (
       match ty_argument with
       | Ast.TyTuple patter_types
         when List.length pats = List.length patter_types ->
-          let fold (pat_ty, pat) vars =
-            let vars' = check_pattern state subs pat_ty pat in
-            vars' @ vars
+          let fold' (vars, subs') pat_ty pat =
+            let vars', subs'' = check_pattern state subs' pat_ty pat in
+            (vars' @ vars, subs'')
           in
-          List.fold_right fold (List.combine patter_types pats) []
+          List.fold_left2 fold' ([], subs) patter_types pats
       | _ ->
-          Error.typing
-            "Expected tuple. we got %t but per annotation we expected %t"
-            (Ast.print_pattern p)
-            (Ast.true_print_ty ty_argument) )
+          let print_param = Ast.new_print_param () in
+          Error.typing "Expected tuple %t, but we got %t." (Ast.print_pattern p)
+            (Ast.print_ty print_param ty_argument) )
   | Ast.PVariant (lbl, pat) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, pat) with
       | None, None ->
-          let _ = unify state subs ty_argument ty_out in
-          []
+          let subs' = unify state subs ty_argument ty_out in
+          ([], subs')
       | Some ty_in, Some pat ->
-          let _ = unify state subs ty_argument ty_out in
-          check_pattern state subs ty_in pat
+          let subs' = unify state subs ty_argument ty_out in
+          check_pattern state subs' ty_in pat
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
 
@@ -438,15 +353,15 @@ and check_computation state subs annotation = function
       check_computation state' subs_2 annotation comp
 
 and infer_abstraction state subs ty_argument (pat, comp) =
-  let vars = check_pattern state subs ty_argument pat in
+  let vars, subs' = check_pattern state subs ty_argument pat in
   let state' = extend_variables state vars in
-  let ty_c, subs_c = infer_computation state' subs comp in
+  let ty_c, subs_c = infer_computation state' subs' comp in
   (ty_c, subs_c)
 
 and check_abstraction state subs (ty_argument, ty_comp) (pat, comp) =
-  let vars = check_pattern state subs ty_argument pat in
+  let vars, subs' = check_pattern state subs ty_argument pat in
   let state' = extend_variables state vars in
-  let subs_c = check_computation state' subs ty_comp comp in
+  let subs_c = check_computation state' subs' ty_comp comp in
   subs_c
 
 let is_transparent_type state ty_name =
@@ -463,12 +378,10 @@ let unfold state ty_name args =
       in
       Ast.substitute_ty subst ty
 
-(*let rec find_free_params = function Ast.TyConst _ -> [] | _ -> failwith "TODO"*)
-
 let check_polymorphic_expression state (_params, ty) expr =
   (* WRONG *)
   let subs = check_expression state [] ty expr in
-  (* preveri, da je subs injekcija na params *)
+  (* TODO preveri, da je subs injekcija na params *)
   subs
 
 (*let ty, subs = check_expression state ty expr in
