@@ -44,3 +44,7 @@
 19) Malo pomembno. Za tip sistem je a=int, a=bool isto kot a=bool, a=int. Se pravi da check tuple bi moral delovati neodvisno od vrstnega reda.
 
 20) problemi komentarji v extend_subs, unify in check pattern
+21) problem recimo check_expresion (*Prvi ty = parameter a in kasneje zvemo da je a int in nikjer še tega nismo uporabili da je a tipa int.*)
+22) Lazzy vs eager. Ali vsako novo substitucijo takoj uporabimo na tipu in ga vrnemo. 
+        Nebi preprosto vrnili samo sub in komur abstrakten annotiran tip ne bo dovolj bo pač uporabil substitucijo na njem.
+        Recimo infer apply ne bo zadovoljen z id 5: a z sub=(a=int) ampak bo hotel imeti id 5 :int z sub=...
