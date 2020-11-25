@@ -193,42 +193,49 @@ let rec apply_subs subs poly_type =
   | Ast.TyPromise ty -> Ast.TyPromise (apply_subs subs ty)
   | Ast.TyReference ty -> Ast.TyReference (apply_subs subs ty)
 
-let rec extend_subs (p, ty) subs =
-  match subs with
-  | [] -> [ (p, ty) ]
-  | (p1, ty1) :: tailSubs ->
-      (p1, apply_subs [ (p, ty) ] ty1) :: extend_subs (p, ty) tailSubs
 
-let rec unify_rec state subs ty_1 ty_2 =
-  let fold' subs' ty1 ty2 = unify_rec state subs' ty1 ty2 in
-  match (apply_subs subs ty_1, apply_subs subs ty_2) with
-  | Ast.TyConst _, Ast.TyConst _ when ty_1 = ty_2 -> subs
-  | Ast.TyApply (name1, tys_1), Ast.TyApply (name2, tys_2) when name1 = name2 ->
-      List.fold_left2 fold' subs tys_1 tys_2
-  | Ast.TyParam p_1, _ -> extend_subs (p_1, ty_2) subs
-  | _, Ast.TyParam p_2 ->
-      extend_subs (p_2, ty_1) subs
-      (*Katero obliko uporabit? to ali zgornjo? ali obe?*)
-  | Ast.TyArrow (ty_in1, ty_out1), Ast.TyArrow (ty_in2, ty_out2) ->
-      List.fold_left2 fold' subs [ ty_in1; ty_out1 ] [ ty_in2; ty_out2 ]
-  | Ast.TyTuple tys_1, Ast.TyTuple tys_2 ->
-      List.fold_left2 fold' subs tys_1 tys_2
-  | Ast.TyPromise p_1, Ast.TyPromise p_2 ->
-      unify_rec state subs p_1 p_2
-  | Ast.TyReference r_1, Ast.TyReference r_2 ->
-      unify_rec state subs r_1 r_2
-  | Ast.TyConst _, _
-  | Ast.TyApply _, _
-  | Ast.TyArrow _, _
-  | Ast.TyTuple _, _
-  | Ast.TyPromise _, _
-  | Ast.TyReference _, _ ->
-      let print_param = Ast.new_print_param () in
-      Error.typing "%t does not have same meaning as %t"
-        (Ast.print_ty print_param ty_1)
-        (Ast.print_ty print_param ty_2)
+let extend_subs (p, ty) subs = 
+  let rec extend_subs_rec (p_rec, ty_rec) subs_rec =
+    match subs_rec with
+    | [] -> [ (p_rec, ty_rec) ]
+    | (p1, ty1) :: tailSubs ->
+        (p1, apply_subs [ (p_rec, ty_rec) ] ty1) :: extend_subs_rec (p_rec, ty_rec) tailSubs
+    in
+  let ty' = apply_subs subs ty in
+  let subs' = extend_subs_rec (p, ty') subs in
+  (*TODO Check if duplicate or contradiction*)
+  subs'
 
 let unify state subs ty_1 ty_2 =
+  let rec unify_rec state_rec subs_rec ty_1_rec ty_2_rec =
+    let fold' subs' ty1 ty2 = unify_rec state_rec subs' ty1 ty2 in
+    match (apply_subs subs_rec ty_1_rec, apply_subs subs_rec ty_2_rec) with
+    | Ast.TyConst _, Ast.TyConst _ when ty_1_rec = ty_2_rec -> subs_rec
+    | Ast.TyApply (name1, tys_1), Ast.TyApply (name2, tys_2) when name1 = name2 ->
+        List.fold_left2 fold' subs_rec tys_1 tys_2
+    | Ast.TyParam p_1, _ -> extend_subs (p_1, ty_2_rec) subs_rec
+    | _, Ast.TyParam p_2 ->
+        extend_subs (p_2, ty_1_rec) subs_rec
+        (*Katero obliko uporabit? to ali zgornjo? ali obe?*)
+    | Ast.TyArrow (ty_in1, ty_out1), Ast.TyArrow (ty_in2, ty_out2) ->
+        List.fold_left2 fold' subs_rec [ ty_in1; ty_out1 ] [ ty_in2; ty_out2 ]
+    | Ast.TyTuple tys_1, Ast.TyTuple tys_2 ->
+        List.fold_left2 fold' subs_rec tys_1 tys_2
+    | Ast.TyPromise p_1, Ast.TyPromise p_2 ->
+        unify_rec state_rec subs_rec p_1 p_2
+    | Ast.TyReference r_1, Ast.TyReference r_2 ->
+        unify_rec state_rec subs_rec r_1 r_2
+    | Ast.TyConst _, _
+    | Ast.TyApply _, _
+    | Ast.TyArrow _, _
+    | Ast.TyTuple _, _
+    | Ast.TyPromise _, _
+    | Ast.TyReference _, _ ->
+        let print_param = Ast.new_print_param () in
+        Error.typing "%t does not have same meaning as %t"
+          (Ast.print_ty print_param ty_1_rec)
+          (Ast.print_ty print_param ty_2_rec)
+  in
   let ty_1' = apply_subs subs (unfold_type_definitions state ty_1) in
   let ty_2' = apply_subs subs (unfold_type_definitions state ty_2) in
   unify_rec state subs ty_1' ty_2'

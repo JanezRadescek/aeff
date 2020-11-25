@@ -39,6 +39,8 @@
         e) Kako j z substitucijami v check pattern? Tudi tu bi morali vračati substitucije ali ne?
         f) Smo v check_expr expr = ast.var, anno b. infer expr reče a. Vrnemo a=b ali b=a?
         g) v state imamo x:a. V subs dobimo a=int. Gremo popravljati a v statu ali bomo a popravili naslednjič ko bomo dobili x?
-        h) Kako v extend subs zaznati da imamo problem?
+        
 18) Za janeza. Je še kakšen razlog da check vrača tip? Ali je dobljena sub dovolj?
 19) Malo pomembno. Za tip sistem je a=int, a=bool isto kot a=bool, a=int. Se pravi da check tuple bi moral delovati neodvisno od vrstnega reda.
+
+20) problemi komentarji v extend_subs, unify in check pattern
