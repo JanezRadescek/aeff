@@ -96,6 +96,19 @@ let infer_variant state lbl =
   and ty' = Option.map (Ast.substitute_ty subst) ty in
   (ty', Ast.TyApply (ty_name, args))
 
+let print_subs subs =
+  Format.printf "\nSubstitution = ";
+  let print_param = Ast.new_print_param () in
+  let rec print_subs_rec = function
+    | [] -> ()
+    | (p, ty) :: subs' ->
+        Format.printf "\n%t -->> %t ( %t )" (print_param p)
+          (Ast.print_ty print_param ty)
+          (Ast.true_print_ty ty);
+        print_subs_rec subs'
+  in
+  print_subs_rec subs
+
 let rec apply_subs subs poly_type =
   let map' ty = apply_subs subs ty in
   match poly_type with
@@ -153,7 +166,43 @@ let unify state subs ty_1 ty_2 =
   let ty_2' = unfold_type_definitions state ty_2 in
   unify_rec state subs ty_1' ty_2'
 
-let rec check_pattern state subs ty_argument pattern :
+let rec infer_pattern state subs pattern :
+    (Ast.variable * Ast.ty) list * (Ast.ty_param * Ast.ty) list * Ast.ty =
+  match pattern with
+  | Ast.PVar x ->
+      let ty = fresh_ty () in
+      ([ (x, ty) ], subs, ty)
+  | Ast.PAs (pat, x) ->
+      let vars, subs', ty = infer_pattern state subs pat in
+      ((x, ty) :: vars, subs', ty)
+  | Ast.PAnnotated (pat, ty) ->
+      let vars, subs' = check_pattern state subs ty pat in
+      let ty' = apply_subs subs' ty in
+      (vars, subs', ty')
+  | Ast.PConst c ->
+      let ty = Ast.TyConst (Const.infer_ty c) in
+      ([], subs, ty)
+  | Ast.PNonbinding ->
+      let ty = fresh_ty () in
+      ([], subs, ty)
+  | Ast.PTuple pats ->
+      let fold' (vars, subs', tys) pat =
+        let vars', subs'', ty = infer_pattern state subs' pat in
+        (vars' @ vars, subs'', tys @ [ ty ])
+      in
+      let vars, subs', tys = List.fold_left fold' ([], subs, []) pats in
+      (vars, subs', Ast.TyTuple tys)
+  | Ast.PVariant (lbl, pat) -> (
+      let ty_in, ty_out = infer_variant state lbl in
+      match (ty_in, pat) with
+      | None, None -> ([], subs, ty_out)
+      | Some ty_in, Some pat ->
+          let vars, subs' = check_pattern state subs ty_in pat in
+          (vars, subs', ty_out)
+      | None, Some _ | Some _, None ->
+          Error.typing "Variant optional argument mismatch" )
+
+and check_pattern state subs ty_argument pattern :
     (Ast.variable * Ast.ty) list * (Ast.ty_param * Ast.ty) list =
   match pattern with
   | Ast.PVar x -> ([ (x, ty_argument) ], subs)
@@ -168,7 +217,7 @@ let rec check_pattern state subs ty_argument pattern :
       let subs' = unify state subs ty_argument ty in
       ([], subs')
   | Ast.PNonbinding -> ([], subs)
-  | Ast.PTuple pats as p -> (
+  | Ast.PTuple pats -> (
       match ty_argument with
       | Ast.TyTuple patter_types
         when List.length pats = List.length patter_types ->
@@ -177,9 +226,14 @@ let rec check_pattern state subs ty_argument pattern :
             (vars' @ vars, subs'')
           in
           List.fold_left2 fold' ([], subs) patter_types pats
+      | Ast.TyParam _p ->
+          let variables, subs', ty = infer_pattern state subs pattern in
+          let subs'' = unify state subs' ty ty_argument in
+          (variables, subs'')
       | _ ->
           let print_param = Ast.new_print_param () in
-          Error.typing "Expected tuple %t, but we got %t." (Ast.print_pattern p)
+          Error.typing "Expected tuple %t, but we got %t."
+            (Ast.print_pattern pattern)
             (Ast.print_ty print_param ty_argument) )
   | Ast.PVariant (lbl, pat) -> (
       let ty_in, ty_out = infer_variant state lbl in
