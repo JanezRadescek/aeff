@@ -236,28 +236,28 @@ and check_expression state subs annotation expr : (Ast.ty_param * Ast.ty) list =
   | Ast.Lambda abs, Ast.TyArrow (ty_in, ty_out) ->
       let subs_abs = check_abstraction state subs (ty_in, ty_out) abs in
       subs_abs
-  | Ast.RecLambda (f, abs), Ast.TyArrow (ty_in, ty_out) ->
-      let state' = extend_variables state [ (f, annotation) ] in
+  | Ast.RecLambda (f, abs), (Ast.TyArrow (ty_in, ty_out) as anno) ->
+      let state' = extend_variables state [ (f, anno) ] in
       let subs_abs = check_abstraction state' subs (ty_in, ty_out) abs in
       subs_abs
   | Ast.Fulfill e, Ast.TyPromise anno -> check_expression state subs anno e
   | Ast.Reference e, Ast.TyReference anno -> check_expression state subs anno !e
-  | Ast.Variant (lbl, e), _ -> (
+  | Ast.Variant (lbl, e), anno -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, e) with
       | None, None ->
-          let subs' = unify state subs ty_out annotation in
+          let subs' = unify state subs ty_out anno in
           subs'
       | Some ty_in', Some expr ->
           let subs_e = check_expression state subs ty_in' expr in
           let ty_out' = apply_subs subs_e ty_out in
-          let subs_v = unify state subs_e ty_out' annotation in
+          let subs_v = unify state subs_e ty_out' anno in
           subs_v
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
-  | ((Ast.Var _ | Ast.Const _ | Ast.Annotated _) as e), _ ->
+  | ((Ast.Var _ | Ast.Const _ | Ast.Annotated _) as e), anno ->
       let ty, subs_e = infer_expression state subs e in
-      unify state subs_e ty annotation
+      unify state subs_e ty anno
   | _, (Ast.TyParam _ as anno) ->
       let ty, subs' = infer_expression state subs expr in
       unify state subs' ty anno

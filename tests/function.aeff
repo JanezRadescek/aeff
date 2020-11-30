@@ -1,28 +1,11 @@
 let (f : int -> int) a = a + a
-(*let f a = a + a : int -> int *)
-
-(* let rec (g : int -> int) = function 
-    | 0 |-> 0 
-    | n |-> n + g (n-1) 
-    *)
-
 
 let (h : int -> int -> int) x y = x + y
 
-(* let rec (hh : int -> int -> int) x y = x + y *)
-
-(* let rec i = (fun x y |-> if x <= 0 then 0 else y + (i (x-1) y) : int -> int -> int) *)
-
 type 'a option = None | Some of 'a
 
-(*let rec assoc = (function x d |-> 
-    match d with
-        | [] |-> None
-        | (key, v) :: lst |-> if x = key then Some v else assoc x lst
-    : string -> (string x int) list -> int) *)
-
-(*let id = (function x |-> x : α -> α) *)
+let (id : 'a -> 'a) = function x |-> x 
 
 run f 3
-(* run f (g 4) *)
 run h 1 2
+
