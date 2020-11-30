@@ -125,9 +125,10 @@ let unify state subs ty_1 ty_2 =
     | Ast.TyApply (name1, tys_1), Ast.TyApply (name2, tys_2) when name1 = name2
       ->
         List.fold_left2 fold' subs_rec tys_1 tys_2
-    | Ast.TyParam p_1, _ -> extend_subs (p_1, ty_2_rec) subs_rec
-    | _, Ast.TyParam p_2 ->
-        extend_subs (p_2, ty_1_rec) subs_rec
+    | Ast.TyParam p_1, Ast.TyParam p_2 when p_1 = p_2 -> subs_rec
+    | Ast.TyParam p_1, ty_2 -> extend_subs (p_1, ty_2) subs_rec
+    | ty_1, Ast.TyParam p_2 ->
+        extend_subs (p_2, ty_1) subs_rec
         (*Katero obliko uporabit? to ali zgornjo? ali obe?*)
     | Ast.TyArrow (ty_in1, ty_out1), Ast.TyArrow (ty_in2, ty_out2) ->
         List.fold_left2 fold' subs_rec [ ty_in1; ty_out1 ] [ ty_in2; ty_out2 ]
@@ -148,8 +149,8 @@ let unify state subs ty_1 ty_2 =
           (Ast.print_ty print_param ty_1_rec)
           (Ast.print_ty print_param ty_2_rec)
   in
-  let ty_1' = apply_subs subs (unfold_type_definitions state ty_1) in
-  let ty_2' = apply_subs subs (unfold_type_definitions state ty_2) in
+  let ty_1' = unfold_type_definitions state ty_1 in
+  let ty_2' = unfold_type_definitions state ty_2 in
   unify_rec state subs ty_1' ty_2'
 
 let rec check_pattern state subs ty_argument pattern :
@@ -257,9 +258,9 @@ and check_expression state subs annotation expr : (Ast.ty_param * Ast.ty) list =
   | ((Ast.Var _ | Ast.Const _ | Ast.Annotated _) as e), _ ->
       let ty, subs_e = infer_expression state subs e in
       unify state subs_e ty annotation
-  | _, Ast.TyParam p ->
+  | _, (Ast.TyParam _ as anno) ->
       let ty, subs' = infer_expression state subs expr in
-      extend_subs (p, ty) subs'
+      unify state subs' ty anno
   | _, _ ->
       let print_param = Ast.new_print_param () in
       Error.typing "Expresion %t is not of type %t"
@@ -304,7 +305,8 @@ and infer_computation state subst = function
         unify state subs_current ty_1 ty_current
       in
       let subs' = List.fold_left fold' subs_1 cases in
-      (ty_1, subs')
+      let ty_1' = apply_subs subs' ty_1 in
+      (ty_1', subs')
   | Ast.Promise (op, abs, p, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations in
       let ty_a, subs_a = infer_abstraction state subst ty_op abs in
@@ -378,10 +380,24 @@ let unfold state ty_name args =
       in
       Ast.substitute_ty subst ty
 
-let check_polymorphic_expression state (_params, ty) expr =
+let check_polymorphic_expression state (params, ty) expr =
   (* WRONG *)
   let subs = check_expression state [] ty expr in
+
   (* TODO preveri, da je subs injekcija na params *)
+  let rec check_integrity params subs =
+    match params with
+    | [] -> ()
+    | p :: ps -> (
+        match List.assoc_opt p subs with
+        | Some (Ast.TyParam p') -> (
+            match List.mem p' params with
+            | true -> Error.typing "Annotation is too polymorphic. 1"
+            | false -> check_integrity (p' :: ps) subs )
+        | Some _ -> Error.typing "Annotation is too polymorphic. 2"
+        | None -> check_integrity ps subs )
+  in
+  check_integrity params subs;
   subs
 
 (*let ty, subs = check_expression state ty expr in
