@@ -392,9 +392,24 @@ let check_polymorphic_expression state (params, ty) expr =
         match List.assoc_opt p subs with
         | Some (Ast.TyParam p') -> (
             match List.mem p' params with
-            | true -> Error.typing "Annotation is too polymorphic. 1"
+            | true ->
+                let print_param = Ast.new_print_param () in
+                Error.typing
+                  "Annotation is too polymorphic. Param %t is equall to param \
+                   %t in expression %t with annotation %t"
+                  (print_param p) (print_param p')
+                  (Ast.print_expression expr)
+                  (Ast.print_ty print_param ty)
             | false -> check_integrity (p' :: ps) subs )
-        | Some _ -> Error.typing "Annotation is too polymorphic. 2"
+        | Some ty' ->
+            let print_param = Ast.new_print_param () in
+            Error.typing
+              "Annotation is too polymorphic. Param %t is allways of type %t \
+               in expression %t with annotation %t"
+              (print_param p)
+              (Ast.print_ty print_param ty')
+              (Ast.print_expression expr)
+              (Ast.print_ty print_param ty)
         | None -> check_integrity ps subs )
   in
   check_integrity params subs;

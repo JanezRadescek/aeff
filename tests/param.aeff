@@ -1,6 +1,6 @@
-type aa = int * 'ab
+type aa = int * bool
 
 let (a : int) = 5
 (* let c = (3 : α) *)
 
-run 1 + 2
+run 1 + a
