@@ -1,9 +1,10 @@
-(*let absurd void = (match void with)*)
+let absurd void = (match void with)
 
 (* Booleans *)
 let (not : bool -> bool) x = if x then false else true
 
 type 'a option = None | Some of 'a
+
 let rec (assoc : 'a -> ('a * 'b) list -> 'b option) x = function
   | [] |-> None
   | (key, v) :: lst |-> if x = key then Some v else assoc x lst
@@ -64,27 +65,27 @@ let rec (exists : ('a -> bool) -> 'a list -> bool) p = function
 
 let (mem : 'a -> 'a list -> bool) x = exists (fun x' |-> x = x')
 
-let rec (filter : ('a -> bool) -> 'a list -> 'a list') p = function
+let rec (filter : ('a -> bool) -> 'a list -> 'a list) p = function
   | [] |-> []
   | x :: xs |->
     if p x then (x :: filter p xs) else filter p xs
 
-let (complement : a' list -> 'a list -> 'a list) xs ys = filter (fun x |-> not (mem x ys)) xs
+let (complement : 'a list -> 'a list -> 'a list) xs ys = filter (fun x |-> not (mem x ys)) xs
 
-let (intersection : a' list -> 'a list -> 'a list) xs ys = filter (fun x |-> mem x ys) xs
+let (intersection : 'a list -> 'a list -> 'a list) xs ys = filter (fun x |-> mem x ys) xs
 
-let rec (zip : a' list -> 'b list -> ('a * 'b) list) xs ys =
+let rec (zip : 'a list -> 'b list -> ('a * 'b) list) xs ys =
   match (xs, ys) with
   | ([], []) |-> []
   | (x :: xs, y :: ys) |-> (x, y) :: (zip xs ys)
 
-let rec (unzip : (a' * 'b) list -> 'a list * 'b list) = function
+let rec (unzip : ('a * 'b) list -> 'a list * 'b list) = function
   | [] |-> ([], [])
   | (x, y) :: xys |->
     let xs, ys = unzip xys in
     (x :: xs, y :: ys)
 
-let rec ((@) : 'a list -> 'a list -> a' list) (xs, ys) =
+let rec ((@) : ('a list * 'a list) -> 'a list) (xs, ys) =
   match xs with
   | [] |-> ys
   | x :: xs |-> x :: (xs @ ys)
@@ -114,10 +115,10 @@ let (id : 'a -> 'a) x = x
 let (compose : ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c) f g x = f (g x)
 let ((|>) : 'a -> ('a -> 'b) -> 'b) x f = f x
 let (ignore : 'a -> unit) _ = ()
-let (fst : 'a * 'b -> 'a) (x, _) = x
-let (snd : 'a * 'b -> 'b) (_, y) = y
+let (fst : ('a * 'b) -> 'a) (x, _) = x
+let (snd : ('a * 'b) -> 'b) (_, y) = y
   
 let (return : 'a -> 'a) x = x
 
-let (awaitValue : Fulfil 'a -> 'a) p =
+let (awaitValue : (<<'a>>) -> 'a) p =
     await p until <<value>> in return value
