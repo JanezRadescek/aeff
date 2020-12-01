@@ -335,7 +335,10 @@ and infer_computation state subst = function
           let subs_2 = check_expression state subs_1 ty_in e2 in
           let ty_out' = apply_subs subs_2 ty_out in
           (ty_out', subs_2)
-      | _ -> Error.typing "First expresion in apply need to be of type arrow." )
+      | _ ->
+          Error.typing
+            "First expresion in apply need to be of type arrow. expr = %t : %t"
+            (Ast.print_expression e1) (Ast.true_print_ty ty_1) )
   | Ast.Out (op, e, comp) | Ast.In (op, e, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations in
       let subs_e = check_expression state subst ty_op e in
