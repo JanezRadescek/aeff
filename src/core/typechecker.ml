@@ -437,11 +437,8 @@ let unfold state ty_name args =
 
 let check_polymorphic_expression state (params, ty) expr =
   (* WRONG *)
-  let print_param = Ast.new_print_param () in
-  Format.printf "\nAdding %t : %t"
-    (Ast.print_expression expr)
-    (Ast.print_ty print_param ty);
-  let subs = check_expression state [] ty expr in
+  let ty' = unfold_type_definitions state ty in
+  let subs = check_expression state [] ty' expr in
 
   (* TODO preveri, da je subs injekcija na params *)
   let rec check_integrity params subs =
