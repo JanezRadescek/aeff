@@ -62,7 +62,7 @@ command:
     { TyDef defs }
   | LET LPAREN x = ident COLON ty = ty RPAREN t = lambdas0(EQUAL)
     { TopLet (x, ty, t) }
-  | LET REC def = let_rec_def
+  | LET REC def = top_let_rec_def
     { let (f, ty, t) = def in TopLetRec (f, ty, t) }
   | RUN trm = term
     { TopDo trm }
@@ -86,7 +86,7 @@ plain_term:
   | LET def = let_def IN t2 = term
     { let (p, t1) = def in Let (p, t1, t2) }
   | LET REC def = let_rec_def IN t2 = term
-    { let (f, ty, t1) = def in LetRec (f, {it=Annotated(t1, ty); at=t1.at }, t2) }
+    { let (f, t1) = def in LetRec (f, t1, t2) }
   | PROMISE LPAREN op = operation p1 = pattern MAPSTO t1 = term RPAREN AS p2 = pattern IN t2 = term
     { Promise (op, (p1, None, t1), (p2, t2)) }
   | PROMISE LPAREN op = operation p1 = pattern WHEN t = term MAPSTO t1 = term RPAREN AS p2 = pattern IN t2 = term
@@ -224,6 +224,12 @@ let_def:
     { ({it= PVar x.it; at= x.at}, t) }
 
 let_rec_def:
+  | p = ident t = lambdas0(EQUAL)
+    { (p, t) }
+  | rd = top_let_rec_def
+    { let f, ty, t = rd in (f, {it=Annotated(t, ty); at= of_lexeme $startpos }) }
+
+top_let_rec_def:
   | LPAREN f = ident COLON ty = ty RPAREN t = lambdas0(EQUAL)
     { (f, ty, t) }
 

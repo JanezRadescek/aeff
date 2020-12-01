@@ -263,9 +263,18 @@ let rec infer_expression state subs = function
       in
       let tys, subs' = List.fold_left fold' ([], []) exprs in
       (Ast.TyTuple tys, subs')
-  | (Ast.Lambda _ | Ast.RecLambda _) as expr ->
-      Error.typing "Infer_expression : Function %t must be annotated"
-        (Ast.print_expression expr)
+  | Ast.Lambda abs ->
+      let ty_in = fresh_ty () in
+      let ty_out, subs_abs = infer_abstraction state subs ty_in abs in
+      let ty = Ast.TyArrow (ty_in, ty_out) in
+      (apply_subs subs_abs ty, subs_abs)
+  | Ast.RecLambda (f, abs) ->
+      let ty_in = fresh_ty () in
+      let ty_out = fresh_ty () in
+      let ty = Ast.TyArrow (ty_in, ty_out) in
+      let state' = extend_variables state [ (f, ty) ] in
+      let subs_abs = check_abstraction state' subs (ty_in, ty_out) abs in
+      (apply_subs subs_abs ty, subs_abs)
   | Ast.Fulfill e ->
       let ty, subs' = infer_expression state subs e in
       (Ast.TyPromise ty, subs')
@@ -335,6 +344,13 @@ and infer_computation state subst = function
           let subs_2 = check_expression state subs_1 ty_in e2 in
           let ty_out' = apply_subs subs_2 ty_out in
           (ty_out', subs_2)
+      | Ast.TyParam _p as ty ->
+          let ty_in = fresh_ty () in
+          let ty_out = fresh_ty () in
+          let ty_arrow = Ast.TyArrow (ty_in, ty_out) in
+          let subs' = unify state subs_1 ty ty_arrow in
+          let subs_2 = check_expression state subs' ty_in e2 in
+          (ty_out, subs_2)
       | _ ->
           Error.typing
             "First expresion in apply need to be of type arrow. expr = %t : %t"
@@ -348,8 +364,14 @@ and infer_computation state subst = function
       let ty_promise, subs_e = infer_expression state subst e in
       match ty_promise with
       | Ast.TyPromise ty1 ->
-          let ty_c, subs_c = infer_abstraction state subs_e ty1 abs in
-          (ty_c, subs_c)
+          let ty_a, subs_a = infer_abstraction state subs_e ty1 abs in
+          (ty_a, subs_a)
+      | Ast.TyParam _p as ty ->
+          let ty' = fresh_ty () in
+          let ty_promise' = Ast.TyPromise ty' in
+          let subs' = unify state subs_e ty ty_promise' in
+          let ty_a, subs_a = infer_abstraction state subs' ty' abs in
+          (ty_a, subs_a)
       | _ -> Error.typing "Expected Await." )
   | Ast.Match (_, []) ->
       Error.typing "Cannot infer the type of a match with no cases"
@@ -412,13 +434,15 @@ and check_computation state subs annotation = function
       let state' = extend_variables state [ (p, ty_2) ] in
       check_computation state' subs_2 annotation comp
 
-and infer_abstraction state subs ty_argument (pat, comp) =
+and infer_abstraction state subs ty_argument (pat, comp) :
+    Ast.ty * (Ast.ty_param * Ast.ty) list =
   let vars, subs' = check_pattern state subs ty_argument pat in
   let state' = extend_variables state vars in
   let ty_c, subs_c = infer_computation state' subs' comp in
   (ty_c, subs_c)
 
-and check_abstraction state subs (ty_argument, ty_comp) (pat, comp) =
+and check_abstraction state subs (ty_argument, ty_comp) (pat, comp) :
+    (Ast.ty_param * Ast.ty) list =
   let vars, subs' = check_pattern state subs ty_argument pat in
   let state' = extend_variables state vars in
   let subs_c = check_computation state' subs' ty_comp comp in
