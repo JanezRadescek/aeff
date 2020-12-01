@@ -362,7 +362,7 @@ let rec print_expression ?max_level e ppf =
       print ~at_level:1 "%t @[<hov>%t@]" (Label.print lbl)
         (print_expression ~max_level:0 e)
   | Lambda a -> print ~at_level:2 "fun %t" (print_abstraction a)
-  | RecLambda (f, _ty) -> print ~at_level:2 "rec %t ..." (Variable.print f)
+  | RecLambda (f, _a) -> print ~at_level:2 "rec %t ..." (Variable.print f)
   | Fulfill expr -> print "⟨%t⟩" (print_expression expr)
   | Reference r -> print "{ contents = %t }" (print_expression !r)
 

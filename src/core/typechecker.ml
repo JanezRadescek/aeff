@@ -263,8 +263,9 @@ let rec infer_expression state subs = function
       in
       let tys, subs' = List.fold_left fold' ([], []) exprs in
       (Ast.TyTuple tys, subs')
-  | Ast.Lambda _ | Ast.RecLambda _ ->
-      Error.typing "Infer_expression : Function must be annotated"
+  | (Ast.Lambda _ | Ast.RecLambda _) as expr ->
+      Error.typing "Infer_expression : Function %t must be annotated"
+        (Ast.print_expression expr)
   | Ast.Fulfill e ->
       let ty, subs' = infer_expression state subs e in
       (Ast.TyPromise ty, subs')
@@ -436,6 +437,10 @@ let unfold state ty_name args =
 
 let check_polymorphic_expression state (params, ty) expr =
   (* WRONG *)
+  let print_param = Ast.new_print_param () in
+  Format.printf "\nAdding %t : %t"
+    (Ast.print_expression expr)
+    (Ast.print_ty print_param ty);
   let subs = check_expression state [] ty expr in
 
   (* TODO preveri, da je subs injekcija na params *)
