@@ -96,13 +96,26 @@ let infer_variant state lbl =
   and ty' = Option.map (Ast.substitute_ty subst) ty in
   (ty', Ast.TyApply (ty_name, args))
 
+let print_free_params params =
+  Format.printf "\n Free params = [";
+  let print_param = Ast.new_print_param () in
+  let rec print_free_params_rec = function
+    | [] -> ()
+    | p :: ps ->
+        Format.printf " %t (%t); " (print_param p) (Ast.TyParam.print p);
+        print_free_params_rec ps
+  in
+  print_free_params_rec params;
+  Format.printf "]"
+
 let print_subs subs =
   Format.printf "\nSubstitution = ";
   let print_param = Ast.new_print_param () in
   let rec print_subs_rec = function
     | [] -> ()
     | (p, ty) :: subs' ->
-        Format.printf "\n%t -->> %t ( %t )" (print_param p)
+        Format.printf "\n%t (%t) -->> %t (%t)" (print_param p)
+          (Ast.TyParam.print p)
           (Ast.print_ty print_param ty)
           (Ast.true_print_ty ty);
         print_subs_rec subs'
@@ -468,34 +481,34 @@ let check_polymorphic_expression state (params, ty) expr =
   let subs = check_expression state [] ty' expr in
 
   (* TODO preveri, da je subs injekcija na params *)
-  let rec check_integrity params subs =
-    match params with
-    | [] -> ()
-    | p :: ps -> (
-        match List.assoc_opt p subs with
-        | Some (Ast.TyParam p') -> (
-            match List.mem p' params with
-            | true ->
-                let print_param = Ast.new_print_param () in
-                Error.typing
-                  "Annotation is too polymorphic. Param %t is equall to param \
-                   %t in expression %t with annotation %t"
-                  (print_param p) (print_param p')
-                  (Ast.print_expression expr)
-                  (Ast.print_ty print_param ty)
-            | false -> check_integrity (p' :: ps) subs )
-        | Some ty' ->
+  let types = List.map (fun p -> apply_subs subs (Ast.TyParam p)) params in
+  let rec check_injection params types =
+    match (params, types) with
+    | [], [] -> ()
+    | p :: ps, (Ast.TyParam _ as ty') :: tys -> (
+        match List.assoc_opt ty' (List.combine tys ps) with
+        | Some p' ->
             let print_param = Ast.new_print_param () in
             Error.typing
-              "Annotation is too polymorphic. Param %t is allways of type %t \
+              "Annotation is too polymorphic. Param %t is equall to param %t \
                in expression %t with annotation %t"
-              (print_param p)
-              (Ast.print_ty print_param ty')
+              (print_param p) (print_param p')
               (Ast.print_expression expr)
               (Ast.print_ty print_param ty)
-        | None -> check_integrity ps subs )
+        | None -> check_injection ps tys )
+    | p :: _, ty'' :: _ ->
+        let print_param = Ast.new_print_param () in
+        Error.typing
+          "Annotation is too polymorphic. Param %t is allways of type %t in \
+           expression %t with annotation %t"
+          (print_param p)
+          (Ast.print_ty print_param ty'')
+          (Ast.print_expression expr)
+          (Ast.print_ty print_param ty)
+    | _ -> assert false
   in
-  check_integrity params subs;
+  check_injection params types;
+
   subs
 
 (*let ty, subs = check_expression state ty expr in
