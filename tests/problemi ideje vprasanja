@@ -39,3 +39,9 @@
         run compare 5 "7"
 
         ga ne. Zakaj?
+
+21      let (compare : 'c -> 'd -> bool) a b =
+                let a1 = a in
+                a1 = b
+        run compare 5 9
+        Izpiše 'c kot \alpha in 'd kot \beta
