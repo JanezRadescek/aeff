@@ -45,3 +45,6 @@
                 a1 = b
         run compare 5 9
         Izpiše 'c kot \alpha in 'd kot \beta
+
+
+22      Zakaj desugar ne obdrži loc? kako naj vrnem kašen pameten error brez loc?
