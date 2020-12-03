@@ -1,4 +1,4 @@
-3 problem spremenljivke addition.aeff problem Runtime error: Integer expected but got a. a je topdef in tipa int.
+3 problem spremenljivke addition.aeff problem Runtime error: Integer expected but got a. a je topdef in tipa int. Problem je ker parser prepozna konstanto kot funkcijo.
 4 vprašanje scope parametrov?
 7 problem tip [](ali katere druge variante)
         kaj če imamo
@@ -9,13 +9,7 @@
 
 11 vprašanje če imamo funkcijo f tipa int -> a. Kašnega tipa je f 5 ? 1) Kaj bi moralo biti? 2) kako izračunamo?
 
-17 vprašanja substitutions
-        d) Dovolimo
-
-        let (id : 'a->'a) a=a
-        let (singleton : a'->['a]) a = a::[]
-
-19 Matija 
+19 
         let (id : 'a -> 'a) x = x
         let (compare : 'a -> 'b -> bool) a b =
                 let a1 = id a in
@@ -30,15 +24,8 @@
                 a1 = b
         run compare 5 "7"
 
-        vrne error medtem ko
-
-        let (id : 'a -> 'a) x = x
-        let (compare : 'a -> 'b -> bool) a b =
-                let a1 = id a in
-                a1 = b
-        run compare 5 "7"
-
-        ga ne. Zakaj?
+        vrne error. Samo topleveldef imajo obliko (f : tip) = abs
+                                preostale imajo obliko f = (abs : tip)
 
 21      let (compare : 'c -> 'd -> bool) a b =
                 let a1 = a in
@@ -48,3 +35,16 @@
 
 
 22      Zakaj desugar ne obdrži loc? kako naj vrnem kašen pameten error brez loc?
+
+
+
+23      Janez
+        let (compare : 'c -> 'd -> ('c * 'd)) a b =
+                let id x : ('c -> 'c) = x in 
+                let a1 = id a in
+                (a1, b)
+        run compare "6" "4"
+
+        vrne stack overflow
+
+24      Zakaj se za assign ne uporablja := namesto = ?
