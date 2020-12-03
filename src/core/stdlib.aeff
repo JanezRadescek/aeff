@@ -1,5 +1,3 @@
-let absurd void = (match void with)
-
 (* Booleans *)
 let (not : bool -> bool) x = if x then false else true
 
