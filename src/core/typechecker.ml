@@ -382,7 +382,8 @@ and infer_computation state subst = function
             (Ast.print_expression e1) (Ast.true_print_ty ty_1) )
   | Ast.Out (op, e, comp) | Ast.In (op, e, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations in
-      let subs_e = check_expression state subst ty_op e in
+      let ty_op' = unfold_type_definitions state ty_op in
+      let subs_e = check_expression state subst ty_op' e in
       let ty_comp, subs_c = infer_computation state subs_e comp in
       (ty_comp, subs_c)
   | Ast.Await (e, abs) -> (
@@ -414,7 +415,8 @@ and infer_computation state subst = function
       (ty_1', subs')
   | Ast.Promise (op, abs, p, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations in
-      let ty_a, subs_a = infer_abstraction state subst ty_op abs in
+      let ty_op' = unfold_type_definitions state ty_op in
+      let ty_a, subs_a = infer_abstraction state subst ty_op' abs in
       let state' = extend_variables state [ (p, ty_a) ] in
       let ty_c, subs_c = infer_computation state' subs_a comp in
       (ty_c, subs_c)
@@ -433,8 +435,9 @@ and check_computation state subs annotation = function
           unify state subs_2 ty_out annotation
       | _ -> Error.typing "First expresion in apply need to be of type arrow." )
   | Ast.Out (op, e, comp) | Ast.In (op, e, comp) ->
-      let ty_o = Ast.OperationMap.find op state.operations in
-      let subs_e = check_expression state subs ty_o e in
+      let ty_op = Ast.OperationMap.find op state.operations in
+      let ty_op' = unfold_type_definitions state ty_op in
+      let subs_e = check_expression state subs ty_op' e in
       let subs_comp = check_computation state subs_e annotation comp in
       subs_comp
   | Ast.Await (e, abs) -> (
@@ -454,10 +457,11 @@ and check_computation state subs annotation = function
       let subs' = List.fold_left fold' subs_1 cases in
       subs'
   | Ast.Promise (op, abs, p, comp) ->
-      let ty_1 = Ast.OperationMap.find op state.operations in
-      let ty_2, subs_2 = infer_abstraction state subs ty_1 abs in
-      let state' = extend_variables state [ (p, ty_2) ] in
-      check_computation state' subs_2 annotation comp
+      let ty_op = Ast.OperationMap.find op state.operations in
+      let ty_op' = unfold_type_definitions state ty_op in
+      let ty_a, subs_a = infer_abstraction state subs ty_op' abs in
+      let state' = extend_variables state [ (p, ty_a) ] in
+      check_computation state' subs_a annotation comp
 
 and infer_abstraction state subs ty_argument (pat, comp) :
     Ast.ty * (Ast.ty_param * Ast.ty) list =
