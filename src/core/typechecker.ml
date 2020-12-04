@@ -276,7 +276,9 @@ let rec infer_expression state subs = function
   | Ast.Var x ->
       let params, ty = Ast.VariableMap.find x state.variables_ty in
       let subst = refreshing_subst params in
-      (Ast.substitute_ty subst ty, subs)
+      let ty' = Ast.substitute_ty subst ty in
+      let ty'' = unfold_type_definitions state ty' in
+      (ty'', subs)
   | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), subs)
   | Ast.Annotated (e, ty) ->
       let subs' = check_expression state subs ty e in
@@ -465,14 +467,24 @@ and check_computation state subs annotation = function
 
 and infer_abstraction state subs ty_argument (pat, comp) :
     Ast.ty * (Ast.ty_param * Ast.ty) list =
+  Format.printf "\nia 1";
   let vars, subs' = check_pattern state subs ty_argument pat in
+  Format.printf "\nia 2";
   let state' = extend_variables state vars in
   let ty_c, subs_c = infer_computation state' subs' comp in
   (ty_c, subs_c)
 
 and check_abstraction state subs (ty_argument, ty_comp) (pat, comp) :
     (Ast.ty_param * Ast.ty) list =
+  Format.printf "\nca 1";
+
+  Format.printf "\n ty_Argument = %t ty_comp = %t pat = %t comp = %t"
+    (Ast.true_print_ty ty_argument)
+    (Ast.true_print_ty ty_comp)
+    (Ast.print_pattern pat)
+    (Ast.print_computation comp);
   let vars, subs' = check_pattern state subs ty_argument pat in
+  Format.printf "\nca 2";
   let state' = extend_variables state vars in
   let subs_c = check_computation state' subs' ty_comp comp in
   subs_c
