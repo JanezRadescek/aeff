@@ -5,5 +5,4 @@ aeff.exe
 .vscode
 .merlin
 web/webInterface.bc.js
-tests/dummy.aeff
 tests/run

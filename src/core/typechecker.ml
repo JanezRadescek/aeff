@@ -144,6 +144,16 @@ let extend_subs (p, ty) subs =
       (p, ty) :: List.map map subs
 
 let unify state subs ty_1 ty_2 =
+  let rec occurs a = function
+    | Ast.TyParam a' -> a = a'
+    | Ast.TyConst _ -> false
+    | Ast.TyArrow (ty1, ty2) -> occurs a ty1 || occurs a ty2
+    | Ast.TyApply (_, tys) -> List.exists (occurs a) tys
+    | Ast.TyTuple tys -> List.exists (occurs a) tys
+    | Ast.TyPromise ty -> occurs a ty
+    | Ast.TyReference ty -> occurs a ty
+  in
+
   let rec unify_rec state_rec subs_rec ty_1_rec ty_2_rec =
     let fold' subs' ty1 ty2 = unify_rec state_rec subs' ty1 ty2 in
     match (apply_subs subs_rec ty_1_rec, apply_subs subs_rec ty_2_rec) with
@@ -152,8 +162,9 @@ let unify state subs ty_1 ty_2 =
       ->
         List.fold_left2 fold' subs_rec tys_1 tys_2
     | Ast.TyParam p_1, Ast.TyParam p_2 when p_1 = p_2 -> subs_rec
-    | Ast.TyParam p_1, ty_2 -> extend_subs (p_1, ty_2) subs_rec
-    | ty_1, Ast.TyParam p_2 ->
+    | Ast.TyParam p_1, ty_2 when not (occurs p_1 ty_2) ->
+        extend_subs (p_1, ty_2) subs_rec
+    | ty_1, Ast.TyParam p_2 when not (occurs p_2 ty_1) ->
         extend_subs (p_2, ty_1) subs_rec
         (*Katero obliko uporabit? to ali zgornjo? ali obe?*)
     | Ast.TyArrow (ty_in1, ty_out1), Ast.TyArrow (ty_in2, ty_out2) ->
@@ -166,6 +177,7 @@ let unify state subs ty_1 ty_2 =
         unify_rec state_rec subs_rec r_1 r_2
     | Ast.TyConst _, _
     | Ast.TyApply _, _
+    | Ast.TyParam _, _
     | Ast.TyArrow _, _
     | Ast.TyTuple _, _
     | Ast.TyPromise _, _
