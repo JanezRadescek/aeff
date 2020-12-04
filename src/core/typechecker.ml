@@ -157,7 +157,7 @@ let unify state subs ty_1 ty_2 =
   let rec unify_rec state_rec subs_rec ty_1_rec ty_2_rec =
     let fold' subs' ty1 ty2 = unify_rec state_rec subs' ty1 ty2 in
     match (apply_subs subs_rec ty_1_rec, apply_subs subs_rec ty_2_rec) with
-    | Ast.TyConst _, Ast.TyConst _ when ty_1_rec = ty_2_rec -> subs_rec
+    | (Ast.TyConst _ as ty1), (Ast.TyConst _ as ty2) when ty1 = ty2 -> subs_rec
     | Ast.TyApply (name1, tys_1), Ast.TyApply (name2, tys_2) when name1 = name2
       ->
         List.fold_left2 fold' subs_rec tys_1 tys_2
@@ -184,8 +184,8 @@ let unify state subs ty_1 ty_2 =
     | Ast.TyReference _, _ ->
         let print_param = Ast.new_print_param () in
         Error.typing "Cannot unify type %t with type %t"
-          (Ast.print_ty print_param ty_1_rec)
-          (Ast.print_ty print_param ty_2_rec)
+          (Ast.print_ty print_param (apply_subs subs_rec ty_1_rec))
+          (Ast.print_ty print_param (apply_subs subs_rec ty_2_rec))
   in
   let ty_1' = unfold_type_definitions state ty_1 in
   let ty_2' = unfold_type_definitions state ty_2 in
