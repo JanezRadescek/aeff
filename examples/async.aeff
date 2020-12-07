@@ -1,7 +1,7 @@
 operation question : unit -> int
 operation answer : int
 
-let get_answer f =
+let (get_answer : (unit -> 'a) -> <<int>>) f =
   promise (answer x |-> <<x>>)
   as result in
   send question f;
