@@ -21,6 +21,9 @@ let initial_state =
            ([], Ast.TyInline (Ast.TyConst Const.StringTy))
       |> Ast.TyNameMap.add Ast.float_ty_name
            ([], Ast.TyInline (Ast.TyConst Const.FloatTy))
+      |> (let a = Ast.TyParam.fresh "ref" in
+          Ast.TyNameMap.add Ast.reference_ty_name
+            ([ a ], Ast.TyInline (Ast.TyReference (Ast.TyParam a))))
       |> Ast.TyNameMap.add Ast.empty_ty_name ([], Ast.TySum [])
       |>
       let a = Ast.TyParam.fresh "list" in

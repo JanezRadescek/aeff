@@ -20,6 +20,8 @@ let list_ty_name = TyName.fresh "list"
 
 let empty_ty_name = TyName.fresh "empty"
 
+let reference_ty_name = TyName.fresh "ref"
+
 module TyParam = Symbol.Make ()
 
 type ty_param = TyParam.t

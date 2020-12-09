@@ -21,6 +21,7 @@ let initial_state =
       |> StringMap.add Syntax.unit_ty_name Ast.unit_ty_name
       |> StringMap.add Syntax.string_ty_name Ast.string_ty_name
       |> StringMap.add Syntax.float_ty_name Ast.float_ty_name
+      |> StringMap.add Syntax.reference_ty_name Ast.reference_ty_name
       |> StringMap.add Syntax.empty_ty_name Ast.empty_ty_name
       |> StringMap.add Syntax.list_ty_name Ast.list_ty_name;
     ty_params = StringMap.empty;
