@@ -160,7 +160,7 @@ let rec step_computation state = function
           :: comps'
       | Ast.Promise (op', (arg_pat, op_comp), p, comp) when op = op' ->
           let subst = match_pattern_with_expression state arg_pat expr in
-          let y = Ast.Variable.fresh "y" in
+          let y = Ast.Variable.fresh None in
           let comp' =
             Ast.Do
               ( substitute subst op_comp,

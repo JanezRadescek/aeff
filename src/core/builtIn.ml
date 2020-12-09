@@ -42,7 +42,7 @@ let int_int_to_int name f =
   )
 
 let poly_type ty =
-  let a = Ast.TyParam.fresh "poly" in
+  let a = Ast.TyParam.fresh None in
   ([ a ], ty (Ast.TyParam a))
 
 let poly_poly_to_bool name f =

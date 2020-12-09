@@ -21,12 +21,12 @@ let initial_state =
            ([], Ast.TyInline (Ast.TyConst Const.StringTy))
       |> Ast.TyNameMap.add Ast.float_ty_name
            ([], Ast.TyInline (Ast.TyConst Const.FloatTy))
-      |> (let a = Ast.TyParam.fresh "ref" in
+      |> (let a = Ast.TyParam.fresh (Some "ref") in
           Ast.TyNameMap.add Ast.reference_ty_name
             ([ a ], Ast.TyInline (Ast.TyReference (Ast.TyParam a))))
       |> Ast.TyNameMap.add Ast.empty_ty_name ([], Ast.TySum [])
       |>
-      let a = Ast.TyParam.fresh "list" in
+      let a = Ast.TyParam.fresh (Some "list") in
       Ast.TyNameMap.add Ast.list_ty_name
         ( [ a ],
           Ast.TySum
@@ -43,7 +43,7 @@ let initial_state =
   }
 
 let fresh_ty () =
-  let a = Ast.TyParam.fresh "ty" in
+  let a = Ast.TyParam.fresh None in
   Ast.TyParam a
 
 let rec unfold_type_definitions state ty =

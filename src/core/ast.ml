@@ -6,21 +6,21 @@ type ty_name = TyName.t
 
 module TyNameMap = Map.Make (TyName)
 
-let bool_ty_name = TyName.fresh "bool"
+let bool_ty_name = TyName.fresh (Some "bool")
 
-let int_ty_name = TyName.fresh "int"
+let int_ty_name = TyName.fresh (Some "int")
 
-let unit_ty_name = TyName.fresh "unit"
+let unit_ty_name = TyName.fresh (Some "unit")
 
-let string_ty_name = TyName.fresh "string"
+let string_ty_name = TyName.fresh (Some "string")
 
-let float_ty_name = TyName.fresh "float"
+let float_ty_name = TyName.fresh (Some "float")
 
-let list_ty_name = TyName.fresh "list"
+let list_ty_name = TyName.fresh (Some "list")
 
-let empty_ty_name = TyName.fresh "empty"
+let empty_ty_name = TyName.fresh (Some "empty")
 
-let reference_ty_name = TyName.fresh "ref"
+let reference_ty_name = TyName.fresh (Some "ref")
 
 module TyParam = Symbol.Make ()
 
@@ -66,6 +66,10 @@ let rec print_ty ?max_level print_param p ppf =
   | TyReference ty ->
       print ~at_level:1 "%t ref" (print_ty ~max_level:1 print_param ty)
 
+let true_print_param ?max_level param ppf =
+  let print ?at_level = Print.print ?max_level ?at_level ppf in
+  print "%t" (TyParam.print param)
+
 let rec true_print_ty ?max_level p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
   match p with
@@ -94,16 +98,20 @@ let rec true_print_ty ?max_level p ppf =
 let new_print_param () =
   let names = ref TyParamMap.empty in
   let counter = ref 0 in
-  let print_param param ppf =
+  let print_param (param : ty_param) ppf =
     let symbol =
-      match TyParamMap.find_opt param !names with
-      | Some symbol -> symbol
-      | None ->
-          let symbol = Symbol.type_symbol !counter in
-          incr counter;
-          names := TyParamMap.add param symbol !names;
-          symbol
+      match TyParam.split param with
+      | _, Some s -> s
+      | _ -> (
+          match TyParamMap.find_opt param !names with
+          | Some symbol -> symbol
+          | None ->
+              let symbol = Symbol.type_symbol !counter in
+              incr counter;
+              names := TyParamMap.add param symbol !names;
+              symbol )
     in
+
     Print.print ppf "%s" symbol
   in
   print_param
@@ -155,9 +163,9 @@ type label = Label.t
 
 type operation = Operation.t
 
-let nil_label = Label.fresh Syntax.nil_label
+let nil_label = Label.fresh (Some Syntax.nil_label)
 
-let cons_label = Label.fresh Syntax.cons_label
+let cons_label = Label.fresh (Some Syntax.cons_label)
 
 type pattern =
   | PVar of variable
