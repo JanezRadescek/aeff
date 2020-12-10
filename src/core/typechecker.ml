@@ -500,7 +500,6 @@ let check_polymorphic_expression state (params, ty) expr =
   let ty' = unfold_type_definitions state ty in
   let subs = check_expression state [] ty' expr in
 
-  (* TODO preveri, da je subs injekcija na params *)
   let types = List.map (fun p -> apply_subs subs (Ast.TyParam p)) params in
   let rec check_injection params types =
     match (params, types) with
