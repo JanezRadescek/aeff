@@ -13,7 +13,7 @@ let rec waitForStop () =
   p
 *)
 
-let rec waitForStop threadID =
+let rec (waitForStop : int -> 'a) threadID =
   promise (stop threadID' when threadID = threadID' |->
     promise (go threadID' when threadID = threadID' |->
       <<()>>

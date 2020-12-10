@@ -10,19 +10,19 @@ operation lookupRes : val * callId
 operation updateRes : callId
 operation allocRes : loc * callId
 
-let empty = []
+let (empty : 'a list) = []
 
-let rec (lookupHeap : 'a -> 'b) ((l', v) :: heap') l =
+let rec (lookupHeap : ('a * 'b) list -> 'a -> 'b) ((l', v) :: heap') l =
   if l = l' then v else lookupHeap heap' l
 
-let rec (updateHeap : 'c -> 'd) ((l', v') :: heap') l v =
+let rec (updateHeap : ('a * 'b) list -> 'a -> 'b -> ('a * 'b) list) ((l', v') :: heap') l v =
   if l = l' then (l, v) :: heap' else (l', v') :: updateHeap heap' l v
 
-let allocHeap heap v =
+let (allocHeap : (int * 'b) list -> 'b -> ((int * 'b) list * int)) heap v =
   let l = length heap in
   (l, v) :: heap, l
 
-let heapRunner () =
+let (heapRunner : unit -> 'a) () =
     let heap = ref empty in
     let rec awaitLookup () =
         promise (lookupReq (l, callId) |->
@@ -51,7 +51,7 @@ let heapRunner () =
     awaitUpdate ();
     awaitAlloc ()
 
-let lookup callCounter l =
+let (lookup : int ref -> int -> int) callCounter l =
     let callNo = !callCounter in
     send lookupReq (l, callNo);
     callCounter := callNo + 1;
@@ -59,7 +59,7 @@ let lookup callCounter l =
         return <<v>>
     ) as p in awaitValue p
 
-let update callCounter l v =
+let (update  : int ref -> int -> int -> unit) callCounter l v =
     let callNo = !callCounter in
     send updateReq (l, v, callNo);
     callCounter := callNo + 1;
@@ -67,7 +67,7 @@ let update callCounter l v =
         return <<()>>
     ) as p in awaitValue p
 
-let alloc callCounter v =
+let (alloc : int ref -> int -> int) callCounter v =
     let callNo = !callCounter in
     send allocReq (v, callNo);
     callCounter := callNo + 1;

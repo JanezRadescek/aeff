@@ -1,12 +1,12 @@
 operation call : int * int
 operation result : int * int
 
-let naiveCallWith x =
+let (naiveCallWith : (int * int) -> unit -> (int * int)) x =
     send call x;
     promise (result y |-> return <<y>>) as p in
     fun () |-> return awaitValue p
 
-let callWith callCounter =
+let (callWith : int ref -> int -> unit -> int) callCounter =
     fun x |->
         let callNo = !callCounter in
         send call (x, callNo);
@@ -17,7 +17,7 @@ let callWith callCounter =
         let valueThunk () = awaitValue p in
         return valueThunk
 
-let remote f =
+let (remote : (int -> int) -> 'a) f =
     let rec loop () =
         promise (call (x, callNo) |->
             let y = f x in

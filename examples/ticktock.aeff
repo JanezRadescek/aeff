@@ -1,7 +1,7 @@
 operation tick : int
 operation tock : int
 
-let ticktock () =
+let (ticktock : unit -> unit) () =
   send tick 1;
   send tock 2
 
