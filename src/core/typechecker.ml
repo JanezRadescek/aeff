@@ -112,18 +112,17 @@ let print_free_params params =
   Format.printf "]"
 
 let print_subs subs =
-  Format.printf "\nSubstitution = ";
+  Format.printf "Substitution = ";
   let print_param = Ast.new_print_param () in
   let rec print_subs_rec = function
     | [] -> ()
     | (p, ty) :: subs' ->
-        Format.printf "\n%t (%t) -->> %t (%t)" (print_param p)
-          (Ast.TyParam.print p)
-          (Ast.print_ty print_param ty)
-          (Ast.true_print_ty ty);
+        Format.printf "\n%t -->> %t" (print_param p)
+          (Ast.print_ty print_param ty);
         print_subs_rec subs'
   in
-  print_subs_rec subs
+  print_subs_rec subs;
+  Format.printf "\n"
 
 let rec apply_subs subs poly_type =
   let map' ty = apply_subs subs ty in
@@ -143,8 +142,8 @@ let extend_subs (p, ty) subs =
   | Some ty' when ty = ty' -> subs
   | Some _ -> assert false
   | None ->
-      let map (p', ty') = (p', apply_subs [ (p, ty) ] ty') in
-      (p, ty) :: List.map map subs
+      let map' (p', ty') = (p', apply_subs [ (p, ty) ] ty') in
+      (p, ty) :: List.map map' subs
 
 let unify state subs ty_1 ty_2 =
   let rec occurs a = function
@@ -289,9 +288,9 @@ let rec infer_expression state subs = function
   | Ast.Tuple exprs ->
       let fold' (tys_f, subs_f) e =
         let ty', subs' = infer_expression state subs_f e in
-        (ty' :: tys_f, subs')
+        (tys_f @ [ ty' ], subs')
       in
-      let tys, subs' = List.fold_left fold' ([], []) exprs in
+      let tys, subs' = List.fold_left fold' ([], subs) exprs in
       (Ast.TyTuple tys, subs')
   | Ast.Lambda abs ->
       let ty_in = fresh_ty () in
@@ -325,8 +324,7 @@ let rec infer_expression state subs = function
 and check_expression state subs annotation expr : (Ast.ty_param * Ast.ty) list =
   match (expr, apply_subs subs annotation) with
   | Ast.Tuple exprs, Ast.TyTuple annos ->
-      let fold' subs' anno expr = check_expression state subs' anno expr in
-      List.fold_left2 fold' subs annos exprs
+      List.fold_left2 (check_expression state) subs annos exprs
   | Ast.Lambda abs, Ast.TyArrow (ty_in, ty_out) ->
       let subs_abs = check_abstraction state subs (ty_in, ty_out) abs in
       subs_abs
