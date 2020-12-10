@@ -6,7 +6,7 @@ operation batchSizeRequest : unit
 operation batchSizeResponse : int
 
 
-let client () =
+let (client : unit -> 'a) () =
     let cachedData = ref [] in
     let requestInProgress = ref false in
     let currentItem = ref 0 in
@@ -45,7 +45,7 @@ let client () =
     await batchSizePromise until <<batchSize>> in
     clientLoop batchSize
 
-let server batchSize =
+let (server : int -> 'c) batchSize =
     let rec waitForBatchSize () =
         promise (batchSizeRequest () |->
             send batchSizeResponse batchSize;
@@ -65,7 +65,7 @@ let server batchSize =
     waitForRequest ()
 
 
-let rec user () =
+let rec (user : unit -> 'd) () =
     let rec wait n = 
       if n = 0 then return () else wait (n - 1)
     in

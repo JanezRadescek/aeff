@@ -12,10 +12,10 @@ operation allocRes : loc * callId
 
 let empty = []
 
-let rec lookupHeap ((l', v) :: heap') l =
+let rec (lookupHeap : 'a -> 'b) ((l', v) :: heap') l =
   if l = l' then v else lookupHeap heap' l
 
-let rec updateHeap ((l', v') :: heap') l v =
+let rec (updateHeap : 'c -> 'd) ((l', v') :: heap') l v =
   if l = l' then (l, v) :: heap' else (l', v') :: updateHeap heap' l v
 
 let allocHeap heap v =

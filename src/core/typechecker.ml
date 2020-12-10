@@ -185,7 +185,7 @@ let unify state subs ty_1 ty_2 =
     | Ast.TyPromise _, _
     | Ast.TyReference _, _ ->
         let print_param = Ast.new_print_param () in
-        Error.typing "Cannot unify type %t with type %t"
+        Error.typing "We calculated type %t but annotation says %t"
           (Ast.print_ty print_param (apply_subs subs_rec ty_1_rec))
           (Ast.print_ty print_param (apply_subs subs_rec ty_2_rec))
   in
@@ -229,8 +229,9 @@ let rec infer_pattern state subs pattern :
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
 
-and check_pattern state subs ty_argument pattern :
+and check_pattern state subs ty_arg pattern :
     (Ast.variable * Ast.ty) list * (Ast.ty_param * Ast.ty) list =
+  let ty_argument = unfold_type_definitions state ty_arg in
   match pattern with
   | Ast.PVar x -> ([ (x, ty_argument) ], subs)
   | Ast.PAs (pat, x) ->
@@ -322,7 +323,7 @@ let rec infer_expression state subs = function
           Error.typing "Variant optional argument mismatch" )
 
 and check_expression state subs annotation expr : (Ast.ty_param * Ast.ty) list =
-  match (expr, apply_subs subs annotation) with
+  match (expr, unfold_type_definitions state (apply_subs subs annotation)) with
   | Ast.Tuple exprs, Ast.TyTuple annos ->
       List.fold_left2 (check_expression state) subs annos exprs
   | Ast.Lambda abs, Ast.TyArrow (ty_in, ty_out) ->
