@@ -323,9 +323,12 @@ and substitute_abstraction subst (pat, comp) =
 
 type process =
   | Run of computation
-  | Parallel of process * process
   | OutProc of operation * expression * process
   | InProc of operation * expression * process
+
+type condition = Done | Ready | Waiting
+
+type thread = process * operation list * condition
 
 type ty_def = TySum of (label * ty option) list | TyInline of ty
 
@@ -418,14 +421,18 @@ let rec print_process ?max_level proc ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
   match proc with
   | Run comp -> print ~at_level:1 "run %t" (print_computation ~max_level:0 comp)
-  | Parallel (proc1, proc2) ->
-      print "@[<hv>%t@ || @ %t@]" (print_process proc1) (print_process proc2)
   | InProc (op, expr, proc) ->
       print "↓%t(@[<hv>%t,@ %t@])" (Operation.print op)
         (print_expression expr) (print_process proc)
   | OutProc (op, expr, proc) ->
       print "↑%t(@[<hv>%t,@ %t@])" (Operation.print op)
         (print_expression expr) (print_process proc)
+
+let rec print_threads : thread list -> unit = function
+  | [] -> ()
+  | (p, _, _) :: ts ->
+      Format.printf "%t\n" (print_process p);
+      print_threads ts
 
 let string_of_operation op =
   Operation.print op Format.str_formatter;

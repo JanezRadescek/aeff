@@ -3,22 +3,6 @@ module Ast = Core.Ast
 module Interpreter = Core.Interpreter
 module Loader = Core.Loader
 
-let make_top_step = function
-  | Interpreter.TopOut (op, expr, proc) ->
-      Format.printf "↑ %t %t@." (Ast.Operation.print op)
-        (Ast.print_expression expr);
-      proc
-  | Interpreter.Step proc -> proc
-
-let rec run (state : Interpreter.state) proc =
-  match Interpreter.top_steps state proc with
-  | [] -> proc
-  | steps ->
-      let i = Random.int (List.length steps) in
-      let _, top_step = List.nth steps i in
-      let proc' = make_top_step top_step in
-      run state proc'
-
 type config = { filenames : string list; use_stdlib : bool }
 
 let parse_args_to_config () =
@@ -46,9 +30,11 @@ let main () =
       else Loader.initial_state
     in
     let state = List.fold_left Loader.load_file state config.filenames in
-    let proc = run state.interpreter (Loader.make_process state) in
-    Format.printf "The process has terminated in the configuration:@.%t@."
-      (Ast.print_process proc)
+    let finished_threads =
+      Interpreter.run state.interpreter state.top_computations
+    in
+    Format.printf "The process has terminated in the configuration:\n";
+    Ast.print_threads finished_threads
   with Error.Error error ->
     Error.print error;
     exit 1

@@ -15,7 +15,7 @@ type state = {
   desugarer : Desugarer.state;
   interpreter : Interpreter.state;
   typechecker : Typechecker.state;
-  top_computations : Ast.computation list;
+  top_computations : Ast.thread list;
 }
 
 let initial_state =
@@ -44,6 +44,15 @@ let initial_state =
   }
   |> fun state -> List.fold load_function state BuiltIn.functions
 
+let make_thread comp : Ast.thread =
+  let rec find_op_comp comp : Ast.operation list =
+    match comp with
+    | Ast.Return e -> find_op_expression e
+    | _ -> failwith "TODO"
+  and find_op_expression _expr = failwith "TODO" in
+
+  (Ast.Run comp, find_op_comp comp, Ast.Ready)
+
 let execute_command state = function
   | Ast.TyDef ty_defs ->
       let typechecker_state' =
@@ -64,7 +73,8 @@ let execute_command state = function
       }
   | Ast.TopDo comp ->
       let _ = Typechecker.infer_top_computation state.typechecker comp in
-      { state with top_computations = comp :: state.top_computations }
+      let thread = make_thread comp in
+      { state with top_computations = thread :: state.top_computations }
   | Ast.Operation (op, ty) ->
       let typechecker_state' =
         Typechecker.add_operation state.typechecker op ty
@@ -93,14 +103,6 @@ let parse_payload state op input =
   let expr' = Desugarer.desugar_pure_expression state.desugarer term in
   ignore (Typechecker.check_payload state.typechecker op expr');
   expr'
-
-let make_process state =
-  match state.top_computations with
-  | [] -> Ast.Run (Ast.Return (Ast.Tuple []))
-  | comp :: comps ->
-      List.fold_left
-        (fun proc comp -> Ast.Parallel (proc, Ast.Run comp))
-        (Ast.Run comp) comps
 
 (** The module Stdlib_aeff is automatically generated from stdlib.aeff. Check the dune file for details. *)
 let stdlib_source = Stdlib_aeff.contents

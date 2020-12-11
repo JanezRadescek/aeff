@@ -13,7 +13,42 @@ let initial_state =
 
 exception PatternMismatch
 
-type computation_redex =
+let run_comp _state _comp : Ast.computation * state = failwith "TODO"
+
+let rec run_thread state thread : Ast.thread =
+  match thread with
+  | Ast.Run c, ops, Ast.Ready ->
+      let comp, state' = run_comp state c in
+      run_thread state' (Ast.Run comp, ops, Ast.Ready)
+  | _ -> thread
+
+let resolve_operations _state threads : state * Ast.thread list =
+  let rec get_opOut = function
+    | [] -> []
+    | (Ast.Run _, _, _) :: ts | (Ast.InProc _, _, _) :: ts -> get_opOut ts
+    | (Ast.OutProc (op, _, _), _, _) :: ts -> op :: get_opOut ts
+  in
+
+  let _op = get_opOut threads in
+
+  failwith "TODO"
+
+let rec run (state : state) (threads : Ast.thread list) : Ast.thread list =
+  let threads' = List.map (run_thread state) threads in
+  let state'', threads'' = resolve_operations state threads in
+  let all_done r (_, _, c) = match c with Ast.Done -> r | _ -> false in
+  match List.fold_left all_done true threads' with
+  | true -> threads'
+  | false -> run state'' threads''
+
+(*let make_top_step = function
+  | Interpreter.TopOut (op, expr, proc) ->
+      Format.printf "↑ %t %t@." (Ast.Operation.print op)
+        (Ast.print_expression expr);
+      proc
+  | Interpreter.Step proc -> proc *)
+
+(*type computation_redex =
   | PromiseOut
   | InReturn
   | InOut
@@ -224,39 +259,6 @@ let rec step_process state = function
       | Ast.Out (op, expr, comp') ->
           (ProcessRedex RunOut, Ast.OutProc (op, expr, Ast.Run comp')) :: comps'
       | _ -> comps' )
-  | Ast.Parallel (proc1, proc2) ->
-      let proc1_first =
-        let procs' =
-          step_in_context step_process state
-            (fun red -> LeftCtx red)
-            (fun proc1' -> Ast.Parallel (proc1', proc2))
-            proc1
-        in
-        match proc1 with
-        | Ast.OutProc (op, expr, proc1') ->
-            ( ProcessRedex ParallelOut1,
-              Ast.OutProc
-                (op, expr, Ast.Parallel (proc1', Ast.InProc (op, expr, proc2)))
-            )
-            :: procs'
-        | _ -> procs'
-      and proc2_first =
-        let procs' =
-          step_in_context step_process state
-            (fun red -> RightCtx red)
-            (fun proc2' -> Ast.Parallel (proc1, proc2'))
-            proc2
-        in
-        match proc2 with
-        | Ast.OutProc (op, expr, proc2') ->
-            ( ProcessRedex ParallelOut2,
-              Ast.OutProc
-                (op, expr, Ast.Parallel (Ast.InProc (op, expr, proc1), proc2'))
-            )
-            :: procs'
-        | _ -> procs'
-      in
-      proc1_first @ proc2_first
   | Ast.InProc (op, expr, proc) -> (
       let procs' =
         step_in_context step_process state
@@ -267,11 +269,6 @@ let rec step_process state = function
       match proc with
       | Ast.Run comp ->
           (ProcessRedex InRun, Ast.Run (Ast.In (op, expr, comp))) :: procs'
-      | Ast.Parallel (proc1, proc2) ->
-          ( ProcessRedex InParallel,
-            Ast.Parallel
-              (Ast.InProc (op, expr, proc1), Ast.InProc (op, expr, proc2)) )
-          :: procs'
       | Ast.OutProc (op', expr', proc') ->
           ( ProcessRedex InOut,
             Ast.OutProc (op', expr', Ast.InProc (op, expr, proc')) )
@@ -306,3 +303,4 @@ let top_steps state proc =
   | Ast.OutProc (op, expr, proc) ->
       (ProcessRedex TopOut, TopOut (op, expr, proc)) :: steps
   | _ -> steps
+*)
