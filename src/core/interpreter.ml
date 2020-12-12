@@ -13,7 +13,7 @@ let initial_state =
 
 exception PatternMismatch
 
-let run_comp _state _comp : Ast.computation * state = failwith "TODO"
+let run_comp _state _comp : Ast.computation * state = failwith "TODO run_comp"
 
 let rec run_thread state thread : Ast.thread =
   match thread with
@@ -31,7 +31,7 @@ let resolve_operations _state threads : state * Ast.thread list =
 
   let _op = get_opOut threads in
 
-  failwith "TODO"
+  failwith "TODO resolve_ope"
 
 let rec run (state : state) (threads : Ast.thread list) : Ast.thread list =
   let threads' = List.map (run_thread state) threads in
@@ -40,6 +40,15 @@ let rec run (state : state) (threads : Ast.thread list) : Ast.thread list =
   match List.fold_left all_done true threads' with
   | true -> threads'
   | false -> run state'' threads''
+
+let add_external_function x def state =
+  {
+    state with
+    builtin_functions = Ast.VariableMap.add x def state.builtin_functions;
+  }
+
+let eval_top_let state x expr =
+  { state with variables = Ast.VariableMap.add x expr state.variables }
 
 (*let make_top_step = function
   | Interpreter.TopOut (op, expr, proc) ->
@@ -61,14 +70,14 @@ let rec run (state : state) (threads : Ast.thread list) : Ast.thread list =
   | DoPromise
   | AwaitFulfill
 
-type computation_reduction =
+  type computation_reduction =
   | PromiseCtx of computation_reduction
   | InCtx of computation_reduction
   | OutCtx of computation_reduction
   | DoCtx of computation_reduction
   | ComputationRedex of computation_redex
 
-type process_redex =
+  type process_redex =
   | RunOut
   | ParallelOut1
   | ParallelOut2
@@ -77,7 +86,7 @@ type process_redex =
   | InOut
   | TopOut
 
-type process_reduction =
+  type process_reduction =
   | LeftCtx of process_reduction
   | RightCtx of process_reduction
   | InProcCtx of process_reduction
@@ -85,28 +94,28 @@ type process_reduction =
   | RunCtx of computation_reduction
   | ProcessRedex of process_redex
 
-let rec eval_tuple state = function
+  let rec eval_tuple state = function
   | Ast.Tuple exprs -> exprs
   | Ast.Var x -> eval_tuple state (Ast.VariableMap.find x state.variables)
   | Ast.Annotated (e, _anno) -> eval_tuple state e
   | expr ->
       Error.runtime "Tuple expected but got %t" (Ast.print_expression expr)
 
-let rec eval_variant state = function
+  let rec eval_variant state = function
   | Ast.Variant (lbl, expr) -> (lbl, expr)
   | Ast.Var x -> eval_variant state (Ast.VariableMap.find x state.variables)
   | Ast.Annotated (e, _anno) -> eval_variant state e
   | expr ->
       Error.runtime "Variant expected but got %t" (Ast.print_expression expr)
 
-let rec eval_const state = function
+  let rec eval_const state = function
   | Ast.Const c -> c
   | Ast.Var x -> eval_const state (Ast.VariableMap.find x state.variables)
   | Ast.Annotated (e, _anno) -> eval_const state e
   | expr ->
       Error.runtime "Const expected but got %t" (Ast.print_expression expr)
 
-let rec match_pattern_with_expression state pat expr =
+  let rec match_pattern_with_expression state pat expr =
   match pat with
   | Ast.PVar x -> Ast.VariableMap.singleton x expr
   | Ast.PAnnotated (pat, _) -> match_pattern_with_expression state pat expr
@@ -131,11 +140,11 @@ let rec match_pattern_with_expression state pat expr =
   | Ast.PNonbinding -> Ast.VariableMap.empty
   | _ -> raise PatternMismatch
 
-let substitute subst comp =
+  let substitute subst comp =
   let subst = Ast.VariableMap.map (Ast.refresh_expression []) subst in
   Ast.substitute_computation subst comp
 
-let rec eval_function state = function
+  let rec eval_function state = function
   | Ast.Lambda (pat, comp) ->
       fun arg ->
         let subst = match_pattern_with_expression state pat arg in
@@ -155,11 +164,11 @@ let rec eval_function state = function
   | expr ->
       Error.runtime "Function expected but got %t" (Ast.print_expression expr)
 
-let step_in_context step state redCtx ctx term =
+  let step_in_context step state redCtx ctx term =
   let terms' = step state term in
   List.map (fun (red, term') -> (redCtx red, ctx term')) terms'
 
-let rec step_computation state = function
+  let rec step_computation state = function
   | Ast.Return _ -> []
   | Ast.Out (op, expr, comp) ->
       step_in_context step_computation state
@@ -249,7 +258,7 @@ let rec step_computation state = function
           [ (ComputationRedex AwaitFulfill, substitute subst comp) ]
       | _ -> [] )
 
-let rec step_process state = function
+  let rec step_process state = function
   | Ast.Run comp -> (
       let comps' =
         step_computation state comp
@@ -280,22 +289,17 @@ let rec step_process state = function
         (fun proc' -> Ast.OutProc (op, expr, proc'))
         proc
 
-let incoming_operation proc op expr = Ast.InProc (op, expr, proc)
+  let incoming_operation proc op expr = Ast.InProc (op, expr, proc)
 
-let eval_top_let state x expr =
-  { state with variables = Ast.VariableMap.add x expr state.variables }
 
-let add_external_function x def state =
-  {
-    state with
-    builtin_functions = Ast.VariableMap.add x def state.builtin_functions;
-  }
 
-type top_step =
+
+
+  type top_step =
   | TopOut of Ast.operation * Ast.expression * Ast.process
   | Step of Ast.process
 
-let top_steps state proc =
+  let top_steps state proc =
   let steps =
     step_process state proc |> List.map (fun (red, proc) -> (red, Step proc))
   in
