@@ -46,25 +46,25 @@ let rec print_ty ?max_level print_param p ppf =
   | TyConst c -> print "%t" (Const.print_ty c)
   | TyApply (ty_name, []) -> print "%t" (TyName.print ty_name)
   | TyApply (ty_name, [ ty ]) ->
-      print ~at_level:1 "%t %t"
-        (print_ty ~max_level:1 print_param ty)
-        (TyName.print ty_name)
+    print ~at_level:1 "%t %t"
+      (print_ty ~max_level:1 print_param ty)
+      (TyName.print ty_name)
   | TyApply (ty_name, tys) ->
-      print ~at_level:1 "%t %t"
-        (Print.print_tuple (print_ty print_param) tys)
-        (TyName.print ty_name)
+    print ~at_level:1 "%t %t"
+      (Print.print_tuple (print_ty print_param) tys)
+      (TyName.print ty_name)
   | TyParam a -> print "%t" (print_param a)
   | TyArrow (ty1, ty2) ->
-      print ~at_level:3 "%t → %t"
-        (print_ty ~max_level:2 print_param ty1)
-        (print_ty ~max_level:3 print_param ty2)
+    print ~at_level:3 "%t → %t"
+      (print_ty ~max_level:2 print_param ty1)
+      (print_ty ~max_level:3 print_param ty2)
   | TyTuple [] -> print "unit"
   | TyTuple tys ->
-      print ~at_level:2 "%t"
-        (Print.print_sequence " × " (print_ty ~max_level:1 print_param) tys)
+    print ~at_level:2 "%t"
+      (Print.print_sequence " × " (print_ty ~max_level:1 print_param) tys)
   | TyPromise ty -> print "⟨%t⟩" (print_ty print_param ty)
   | TyReference ty ->
-      print ~at_level:1 "%t ref" (print_ty ~max_level:1 print_param ty)
+    print ~at_level:1 "%t ref" (print_ty ~max_level:1 print_param ty)
 
 let true_print_param ?max_level param ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
@@ -76,22 +76,22 @@ let rec true_print_ty ?max_level p ppf =
   | TyConst c -> print "%t" (Const.print_ty c)
   | TyApply (ty_name, []) -> print "%t" (TyName.print ty_name)
   | TyApply (ty_name, [ ty ]) ->
-      print ~at_level:1 "%t %t"
-        (print_ty ~max_level:1 TyParam.print ty)
-        (TyName.print ty_name)
+    print ~at_level:1 "%t %t"
+      (print_ty ~max_level:1 TyParam.print ty)
+      (TyName.print ty_name)
   | TyApply (ty_name, tys) ->
-      print ~at_level:1 "%t %t"
-        (Print.print_tuple true_print_ty tys)
-        (TyName.print ty_name)
+    print ~at_level:1 "%t %t"
+      (Print.print_tuple true_print_ty tys)
+      (TyName.print ty_name)
   | TyParam a -> print "%t" (TyParam.print a)
   | TyArrow (ty1, ty2) ->
-      print ~at_level:3 "%t → %t"
-        (true_print_ty ~max_level:2 ty1)
-        (true_print_ty ~max_level:3 ty2)
+    print ~at_level:3 "%t → %t"
+      (true_print_ty ~max_level:2 ty1)
+      (true_print_ty ~max_level:3 ty2)
   | TyTuple [] -> print "unit"
   | TyTuple tys ->
-      print ~at_level:2 "%t"
-        (Print.print_sequence " × " (true_print_ty ~max_level:1) tys)
+    print ~at_level:2 "%t"
+      (Print.print_sequence " × " (true_print_ty ~max_level:1) tys)
   | TyPromise ty -> print "⟨%t⟩" (true_print_ty ty)
   | TyReference ty -> print ~at_level:1 "%t ref" (true_print_ty ~max_level:1 ty)
 
@@ -106,10 +106,10 @@ let new_print_param () =
           match TyParamMap.find_opt param !names with
           | Some symbol -> symbol
           | None ->
-              let symbol = Symbol.type_symbol !counter in
-              incr counter;
-              names := TyParamMap.add param symbol !names;
-              symbol )
+            let symbol = Symbol.type_symbol !counter in
+            incr counter;
+            names := TyParamMap.add param symbol !names;
+            symbol )
     in
 
     Print.print ppf "%s" symbol
@@ -129,10 +129,10 @@ let rec substitute_ty subst = function
   | TyParam a as ty -> (
       match TyParamMap.find_opt a subst with None -> ty | Some ty' -> ty' )
   | TyApply (ty_name, tys) ->
-      TyApply (ty_name, List.map (substitute_ty subst) tys)
+    TyApply (ty_name, List.map (substitute_ty subst) tys)
   | TyTuple tys -> TyTuple (List.map (substitute_ty subst) tys)
   | TyArrow (ty1, ty2) ->
-      TyArrow (substitute_ty subst ty1, substitute_ty subst ty2)
+    TyArrow (substitute_ty subst ty1, substitute_ty subst ty2)
   | TyPromise ty -> TyPromise (substitute_ty subst ty)
   | TyReference ty -> TyReference (substitute_ty subst ty)
 
@@ -140,13 +140,13 @@ let rec free_vars = function
   | TyConst _ -> TyParamSet.empty
   | TyParam a -> TyParamSet.singleton a
   | TyApply (_, tys) ->
-      List.fold_left
-        (fun vars ty -> TyParamSet.union vars (free_vars ty))
-        TyParamSet.empty tys
+    List.fold_left
+      (fun vars ty -> TyParamSet.union vars (free_vars ty))
+      TyParamSet.empty tys
   | TyTuple tys ->
-      List.fold_left
-        (fun vars ty -> TyParamSet.union vars (free_vars ty))
-        TyParamSet.empty tys
+    List.fold_left
+      (fun vars ty -> TyParamSet.union vars (free_vars ty))
+      TyParamSet.empty tys
   | TyArrow (ty1, ty2) -> TyParamSet.union (free_vars ty1) (free_vars ty2)
   | TyPromise ty -> free_vars ty
   | TyReference ty -> free_vars ty
@@ -206,8 +206,8 @@ let rec remove_pattern_bound_variables subst = function
   | PVar x -> VariableMap.remove x subst
   | PAnnotated (pat, _) -> remove_pattern_bound_variables subst pat
   | PAs (pat, x) ->
-      let subst = remove_pattern_bound_variables subst pat in
-      VariableMap.remove x subst
+    let subst = remove_pattern_bound_variables subst pat in
+    VariableMap.remove x subst
   | PTuple pats -> List.fold_left remove_pattern_bound_variables subst pats
   | PVariant (_, None) -> subst
   | PVariant (_, Some pat) -> remove_pattern_bound_variables subst pat
@@ -216,23 +216,23 @@ let rec remove_pattern_bound_variables subst = function
 
 let rec refresh_pattern = function
   | PVar x ->
-      let x' = Variable.refresh x in
-      (PVar x', [ (x, x') ])
+    let x' = Variable.refresh x in
+    (PVar x', [ (x, x') ])
   | PAnnotated (pat, _) -> refresh_pattern pat
   | PAs (pat, x) ->
-      let pat', vars = refresh_pattern pat in
-      let x' = Variable.refresh x in
-      (PAs (pat', x'), (x, x') :: vars)
+    let pat', vars = refresh_pattern pat in
+    let x' = Variable.refresh x in
+    (PAs (pat', x'), (x, x') :: vars)
   | PTuple pats ->
-      let fold pat (pats', vars) =
-        let pat', vars' = refresh_pattern pat in
-        (pat' :: pats', vars' @ vars)
-      in
-      let pats', vars = List.fold_right fold pats ([], []) in
-      (PTuple pats', vars)
+    let fold pat (pats', vars) =
+      let pat', vars' = refresh_pattern pat in
+      (pat' :: pats', vars' @ vars)
+    in
+    let pats', vars = List.fold_right fold pats ([], []) in
+    (PTuple pats', vars)
   | PVariant (lbl, Some pat) ->
-      let pat', vars = refresh_pattern pat in
-      (PVariant (lbl, Some pat'), vars)
+    let pat', vars = refresh_pattern pat in
+    (PVariant (lbl, Some pat'), vars)
   | (PVariant (_, None) | PConst _ | PNonbinding) as pat -> (pat, [])
 
 let rec refresh_expression vars = function
@@ -242,36 +242,36 @@ let rec refresh_expression vars = function
   | Annotated (expr, ty) -> Annotated (refresh_expression vars expr, ty)
   | Tuple exprs -> Tuple (List.map (refresh_expression vars) exprs)
   | Variant (label, expr) ->
-      Variant (label, Option.map (refresh_expression vars) expr)
+    Variant (label, Option.map (refresh_expression vars) expr)
   | Lambda abs -> Lambda (refresh_abstraction vars abs)
   | RecLambda (x, abs) ->
-      let x' = Variable.refresh x in
-      RecLambda (x', refresh_abstraction ((x, x') :: vars) abs)
+    let x' = Variable.refresh x in
+    RecLambda (x', refresh_abstraction ((x, x') :: vars) abs)
   | Fulfill expr -> Fulfill (refresh_expression vars expr)
   | Reference ref -> Reference ref
 
 and refresh_computation vars = function
   | Return expr -> Return (refresh_expression vars expr)
   | Do (comp, abs) ->
-      Do (refresh_computation vars comp, refresh_abstraction vars abs)
+    Do (refresh_computation vars comp, refresh_abstraction vars abs)
   | Match (expr, cases) ->
-      Match
-        (refresh_expression vars expr, List.map (refresh_abstraction vars) cases)
+    Match
+      (refresh_expression vars expr, List.map (refresh_abstraction vars) cases)
   | Apply (expr1, expr2) ->
-      Apply (refresh_expression vars expr1, refresh_expression vars expr2)
+    Apply (refresh_expression vars expr1, refresh_expression vars expr2)
   | Out (op, expr, comp) ->
-      Out (op, refresh_expression vars expr, refresh_computation vars comp)
+    Out (op, refresh_expression vars expr, refresh_computation vars comp)
   | In (op, expr, comp) ->
-      In (op, refresh_expression vars expr, refresh_computation vars comp)
+    In (op, refresh_expression vars expr, refresh_computation vars comp)
   | Promise (op, abs, p, comp) ->
-      let p' = Variable.refresh p in
-      Promise
-        ( op,
-          refresh_abstraction vars abs,
-          p',
-          refresh_computation ((p, p') :: vars) comp )
+    let p' = Variable.refresh p in
+    Promise
+      ( op,
+        refresh_abstraction vars abs,
+        p',
+        refresh_computation ((p, p') :: vars) comp )
   | Await (expr, abs) ->
-      Await (refresh_expression vars expr, refresh_abstraction vars abs)
+    Await (refresh_expression vars expr, refresh_abstraction vars abs)
 
 and refresh_abstraction vars (pat, comp) =
   let pat', vars' = refresh_pattern pat in
@@ -284,7 +284,7 @@ let rec substitute_expression subst = function
   | Annotated (expr, ty) -> Annotated (substitute_expression subst expr, ty)
   | Tuple exprs -> Tuple (List.map (substitute_expression subst) exprs)
   | Variant (label, expr) ->
-      Variant (label, Option.map (substitute_expression subst) expr)
+    Variant (label, Option.map (substitute_expression subst) expr)
   | Lambda abs -> Lambda (substitute_abstraction subst abs)
   | RecLambda (x, abs) -> RecLambda (x, substitute_abstraction subst abs)
   | Fulfill expr -> Fulfill (substitute_expression subst expr)
@@ -293,29 +293,29 @@ let rec substitute_expression subst = function
 and substitute_computation subst = function
   | Return expr -> Return (substitute_expression subst expr)
   | Do (comp, abs) ->
-      Do (substitute_computation subst comp, substitute_abstraction subst abs)
+    Do (substitute_computation subst comp, substitute_abstraction subst abs)
   | Match (expr, cases) ->
-      Match
-        ( substitute_expression subst expr,
-          List.map (substitute_abstraction subst) cases )
+    Match
+      ( substitute_expression subst expr,
+        List.map (substitute_abstraction subst) cases )
   | Apply (expr1, expr2) ->
-      Apply
-        (substitute_expression subst expr1, substitute_expression subst expr2)
+    Apply
+      (substitute_expression subst expr1, substitute_expression subst expr2)
   | Out (op, expr, comp) ->
-      Out
-        (op, substitute_expression subst expr, substitute_computation subst comp)
+    Out
+      (op, substitute_expression subst expr, substitute_computation subst comp)
   | In (op, expr, comp) ->
-      In
-        (op, substitute_expression subst expr, substitute_computation subst comp)
+    In
+      (op, substitute_expression subst expr, substitute_computation subst comp)
   | Promise (op, abs, p, comp) ->
-      let subst' = remove_pattern_bound_variables subst (PVar p) in
-      Promise
-        ( op,
-          substitute_abstraction subst abs,
-          p,
-          substitute_computation subst' comp )
+    let subst' = remove_pattern_bound_variables subst (PVar p) in
+    Promise
+      ( op,
+        substitute_abstraction subst abs,
+        p,
+        substitute_computation subst' comp )
   | Await (expr, abs) ->
-      Await (substitute_expression subst expr, substitute_abstraction subst abs)
+    Await (substitute_expression subst expr, substitute_abstraction subst abs)
 
 and substitute_abstraction subst (pat, comp) =
   let subst' = remove_pattern_bound_variables subst pat in
@@ -323,8 +323,8 @@ and substitute_abstraction subst (pat, comp) =
 
 type process =
   | Run of computation
-  | OutProc of operation * expression * process
-  | InProc of operation * expression * process
+  | InProc of operation * expression * computation
+  | OutProc of operation * expression * computation
 
 type condition = Done | Ready | Waiting
 
@@ -344,16 +344,16 @@ let rec print_pattern ?max_level p ppf =
   | PVar x -> print "%t" (Variable.print x)
   | PAs (p, x) -> print "%t as %t" (print_pattern p) (Variable.print x)
   | PAnnotated (p, ty) ->
-      let print_param = new_print_param () in
-      print "%t : %t" (print_pattern ?max_level p) (print_ty print_param ty)
+    let print_param = new_print_param () in
+    print "%t : %t" (print_pattern ?max_level p) (print_ty print_param ty)
   | PConst c -> Const.print c ppf
   | PTuple lst -> Print.print_tuple print_pattern lst ppf
   | PVariant (lbl, None) when lbl = nil_label -> print "[]"
   | PVariant (lbl, None) -> print "%t" (Label.print lbl)
   | PVariant (lbl, Some (PTuple [ v1; v2 ])) when lbl = cons_label ->
-      print "%t::%t" (print_pattern v1) (print_pattern v2)
+    print "%t::%t" (print_pattern v1) (print_pattern v2)
   | PVariant (lbl, Some p) ->
-      print ~at_level:1 "%t @[<hov>%t@]" (Label.print lbl) (print_pattern p)
+    print ~at_level:1 "%t @[<hov>%t@]" (Label.print lbl) (print_pattern p)
   | PNonbinding -> print "_"
 
 let rec print_expression ?max_level e ppf =
@@ -362,18 +362,18 @@ let rec print_expression ?max_level e ppf =
   | Var x -> print "%t" (Variable.print x)
   | Const c -> print "%t" (Const.print c)
   | Annotated (t, ty) ->
-      let print_param = new_print_param () in
-      print "%t : %t" (print_expression ?max_level t) (print_ty print_param ty)
+    let print_param = new_print_param () in
+    print "%t : %t" (print_expression ?max_level t) (print_ty print_param ty)
   | Tuple lst -> Print.print_tuple print_expression lst ppf
   | Variant (lbl, None) when lbl = nil_label -> print "[]"
   | Variant (lbl, None) -> print "%t" (Label.print lbl)
   | Variant (lbl, Some (Tuple [ v1; v2 ])) when lbl = cons_label ->
-      print ~at_level:1 "%t::%t"
-        (print_expression ~max_level:0 v1)
-        (print_expression ~max_level:1 v2)
+    print ~at_level:1 "%t::%t"
+      (print_expression ~max_level:0 v1)
+      (print_expression ~max_level:1 v2)
   | Variant (lbl, Some e) ->
-      print ~at_level:1 "%t @[<hov>%t@]" (Label.print lbl)
-        (print_expression ~max_level:0 e)
+    print ~at_level:1 "%t @[<hov>%t@]" (Label.print lbl)
+      (print_expression ~max_level:0 e)
   | Lambda a -> print ~at_level:2 "fun %t" (print_abstraction a)
   | RecLambda (f, _a) -> print ~at_level:2 "rec %t ..." (Variable.print f)
   | Fulfill expr -> print "⟨%t⟩" (print_expression expr)
@@ -384,30 +384,30 @@ and print_computation ?max_level c ppf =
   match c with
   | Return e -> print ~at_level:1 "return %t" (print_expression ~max_level:0 e)
   | Do (c1, (PNonbinding, c2)) ->
-      print "@[<hov>%t;@ %t@]" (print_computation c1) (print_computation c2)
+    print "@[<hov>%t;@ %t@]" (print_computation c1) (print_computation c2)
   | Do (c1, (pat, c2)) ->
-      print "@[<hov>let@[<hov>@ %t =@ %t@] in@ %t@]" (print_pattern pat)
-        (print_computation c1) (print_computation c2)
+    print "@[<hov>let@[<hov>@ %t =@ %t@] in@ %t@]" (print_pattern pat)
+      (print_computation c1) (print_computation c2)
   | Match (e, lst) ->
-      print "match %t with (@[<hov>%t@])" (print_expression e)
-        (Print.print_sequence " | " case lst)
+    print "match %t with (@[<hov>%t@])" (print_expression e)
+      (Print.print_sequence " | " case lst)
   | Apply (e1, e2) ->
-      print ~at_level:1 "@[%t@ %t@]"
-        (print_expression ~max_level:1 e1)
-        (print_expression ~max_level:0 e2)
+    print ~at_level:1 "@[%t@ %t@]"
+      (print_expression ~max_level:1 e1)
+      (print_expression ~max_level:0 e2)
   | In (op, e, c) ->
-      print "↓%t(@[<hv>%t,@ %t@])" (Operation.print op) (print_expression e)
-        (print_computation c)
+    print "↓%t(@[<hv>%t,@ %t@])" (Operation.print op) (print_expression e)
+      (print_computation c)
   | Out (op, e, c) ->
-      print "↑%t(@[<hv>%t,@ %t@])" (Operation.print op) (print_expression e)
-        (print_computation c)
+    print "↑%t(@[<hv>%t,@ %t@])" (Operation.print op) (print_expression e)
+      (print_computation c)
   | Promise (op, (p1, c1), p2, c2) ->
-      print "@[<hv>promise (@[<hov>%t %t ↦@ %t@])@ as %t in@ %t@]"
-        (Operation.print op) (print_pattern p1) (print_computation c1)
-        (Variable.print p2) (print_computation c2)
+    print "@[<hv>promise (@[<hov>%t %t ↦@ %t@])@ as %t in@ %t@]"
+      (Operation.print op) (print_pattern p1) (print_computation c1)
+      (Variable.print p2) (print_computation c2)
   | Await (e, (p, c)) ->
-      print "@[<hov>await @[<hov>%t until@ ⟨%t⟩@] in@ %t@]"
-        (print_expression e) (print_pattern p) (print_computation c)
+    print "@[<hov>await @[<hov>%t until@ ⟨%t⟩@] in@ %t@]"
+      (print_expression e) (print_pattern p) (print_computation c)
 
 and print_abstraction (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p) (print_computation c)
@@ -421,18 +421,18 @@ let rec print_process ?max_level proc ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
   match proc with
   | Run comp -> print ~at_level:1 "run %t" (print_computation ~max_level:0 comp)
-  | InProc (op, expr, proc) ->
-      print "↓%t(@[<hv>%t,@ %t@])" (Operation.print op)
-        (print_expression expr) (print_process proc)
-  | OutProc (op, expr, proc) ->
-      print "↑%t(@[<hv>%t,@ %t@])" (Operation.print op)
-        (print_expression expr) (print_process proc)
+  | InProc (op, expr, comp) ->
+    print "↓%t(@[<hv>%t,@ %t@])" (Operation.print op)
+      (print_expression expr) (print_computation comp)
+  | OutProc (op, expr, comp) ->
+    print "↑%t(@[<hv>%t,@ %t@])" (Operation.print op)
+      (print_expression expr) (print_computation comp)
 
 let rec print_threads : thread list -> unit = function
   | [] -> ()
   | (p, _, _) :: ts ->
-      Format.printf "%t\n" (print_process p);
-      print_threads ts
+    Format.printf "%t\n" (print_process p);
+    print_threads ts
 
 let string_of_operation op =
   Operation.print op Format.str_formatter;

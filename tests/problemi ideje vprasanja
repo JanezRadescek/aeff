@@ -18,14 +18,23 @@
         vrne error. Samo topleveldef imajo obliko (f : tip) = abs
                                 preostale imajo obliko f = (abs : tip)
 
-21      let (compare : 'c -> 'd -> bool) a b =
-                let a1 = a in
-                a1 = b
-        run compare 5 9
-        Izpiše 'c kot \alpha in 'd kot \beta
 
 
-22      Zakaj desugar ne obdrži loc? kako naj vrnem kašen pameten error brez loc?
+
+22      TODO podaj typecheckerju tudi LOC
 
 
 24      Bomo med vgrajene funkcije dodali getTy?
+
+25      Kako narediti nov interpreter?  
+        imamo process list skupaj z listener
+        vsak process se lahko izvaja concurent/paralel/sequantial
+        normalno izvajamo dokler ni IN/OUT
+        Ko dobimo v enem processu OUT ga obrnemo v IN in ga pošljemo na svojem mesto
+        Kako pošiljati in?
+                Če si shranimo kje točno ga rabimo ga tja damo.
+                Če pa ne potem pa kako? Si res želimo broadcast ali bi raje 1-1.? Če 1-1 kdo dobi če je več?
+                        V DO poskusimo najrej prvemu sicer?
+                        V match gremo lahko rekurzivno v vsakega
+                        Kako v tuple?  
+

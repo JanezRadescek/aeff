@@ -13,14 +13,36 @@ let initial_state =
 
 exception PatternMismatch
 
-let run_comp _state _comp : Ast.computation * state = failwith "TODO run_comp"
+let run_comp state comp : state * Ast.computation * Ast.condition =
+  match comp with
+  | Ast.Return _ -> (state, comp, Ast.Done)
+  | _ -> failwith "TODO run_comp"
 
-let rec run_thread state thread : Ast.thread =
-  match thread with
-  | Ast.Run c, ops, Ast.Ready ->
-      let comp, state' = run_comp state c in
-      run_thread state' (Ast.Run comp, ops, Ast.Ready)
-  | _ -> thread
+let insert_op (op, expr, comp) ops =
+  match comp with
+  | Ast.Return _ -> assert false
+  | Ast.Do (_c,_a) -> failwith "TODO"
+  | Ast.
+
+      let rec run_thread state thread : state * Ast.thread =
+        match thread with
+        | Ast.Run c, ops, Ast.Ready ->
+          let state', comp, cond = run_comp state c in
+          run_thread state' (Ast.Run comp, ops, cond)
+
+        | Ast.InProc (op, exp, comp), ops, Ast.Ready -> insert_op (op, exp, comp) ops 
+
+
+        | Ast.InProc (_op,_exp, _proc), _ops, Ast.Waiting -> failwith "TODO"
+        | Ast.OutProc (_op,_exp, _proc), _ops, Ast.Waiting -> failwith "TODO"
+
+        | Ast.Run _, _, Ast.Done
+        | Ast.Run _, _, Ast.Waiting
+
+        | Ast.OutProc _, _, Ast.Ready -> (state,thread)
+
+        | Ast.InProc (_op,_exp, _proc), _ops, Ast.Done 
+        | Ast.OutProc (_op,_exp, _proc), _ops, Ast.Done -> assert false
 
 let resolve_operations _state threads : state * Ast.thread list =
   let rec get_opOut = function
@@ -34,8 +56,8 @@ let resolve_operations _state threads : state * Ast.thread list =
   failwith "TODO resolve_ope"
 
 let rec run (state : state) (threads : Ast.thread list) : Ast.thread list =
-  let threads' = List.map (run_thread state) threads in
-  let state'', threads'' = resolve_operations state threads in
+  let state', threads' = List.map (run_thread state) threads in
+  (*let state'', threads'' = resolve_operations state' threads in*)
   let all_done r (_, _, c) = match c with Ast.Done -> r | _ -> false in
   match List.fold_left all_done true threads' with
   | true -> threads'
