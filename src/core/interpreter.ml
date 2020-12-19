@@ -19,11 +19,57 @@ let intersection_compliment aa bb =
   ( List.filter (fun (a1, _a2) -> List.mem a1 bb) aa,
     List.filter (fun b -> not (List.mem_assoc b aa)) bb )
 
+let substitution _state (_v : Ast.expression) ((_x, _m) : Ast.abstraction) :
+    state * Ast.computation =
+  failwith "TODO subst"
+
 let run_comp state comp : state * Ast.process * Ast.condition =
   print "run_comp";
-  match comp with
-  | Ast.Return _ -> (state, Ast.Run comp, Ast.Done)
-  | _ -> failwith "TODO run_comp\n"
+  let rec run_comp_rec (state : state) (comp : Ast.computation) =
+    match comp with
+    | Ast.Return _ -> (state, comp)
+    | Ast.Do (Ast.Return e, abs) ->
+        let state', comp' = substitution state e abs in
+        run_comp_rec state' comp'
+    | Ast.Do (c, abs) ->
+        let state', comp' = run_comp_rec state c in
+        run_comp_rec state' (Ast.Do (comp', abs))
+    | Ast.Match (_e, _abs) -> failwith "TODO match"
+    | Ast.Apply (Ast.Lambda abs, e) ->
+        let state', comp' = substitution state e abs in
+        run_comp_rec state' comp'
+    | Ast.Apply (Ast.RecLambda (_f, _abs), _e) -> failwith "TODO apply reclamb"
+    | Ast.Apply _ -> assert false
+    | Ast.Out _ -> (state, comp)
+    | Ast.In (op, e, c) -> (
+        match c with
+        | Ast.Return _ -> (state, c)
+        | Ast.Out (op', e', c') ->
+            run_comp_rec state (Ast.Out (op', e', Ast.In (op, e, c')))
+        | Ast.Promise (op', abs', _var', _comp') when op = op' ->
+            let _state', _comp' = substitution state e abs' in
+            failwith "TODO promise"
+        | Ast.Promise (op', abs', var', c') ->
+            let state', c'' = run_comp_rec state c' in
+            run_comp_rec state'
+              (Ast.Promise (op', abs', var', Ast.In (op, e, c'')))
+        | _ ->
+            let state', comp' = run_comp_rec state c in
+            run_comp_rec state' (Ast.In (op, e, comp')) )
+    | Ast.Promise (op, abs, p, c) ->
+        let state', comp' = run_comp_rec state c in
+        (state', Ast.Promise (op, abs, p, comp'))
+    | Ast.Await _ -> (state, comp)
+  in
+
+  let state', comp' = run_comp_rec state comp in
+  match comp' with
+  | Ast.Return _e -> (state', Ast.Run comp', Ast.Done)
+  | Ast.Out (op, e, comp'') ->
+      (state', Ast.OutProc (op, e, Ast.Run comp''), Ast.Waiting)
+  (*Waiting or ready??? only Done | notDone??? TODO think *)
+  | Ast.In (_op, _e, _comp'') -> failwith "TODO"
+  | _ -> assert false
 
 let rec run_process state process : state * Ast.process * Ast.condition =
   match process with

@@ -47,7 +47,7 @@
                 var init_1 <- inits
                 var result_1 = SlowFunction_1( init_1 )
                 results <- result_1
-                var init_2 <- inits
+                var init_2 <- inipts
                 var result_2 = SlowFunction_2( init_2 )
                 results <- result_2
         } 
@@ -153,5 +153,18 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
 
 33      V "shared memory"/state so samo toplet, tydef, opdef ? torej lahko vsakemu threadu na začetku damo svoj state in od zdej naprej vsak skrbi za svojega?
         Sedaj bi bilo dosti enostavno delati nove threade? Novemu threadu samo damo kopijo state in predpisan computation?
+
+
+34      Kaj se zgodi če op = op' v
+        Commutativity of signals with interrupt handlers 24:9
+        promise (op 𝑥 ↦→ 𝑀) as 𝑝 in ↑ op′
+        (𝑉 , 𝑁) { ↑ op′
+        (𝑉 , promise (op 𝑥 ↦→ 𝑀) as 𝑝 in 𝑁)
+        ?
+
+
+35      V interpreter je povno možnosti, ki niso možne, glede na to, da ima program tip.
+        Vendar tega match ne ve in mu moramo podati insert. 
+        Se da kako povedati match da bi to prepoznal avtomatsko?
 
 
