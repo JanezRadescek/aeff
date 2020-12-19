@@ -38,3 +38,96 @@
                         V match gremo lahko rekurzivno v vsakega
                         Kako v tuple?  
 
+26      GO example
+
+        var results = chanel<int>()
+        var inits = chanel<int>()
+        var f () =
+        {
+                var init_1 <- inits
+                var result_1 = SlowFunction_1( init_1 )
+                results <- result_1
+                var init_2 <- inits
+                var result_2 = SlowFunction_2( init_2 )
+                results <- result_2
+        } 
+        //f mora vračati unit
+        go f
+
+        init <- 1
+        ...working some staff
+        init <- 2
+
+
+        var r0 = SlowFunction_3( 3 ) //
+        print(SlowFunction_3 is finished. SlowFunction_1 and SlowFunction_2 maybe are finished maybe not.)
+
+        var r1 <- results
+        print(SlowFunction_3 is finished. SlowFunction_1 is finished. SlowFunction_2 maybe is maybe isnt.)
+
+        var r2 <- results
+        print(all functions are finished)
+
+        return (r1, r2)
+
+
+
+
+        AEFF counter part
+
+        operation results : int
+        operation inits : int
+
+        let f : unit -> unit =
+
+                let promise inits i |-> i
+                as inits_promise
+
+                await <<inits_promise>> until init_1 in   
+                let result_1 = SlowFunction_1( init_1 ) in
+                let _ = send result result_1 return() in
+
+                await <<inits_promise>> until init_2 in
+                let result_2 = SlowFunction_2( init_2 ) in
+                let _ = send result result_2 return()
+
+        run f()
+
+        run     promise result r |-> r
+                as p in return p
+
+                send inits 1;
+                ...working some staff
+                in
+                send inits 2;
+
+                let r0 = SlowFunction_3( 3 )
+                let _ = send print "SlowFunction_3 is finished" return() in
+
+                await <<p>> until r1 in 
+                send print "SlowFunction_1 is finished too" return() in
+
+                await <<p>> until r2 in
+                send print "All SlowFunctions are finished" return() in
+
+                return (r1,r2)
+
+
+28      na strani 24:6 asyn eff kaj je batchSizeResponse? ni to operacija, ki je nismo nikjer definirali?
+
+
+29      24:11   Ground type 𝐴, 𝐵 ::= ... brez A -> B 
+
+        we assign a fixed signature op : 𝐴op that specifies the type 𝐴op of the payload
+of the corresponding signal or interrupt. Crucially, in order to be able to later prove that 𝜆æ is type
+safe (see Theorem 3.3, but also the relevant discussion in Section 6), we restrict these signatures to
+ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, product, and sum types.
+
+        ampak 
+        async.aeff 
+        ima
+        operation question : unit -> int
+
+30
+
+

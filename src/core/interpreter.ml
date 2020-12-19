@@ -13,55 +13,49 @@ let initial_state =
 
 exception PatternMismatch
 
+let intersection_compliment aa bb =
+  ( List.filter (fun (a1, _a2) -> List.mem a1 bb) aa,
+    List.filter (fun b -> not (List.mem_assoc b aa)) bb )
+
 let run_comp state comp : state * Ast.computation * Ast.condition =
   match comp with
   | Ast.Return _ -> (state, comp, Ast.Done)
   | _ -> failwith "TODO run_comp"
 
-let insert_op (op, expr, comp) ops =
-  match comp with
-  | Ast.Return _ -> assert false
-  | Ast.Do (_c,_a) -> failwith "TODO"
-  | Ast.
+let run_thread (state : state) (thread : Ast.thread) =
+  match thread with _ -> (state, thread)
 
-      let rec run_thread state thread : state * Ast.thread =
-        match thread with
-        | Ast.Run c, ops, Ast.Ready ->
-          let state', comp, cond = run_comp state c in
-          run_thread state' (Ast.Run comp, ops, cond)
-
-        | Ast.InProc (op, exp, comp), ops, Ast.Ready -> insert_op (op, exp, comp) ops 
-
-
-        | Ast.InProc (_op,_exp, _proc), _ops, Ast.Waiting -> failwith "TODO"
-        | Ast.OutProc (_op,_exp, _proc), _ops, Ast.Waiting -> failwith "TODO"
-
-        | Ast.Run _, _, Ast.Done
-        | Ast.Run _, _, Ast.Waiting
-
-        | Ast.OutProc _, _, Ast.Ready -> (state,thread)
-
-        | Ast.InProc (_op,_exp, _proc), _ops, Ast.Done 
-        | Ast.OutProc (_op,_exp, _proc), _ops, Ast.Done -> assert false
-
-let resolve_operations _state threads : state * Ast.thread list =
-  let rec get_opOut = function
-    | [] -> []
-    | (Ast.Run _, _, _) :: ts | (Ast.InProc _, _, _) :: ts -> get_opOut ts
-    | (Ast.OutProc (op, _, _), _, _) :: ts -> op :: get_opOut ts
+let resolve_operations (threads : Ast.thread list) : Ast.thread list * bool =
+  let take_op thread (ops, threads) =
+    match thread with
+    | Ast.OutProc (op, e, proc), ops', cond ->
+      ((op, e) :: ops, (proc, ops', cond) :: threads)
+    | (Ast.Run _ | Ast.InProc _), _, _ -> (ops, thread :: threads)
   in
-
-  let _op = get_opOut threads in
-
-  failwith "TODO resolve_ope"
+  let op, threads' = List.fold_right take_op threads ([], []) in
+  let insert_interupts thread threads =
+    let proc, op', _cond = thread in
+    let op_todo, op'' = intersection_compliment op op' in
+    let proc' =
+      List.fold_left
+        (fun proc (op, expr) -> Ast.InProc (op, expr, proc))
+        proc op_todo
+    in
+    let thread' = (proc', op'', Ast.Ready) in
+    thread' :: threads
+  in
+  (List.fold_right insert_interupts threads' [], List.length op > 0)
 
 let rec run (state : state) (threads : Ast.thread list) : Ast.thread list =
-  let state', threads' = List.map (run_thread state) threads in
-  (*let state'', threads'' = resolve_operations state' threads in*)
-  let all_done r (_, _, c) = match c with Ast.Done -> r | _ -> false in
-  match List.fold_left all_done true threads' with
-  | true -> threads'
-  | false -> run state'' threads''
+  let fold' thread (state, threads) =
+    let state', thread' = run_thread state thread in
+    (state', thread' :: threads)
+  in
+  let state', threads' = List.fold_right fold' threads (state, []) in
+  let threads'', done' = resolve_operations threads' in
+  match done' with true -> threads'' | false -> run state' threads''
+
+
 
 let add_external_function x def state =
   {
