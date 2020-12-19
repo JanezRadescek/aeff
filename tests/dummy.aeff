@@ -2,4 +2,5 @@ let (compare : 'c -> 'd -> ('c * 'd)) a b =
                 let id x : 'c = x in 
                 let a1 = (id a) in
                 (a1, b)
-        run compare "6" "4"
+
+run compare "6" "4"
