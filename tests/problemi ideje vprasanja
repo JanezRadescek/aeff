@@ -26,17 +26,43 @@
 
 24      Bomo med vgrajene funkcije dodali getTy?
 
-25      Kako narediti nov interpreter?  
-        imamo process list skupaj z listener
-        vsak process se lahko izvaja concurent/paralel/sequantial
+25      Kako izvajamo program?  
         normalno izvajamo dokler ni IN/OUT
-        Ko dobimo v enem processu OUT ga obrnemo v IN in ga pošljemo na svojem mesto
+        Ko dobimo v enem processu OUT ga pošljemo ven in obrnemo v IN v drugih. 
         Kako pošiljati in?
-                Če si shranimo kje točno ga rabimo ga tja damo.
-                Če pa ne potem pa kako? Si res želimo broadcast ali bi raje 1-1.? Če 1-1 kdo dobi če je več?
-                        V DO poskusimo najrej prvemu sicer?
-                        V match gremo lahko rekurzivno v vsakega
-                        Kako v tuple?  
+                Če si shranimo promise. Kako si jih shranimo? promise bi moral biti ovit v comp, 
+                ki bi imel shranjen pointer na naslednjo comp, 
+                da bi lahko ta comp(promise) zamenjali z do. ne pa vrednosti
+                
+        Do takrat pointerjev ali gruge rešitve.
+                kako izvajati OUT
+
+                        Kaj se zgodi če op = op' v
+                        Commutativity of signals with interrupt handlers 24:9
+                        promise (op 𝑥 ↦→ 𝑀) as 𝑝 in ↑ op′
+                        (𝑉 , 𝑁) { ↑ op′
+                        (𝑉 , promise (op 𝑥 ↦→ 𝑀) as 𝑝 in 𝑁)
+                        ?
+
+                        Out lahko vedno takoj pošljemo ven do konca?
+
+                Kako izvajati IN
+
+                        Kaj če dobimo recimo
+                        ↓ op (𝑉 , match... )
+                        Če nimamo navedenega pravila, naredimo korak v comp, 
+                        dokler ne dobimo željenega pravila za interupt propagation?
+
+                        Kaj se zgodi če imamo InProc(opB, e,  InProc(opA, e, Run await opB)  ) 
+
+                        Kaj se zgodi če imamo InProc(opB, e,  InProc(opA, e, Run await op11 ...await opX...)  ) kjer je X = 1|2 {A,B} = {1,2}
+
+                                Namesto InProc = op * e * process
+                                bi imeli ali 
+                                        InProc = (op * e) list * process //seznam operacij ki čakajo da jih nekam damo
+                                        ali
+                                        process = (op * e) list * (op * e) list * comp//seznam in, seznam out, computation?
+
 
 26      GO example
 
@@ -142,25 +168,12 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
         await <<p>> until v
         ???
 
-32      Kaj se zgodi če imamo InProc(opB, e,  InProc(opA, e, Run await op11 ...await opX...)  ) kjer je X = 1|2 {A,B} = {1,2}
-
-        Namesto InProc = op * e * process
-        bi imeli ali 
-                InProc = (op * e) list * process //seznam operacij ki čakajo da jih nekam damo
-                ali
-                process = (op * e) list * (op * e) list * comp//seznam in, seznam out, computation?
-
 
 33      V "shared memory"/state so samo toplet, tydef, opdef ? torej lahko vsakemu threadu na začetku damo svoj state in od zdej naprej vsak skrbi za svojega?
-        Sedaj bi bilo dosti enostavno delati nove threade? Novemu threadu samo damo kopijo state in predpisan computation?
+        //Sedaj bi bilo dosti enostavno delati nove threade? Novemu threadu samo damo kopijo state in predpisan computation?
 
 
-34      Kaj se zgodi če op = op' v
-        Commutativity of signals with interrupt handlers 24:9
-        promise (op 𝑥 ↦→ 𝑀) as 𝑝 in ↑ op′
-        (𝑉 , 𝑁) { ↑ op′
-        (𝑉 , promise (op 𝑥 ↦→ 𝑀) as 𝑝 in 𝑁)
-        ?
+34     
 
 
 35      V interpreter je povno možnosti, ki niso možne, glede na to, da ima program tip.
