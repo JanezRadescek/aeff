@@ -177,19 +177,19 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
 
 36      a)      Kaj če dobimo recimo
                         ↓ op (𝑉 , match... )
-                        Če nimamo navedenega pravila, naredimo korak v comp, 
+                        Če nimamo navedenega pravila, naredimo korak v match..., 
                         dokler ne dobimo željenega pravila za interupt propagation?
 
         b)      Kaj se zgodi če imamo 
-                InProc(opA, e, Run await opB ...)    
+                InProc(opA, e, Run promise opB ...as p in await p ...)    
                 in pride od nekod opB, e  
                 ~>
-                InProc(opB, e,   InProc(opA, e, Run await opB ...)   ) 
+                InProc(opB, e,   InProc(opA, e, Run promise opB ...as p in await p ...)   ) 
                 ~>
                 ?
 
         c)      V kaj se evaluira
-                InProc(opB, e,  InProc(opA, e, Run await op11 ...await opX...)  ), kjer je X = 1|2 {A,B} = {1,2}
+                InProc(opB, e,  InProc(opA, e, Run promise opY ... as p1 in await p1 ... promise opX ... as p2 in await p2...)  ), kjer je       X € {1,2}       Y € {1,37}       {A,B} = {1,2}
                 ~>
                 ?
 
