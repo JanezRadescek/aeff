@@ -20,11 +20,12 @@
 
 
 
-
 22      TODO podaj typecheckerju tudi LOC
 
 
 24      Bomo med vgrajene funkcije dodali getTy?
+
+
 
 25      Kako izvajamo program?  
         normalno izvajamo dokler ni IN/OUT
@@ -78,7 +79,7 @@
                 results <- result_2
         } 
         //f mora vračati unit
-        go f
+        go f()
 
         init <- 1
         ...working some staff
@@ -172,8 +173,6 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
 33      V "shared memory"/state so samo toplet, tydef, opdef ? torej lahko vsakemu threadu na začetku damo svoj state in od zdej naprej vsak skrbi za svojega?
         //Sedaj bi bilo dosti enostavno delati nove threade? Novemu threadu samo damo kopijo state in predpisan computation?
 
-
-34     
 
 
 35      V interpreter je povno možnosti, ki niso možne, glede na to, da ima program tip.
