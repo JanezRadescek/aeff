@@ -49,16 +49,11 @@
 
                 Kako izvajati IN
 
-                        Kaj če dobimo recimo
-                        ↓ op (𝑉 , match... )
-                        Če nimamo navedenega pravila, naredimo korak v comp, 
-                        dokler ne dobimo željenega pravila za interupt propagation?
+                        36
 
-                        Kaj se zgodi če imamo InProc(opB, e,  InProc(opA, e, Run await opB)  ) 
+                        
 
-                        Kaj se zgodi če imamo InProc(opB, e,  InProc(opA, e, Run await op11 ...await opX...)  ) kjer je X = 1|2 {A,B} = {1,2}
-
-                                Namesto InProc = op * e * process
+                        Namesto InProc = op * e * process
                                 bi imeli ali 
                                         InProc = (op * e) list * process //seznam operacij ki čakajo da jih nekam damo
                                         ali
@@ -180,3 +175,22 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
         Se da kako povedati match da bi to prepoznal avtomatsko?
 
 
+36      a)      Kaj če dobimo recimo
+                        ↓ op (𝑉 , match... )
+                        Če nimamo navedenega pravila, naredimo korak v comp, 
+                        dokler ne dobimo željenega pravila za interupt propagation?
+
+        b)      Kaj se zgodi če imamo 
+                InProc(opA, e, Run await opB ...)    
+                in pride od nekod opB, e  
+                ~>
+                InProc(opB, e,   InProc(opA, e, Run await opB ...)   ) 
+                ~>
+                ?
+
+        c)      V kaj se evaluira
+                InProc(opB, e,  InProc(opA, e, Run await op11 ...await opX...)  ), kjer je X = 1|2 {A,B} = {1,2}
+                ~>
+                ?
+
+                                     
