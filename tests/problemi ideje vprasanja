@@ -101,21 +101,25 @@
         operation inits : int
 
         let f : unit -> unit =
-
-                let promise inits i |-> i
-                as inits_promise in
-
-                await <<inits_promise>> until init_1 in   
-                let result_1 = SlowFunction_1( init_1 ) in
-                send result result_1;
-
-                await <<inits_promise>> until init_2 in
+            let promise inits init_1 |-> (
+              let result_1 = SlowFunction_1( init_1 ) in
+              send result result_1;
+              let promise inits init_2 |->
                 let result_2 = SlowFunction_2( init_2 ) in
-                send result result_2
+                send result result_2;
+                return <<()>>
+            )
 
         run f()
 
-        run     promise result r |-> r
+        run
+          send inits 1;
+          send inits 2;
+          let r0 = SlowFunction_3( 3 ) in
+          let _ = send print "SlowFunction_3 is finished" return() in
+          promise results r1 |->
+
+     promise result r |-> r
                 as p in return p
 
                 send inits 1;
@@ -124,7 +128,6 @@
                 send inits 2;
 
                 let r0 = SlowFunction_3( 3 )
-                let _ = send print "SlowFunction_3 is finished" return() in
 
                 await <<p>> until r1 in 
                 send print "SlowFunction_1 is finished too" return() in
@@ -158,11 +161,20 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
 
         in obratno
 
-        v <- op
+        v <- op;
+        v2 <- op;
+        ...
         sugar za
+
         promise op v' |-> v' as p in
-        await <<p>> until v
-        ???
+        await <<p>> until v1 in
+        promise op v' |-> v' as p in
+        await <<p>> until v2 in
+        ...
+
+        promise op v1 |->      
+                promise op v2 |-> ... as _ in return ()
+        as _ in return ()
 
 
 33      V "shared memory"/state so samo toplet, tydef, opdef ? torej lahko vsakemu threadu na začetku damo svoj state in od zdej naprej vsak skrbi za svojega?
@@ -180,13 +192,24 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
                         Če nimamo navedenega pravila, naredimo korak v match..., 
                         dokler ne dobimo željenega pravila za interupt propagation?
 
+                DA, ↓ op (𝑉 , ...) je evalvacijski kontekst, zato se ta, notri naprej delajo koraki
+
         b)      Kaj se zgodi če imamo 
                 InProc(opA, e, Run promise opB ...as p in await p ...)    
                 in pride od nekod opB, e  
                 ~>
                 InProc(opB, e,   InProc(opA, e, Run promise opB ...as p in await p ...)   ) 
                 ~>
-                ?
+                InProc(opB, e,  Run  InComp(opA, e, promise opB ...as p in await p ...)   ) 
+                ~> (tu je tudi varianta v Run (Incomp A (Incomp B (...))))
+                InProc(opB, e,  Run  promise opB ...as p in InComp(opA, e, await p ...)   ) 
+                ~>
+                Run InComp(opB, e, promise opB ...as p in InComp(opA, e, await p ...)   ) 
+                ~>
+                Run let p = ... in InComp(opB, e, InComp(opA, e, await p ...))
+                ~>
+                ...
+                
 
         c)      V kaj se evaluira
                 InProc(opB, e,  InProc(opA, e, Run promise opY ... as p1 in await p1 ... promise opX ... as p2 in await p2...)  ), kjer je       X € {1,2}       Y € {1,37}       {A,B} = {1,2}
