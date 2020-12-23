@@ -44,36 +44,6 @@ let initial_state =
   }
   |> fun state -> List.fold load_function state BuiltIn.functions
 
-let make_thread comp : Ast.thread =
-  let rec find_op_comp comp : Ast.operation list =
-    match comp with
-    | Ast.Return e -> find_op_expression e
-    | Ast.Do (c1, (_p, c2)) -> find_op_comp c1 @ find_op_comp c2
-    | Ast.Match (e, abs) -> find_op_expression e @ find_op_abs abs
-    | Ast.Apply (e1, e2) -> find_op_expression e1 @ find_op_expression e2
-    | Ast.Out (_o, e, _c) -> find_op_expression e
-    | Ast.In _ -> assert false
-    | Ast.Promise (_o, _a, _v, _c) -> failwith "TODO promise"
-    | Ast.Await (_e, a) -> find_op_abs [ a ]
-  and find_op_expression = function
-    | Ast.Var _ -> []
-    | Ast.Const _ -> []
-    | Ast.Annotated (e, _a) -> find_op_expression e
-    | Ast.Tuple exprs ->
-        let fold' ops e = find_op_expression e @ ops in
-        List.fold_left fold' [] exprs
-    | Ast.Variant _ -> failwith "TODO find_op variant"
-    | Ast.Lambda abs -> find_op_abs [ abs ]
-    | Ast.RecLambda (_f, abs) -> find_op_abs [ abs ]
-    | Ast.Fulfill e -> find_op_expression e
-    | Ast.Reference r -> find_op_expression !r
-  and find_op_abs abs =
-    let fold' ops (_p, c) = find_op_comp c @ ops in
-    List.fold_left fold' [] abs
-  in
-
-  (Ast.Run comp, find_op_comp comp, Ast.Ready)
-
 let execute_command state = function
   | Ast.TyDef ty_defs ->
       let typechecker_state' =
@@ -94,7 +64,7 @@ let execute_command state = function
       }
   | Ast.TopDo comp ->
       let _ = Typechecker.infer_top_computation state.typechecker comp in
-      let thread = make_thread comp in
+      let thread = (comp, [], Ast.Ready) in
       { state with top_computations = thread :: state.top_computations }
   | Ast.Operation (op, ty) ->
       let typechecker_state' =

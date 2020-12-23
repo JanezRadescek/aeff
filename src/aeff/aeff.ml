@@ -30,7 +30,7 @@ let main () =
       else Loader.initial_state
     in
     let state = List.fold_left Loader.load_file state config.filenames in
-    let finished_threads =
+    let _states, finished_threads =
       Interpreter.run state.interpreter state.top_computations
     in
     Format.printf "The process has terminated in the configuration:\n";

@@ -328,7 +328,7 @@ type process =
 
 type condition = Done | Ready | Waiting
 
-type thread = process * operation list * condition
+type thread = computation * operation list * condition
 
 type ty_def = TySum of (label * ty option) list | TyInline of ty
 
@@ -430,8 +430,8 @@ let rec print_process ?max_level proc ppf =
 
 let rec print_threads : thread list -> unit = function
   | [] -> ()
-  | (p, _, _) :: ts ->
-      Format.printf "%t\n" (print_process p);
+  | (c, _, _) :: ts ->
+      Format.printf "%t\n" (print_computation c);
       print_threads ts
 
 let string_of_operation op =
