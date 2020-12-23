@@ -147,21 +147,6 @@ let run_comp state comp : state * Ast.computation * Ast.condition =
   | Ast.Promise _ -> (state', comp', Ast.Waiting)
   | _ -> assert false
 
-(*let rec run_process state process : state * Ast.process * Ast.condition =
-  match process with
-  | Ast.Run c ->
-      let state', c', cond = run_comp state c in
-      (state', c', cond)
-  | Ast.OutProc (op, e, p) ->
-      let state', p', cond = run_process state p in
-      (state', Ast.OutProc (op, e, p'), cond)
-  | Ast.InProc (_op, _e, p) -> (
-      match p with
-      | Ast.OutProc (_op', _e', _p') -> failwith "TODO"
-      | Ast.InProc (_op', _e', _p') -> failwith "TODO"
-      | Ast.Run (Ast.Promise (_op', _abs, _var, _comp)) -> failwith "TODO"
-      | Ast.Run c -> run_comp state c )*)
-
 let run_thread (state : state) ((comp, ops, condition) : Ast.thread) :
     state * Ast.thread =
   match condition with
