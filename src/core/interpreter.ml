@@ -19,9 +19,85 @@ let intersection_compliment aa bb =
   ( List.filter (fun (a1, _a2) -> List.mem a1 bb) aa,
     List.filter (fun b -> not (List.mem_assoc b aa)) bb )
 
+let extend_variables (state : state) vars =
+  List.fold_left
+    (fun state (x, expr) ->
+      { state with variables = Ast.VariableMap.add x expr state.variables })
+    state vars
+
 let substitution _state (_v : Ast.expression) ((_x, _m) : Ast.abstraction) :
     state * Ast.computation =
   failwith "TODO subst"
+
+let rec eval_tuple state = function
+  | Ast.Tuple exprs -> exprs
+  | Ast.Var x -> eval_tuple state (Ast.VariableMap.find x state.variables)
+  | Ast.Annotated (e, _anno) -> eval_tuple state e
+  | expr ->
+      Error.runtime "Tuple expected but got %t" (Ast.print_expression expr)
+
+let rec eval_variant state = function
+  | Ast.Variant (lbl, expr) -> (lbl, expr)
+  | Ast.Var x -> eval_variant state (Ast.VariableMap.find x state.variables)
+  | Ast.Annotated (e, _anno) -> eval_variant state e
+  | expr ->
+      Error.runtime "Variant expected but got %t" (Ast.print_expression expr)
+
+let rec eval_const state = function
+  | Ast.Const c -> c
+  | Ast.Var x -> eval_const state (Ast.VariableMap.find x state.variables)
+  | Ast.Annotated (e, _anno) -> eval_const state e
+  | expr ->
+      Error.runtime "Const expected but got %t" (Ast.print_expression expr)
+
+let rec match_pattern_with_expression state pat expr =
+  match pat with
+  | Ast.PVar x -> Ast.VariableMap.singleton x expr
+  | Ast.PAnnotated (pat, _) -> match_pattern_with_expression state pat expr
+  | Ast.PAs (pat, x) ->
+      let subst = match_pattern_with_expression state pat expr in
+      Ast.VariableMap.add x expr subst
+  | Ast.PTuple pats ->
+      let exprs = eval_tuple state expr in
+      List.fold_left2
+        (fun subst pat expr ->
+          let subst' = match_pattern_with_expression state pat expr in
+          Ast.VariableMap.union (fun _ _ _ -> assert false) subst subst')
+        Ast.VariableMap.empty pats exprs
+  | Ast.PVariant (label, pat) -> (
+      match (pat, eval_variant state expr) with
+      | None, (label', None) when label = label' -> Ast.VariableMap.empty
+      | Some pat, (label', Some expr) when label = label' ->
+          match_pattern_with_expression state pat expr
+      | _, _ -> raise PatternMismatch )
+  | Ast.PConst c when Const.equal c (eval_const state expr) ->
+      Ast.VariableMap.empty
+  | Ast.PNonbinding -> Ast.VariableMap.empty
+  | _ -> raise PatternMismatch
+
+let substitute subst comp =
+  let subst = Ast.VariableMap.map (Ast.refresh_expression []) subst in
+  Ast.substitute_computation subst comp
+
+let rec eval_function state = function
+  | Ast.Lambda (pat, comp) ->
+      fun arg ->
+        let subst = match_pattern_with_expression state pat arg in
+        substitute subst comp
+  | Ast.RecLambda (f, (pat, comp)) as expr ->
+      fun arg ->
+        let subst =
+          match_pattern_with_expression state pat arg
+          |> Ast.VariableMap.add f expr
+        in
+        substitute subst comp
+  | Ast.Var x -> (
+      match Ast.VariableMap.find_opt x state.variables with
+      | Some expr -> eval_function state expr
+      | None -> Ast.VariableMap.find x state.builtin_functions )
+  | Ast.Annotated (expr, _ty) -> eval_function state expr
+  | expr ->
+      Error.runtime "Function expected but got %t" (Ast.print_expression expr)
 
 let run_comp state comp : state * Ast.computation * Ast.condition =
   print "run_comp";
@@ -35,11 +111,9 @@ let run_comp state comp : state * Ast.computation * Ast.condition =
         let state', comp' = run_comp_rec state c in
         run_comp_rec state' (Ast.Do (comp', abs))
     | Ast.Match (_e, _abs) -> failwith "TODO match"
-    | Ast.Apply (Ast.Lambda abs, e) ->
-        let state', comp' = substitution state e abs in
-        run_comp_rec state' comp'
-    | Ast.Apply (Ast.RecLambda (_f, _abs), _e) -> failwith "TODO apply reclamb"
-    | Ast.Apply _ -> assert false
+    | Ast.Apply (e1, e2) ->
+        let f = eval_function state e1 in
+        (state, f e2)
     | Ast.Out _ -> (state, comp)
     | Ast.In (op, e, c) -> (
         match c with
@@ -48,18 +122,21 @@ let run_comp state comp : state * Ast.computation * Ast.condition =
             run_comp_rec state (Ast.Out (op', e', Ast.In (op, e, c')))
         | Ast.Promise (op', abs', _var', _comp') when op = op' ->
             let _state', _comp' = substitution state e abs' in
-            failwith "TODO promise"
+            failwith "TODO"
+        (*run_comp_rec state'' (Ast.Do(comp',( var', comp')))*)
         | Ast.Promise (op', abs', var', c') ->
             let state', c'' = run_comp_rec state c' in
             run_comp_rec state'
               (Ast.Promise (op', abs', var', Ast.In (op, e, c'')))
         | _ ->
             let state', comp' = run_comp_rec state c in
+            (*Here we can get promise op ... *)
             run_comp_rec state' (Ast.In (op, e, comp')) )
     | Ast.Promise (op, abs, p, c) ->
         let state', comp' = run_comp_rec state c in
         (state', Ast.Promise (op, abs, p, comp'))
-    | Ast.Await _ -> (state, comp)
+    | Ast.Await _ -> failwith "TODO await"
+    (*(state, comp)   How do we know if we have expression yet or not?*)
   in
 
   let state', comp' = run_comp_rec state comp in
