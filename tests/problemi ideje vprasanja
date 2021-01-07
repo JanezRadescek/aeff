@@ -177,15 +177,15 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
                 ...
 
 
-37      čez kodo kar je že narejeno pa če je prava smer
-        star interpreter sem v celoti zakomentiral, ker bi rad naredil od začetka, ker sicer bodo deli kode, ki bodo delali pa ne bom vedel zakaj, 
+37      star interpreter sem v celoti zakomentiral, ker bi rad naredil od začetka, ker sicer bodo deli kode, ki bodo delali pa ne bom vedel zakaj, 
         potem se bo pa nekoč nekaj spremenilo, pa nebodo več delali, pa tudi ne bom vedel zakaj ali kako popraviti. 
 
-        thread = run comp + seznam operacij, ki jih hočemo. stanje
+        namesto process je sedaj thread
+        thread = stari run comp + seznam operacij, ki jih hočemo + stanje
         //seznam operacij ki jih poslušamo gre stran, in ga nadomestimo z pointerjem na global queue operacij, ker bomo sprejeli vse operacije če jih hočemo ali ne.
 
-        run initialize all and call run_rec 
-        run_rec poganjaj induvidualne threade dokler se ne bodo prekinili. Resolve operation reši operacije in interupte. Če je kakšen thread, ki še ni končan se rekurzivno pokliči.
+        run top_commputations spremeni v threade in kliče run_rec 
+        run_rec poganjaj induvidualne threade enega za drugim dokler se ne bodo prekinili. Resolve operation reši operacije in interupte. Če je kakšen thread, ki še ni končan se rekurzivno pokliči.
         run_thread Če smo Ready predaj run_comp
         run_comp rekurzivno izvajaj comp. in na koncu odloči v kakšnem stanju smo se ustavili.
 
