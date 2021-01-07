@@ -122,9 +122,9 @@ let run_comp state comp : state * Ast.computation * Ast.condition =
         | Ast.Return _ -> (state, c)
         | Ast.Out (op', e', c') ->
           run_comp_rec state (Ast.Out (op', e', Ast.In (op, e, c')))
-        | Ast.Promise (op', abs', var', _comp') when op = op' ->
-          let state', comp' = substitution state e abs' in
-          run_comp_rec state' (Ast.Do (comp', (var', comp')))
+        | Ast.Promise (op', abs', var', comp') when op = op' ->
+          let state', comp'' = substitution state e abs' in
+          run_comp_rec state' (Ast.Do (comp'', (Ast.PVar var', comp')))
         | Ast.Promise (op', abs', var', c') ->
           let state', c'' = run_comp_rec state c' in
           run_comp_rec state'
