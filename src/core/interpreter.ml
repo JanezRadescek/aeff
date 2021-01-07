@@ -167,6 +167,7 @@ let resolve_operations (threads : Ast.thread list) : Ast.thread list * bool =
     | _ -> (ops, thread :: threads)
   in
   let op, threads' = List.fold_right take_op threads ([], []) in
+  (*HERE COMES MAGICAL FUNCTION THAT KNOWS EXACTLY WHICH OPERATIONS EACH THREAD WANTS TO GET.*)
   let insert_interupts thread threads =
     let comp, op', _cond = thread in
     let op_todo, op'' = intersection_compliment op op' in
