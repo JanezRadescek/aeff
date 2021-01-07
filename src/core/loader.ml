@@ -15,7 +15,7 @@ type state = {
   desugarer : Desugarer.state;
   interpreter : Interpreter.state;
   typechecker : Typechecker.state;
-  top_computations : Ast.thread list;
+  top_computations : Ast.computation list;
 }
 
 let initial_state =
@@ -64,8 +64,7 @@ let execute_command state = function
       }
   | Ast.TopDo comp ->
       let _ = Typechecker.infer_top_computation state.typechecker comp in
-      let thread = (comp, [], Ast.Ready) in
-      { state with top_computations = thread :: state.top_computations }
+      { state with top_computations = comp :: state.top_computations }
   | Ast.Operation (op, ty) ->
       let typechecker_state' =
         Typechecker.add_operation state.typechecker op ty

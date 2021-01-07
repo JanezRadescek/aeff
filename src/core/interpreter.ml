@@ -195,9 +195,10 @@ let rec run_rec (states : state list) (threads : Ast.thread list) :
   | true -> (states', threads'')
   | false -> run_rec states' threads''
 
-let run (state : state) (threads : Ast.thread list) =
+let run (state : state) (comps : Ast.computation list) =
   let rec make n = if n = 0 then [] else state :: make (n - 1) in
-  let states = make (List.length threads) in
+  let states = make (List.length comps) in
+  let threads = List.map (fun c -> (c, [], Ast.Ready)) comps in
   run_rec states threads
 
 let add_external_function x def state =
