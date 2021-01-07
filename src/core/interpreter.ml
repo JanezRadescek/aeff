@@ -27,7 +27,7 @@ let extend_variables (state : state) vars =
 
 let substitution state (v : Ast.expression) ((x, m) : Ast.abstraction) :
   state * Ast.computation =
-  let state' = extend_variables state [(x, v)] in
+  let state' = extend_variables state [ (x, v) ] in
   (state', m)
 
 (*let rec eval_tuple state = function
@@ -122,10 +122,9 @@ let run_comp state comp : state * Ast.computation * Ast.condition =
         | Ast.Return _ -> (state, c)
         | Ast.Out (op', e', c') ->
           run_comp_rec state (Ast.Out (op', e', Ast.In (op, e, c')))
-        | Ast.Promise (op', abs', _var', _comp') when op = op' ->
-          let _state', _comp' = substitution state e abs' in
-          failwith "TODO"
-        (*run_comp_rec state'' (Ast.Do(comp',( var', comp')))*)
+        | Ast.Promise (op', abs', var', _comp') when op = op' ->
+          let state', comp' = substitution state e abs' in
+          run_comp_rec state' (Ast.Do (comp', (var', comp')))
         | Ast.Promise (op', abs', var', c') ->
           let state', c'' = run_comp_rec state c' in
           run_comp_rec state'
@@ -167,7 +166,7 @@ let resolve_operations (threads : Ast.thread list) : Ast.thread list * bool =
     | _ -> (ops, thread :: threads)
   in
   let op, threads' = List.fold_right take_op threads ([], []) in
-  (*HERE COMES MAGICAL FUNCTION THAT KNOWS EXACTLY WHICH OPERATIONS EACH THREAD WANTS TO GET.*)
+  (*HERE COMES MAGICAL FUNCTION THAT KNOWS EXACTLY WHICH OPERATIONS EACH THREAD WANTS TO GET IN THIS MOMENT.*)
   let insert_interupts thread threads =
     let comp, op', _cond = thread in
     let op_todo, op'' = intersection_compliment op op' in

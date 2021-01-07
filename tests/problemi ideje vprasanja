@@ -182,12 +182,14 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
         potem se bo pa nekoč nekaj spremenilo, pa nebodo več delali, pa tudi ne bom vedel zakaj ali kako popraviti. 
 
         thread = run comp + seznam operacij, ki jih hočemo. stanje
-        //glede na Danel verzijo gre seznam operacij ki jih poslušamo stran, in ga nadomestimo z pointerjem na global queue operacij.
+        //seznam operacij ki jih poslušamo gre stran, in ga nadomestimo z pointerjem na global queue operacij, ker bomo sprejeli vse operacije če jih hočemo ali ne.
 
         run initialize all and call run_rec 
         run_rec poganjaj induvidualne threade dokler se ne bodo prekinili. Resolve operation reši operacije in interupte. Če je kakšen thread, ki še ni končan se rekurzivno pokliči.
         run_thread Če smo Ready predaj run_comp
         run_comp rekurzivno izvajaj comp. in na koncu odloči v kakšnem stanju smo se ustavili.
 
-        resolve operations vsem thredom, ki so op_out vzemi operacijo, jo daj na global queue in nato vsakemu thredu daj operacije, ki jih hoče, če jih hoče.
-                                     
+        resolve operations vsem thredom, ki so op_out vzemi operacijo, jo daj na global queue in nato vsakemu thredu daj operacije, ki jih hoče, če jih hoče.//vsakemu thredu damo vse operacije, ker nimamo MAGICAL FUNCTION in ne vemo če jih hoče ali
+
+        substitution lazzy evaluation M[v/x] se pravi namesto da iščemo x-e in jih prepišemo z v, si shranimo v state x=v in ko bomo kasneje naleteli na x bomo imeli pač spremenljivko x, namesto neke konstate v.
+                                      
