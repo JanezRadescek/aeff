@@ -27,12 +27,15 @@ let main () =
   let config = parse_args_to_config () in
   try
     Random.self_init ();
+    print "main1";
     let state =
       if config.use_stdlib then
         Loader.load_source Loader.initial_state Loader.stdlib_source
       else Loader.initial_state
     in
+    print "main2";
     let state = List.fold_left Loader.load_file state config.filenames in
+    print "main3";
     let _states, finished_threads =
       Interpreter.run state.interpreter state.top_computations
     in

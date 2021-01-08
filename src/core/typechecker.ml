@@ -1,5 +1,7 @@
 open Utils
 
+let print s = Format.printf "%s\n" s
+
 type state = {
   variables_ty : Ast.ty_scheme Ast.VariableMap.t;
   operations : Ast.ty Ast.OperationMap.t;
@@ -168,7 +170,7 @@ let unify state subs ty_1 ty_2 =
         extend_subs (p_1, ty_2) subs_rec
     | ty_1, Ast.TyParam p_2 when not (occurs p_2 ty_1) ->
         extend_subs (p_2, ty_1) subs_rec
-        (*Katero obliko uporabit? to ali zgornjo? ali obe?*)
+    (*Katero obliko uporabit? to ali zgornjo? ali obe?*)
     | Ast.TyArrow (ty_in1, ty_out1), Ast.TyArrow (ty_in2, ty_out2) ->
         List.fold_left2 fold' subs_rec [ ty_in1; ty_out1 ] [ ty_in2; ty_out2 ]
     | Ast.TyTuple tys_1, Ast.TyTuple tys_2 ->
@@ -547,8 +549,11 @@ let add_operation state op ty =
   { state with operations = Ast.OperationMap.add op ty state.operations }
 
 let add_top_definition state x ty_sch expr =
+  print "top_def 1\n";
   let _subst = check_polymorphic_expression state ty_sch expr in
+  print "top_def 1.5\n";
   let state' = add_external_function x ty_sch state in
+  print "top_def 2\n";
   (*subst_state subst state'*)
   state'
 

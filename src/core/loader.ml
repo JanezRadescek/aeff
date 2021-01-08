@@ -1,5 +1,7 @@
 open Utils
 
+let print s = Format.printf "%s\n" s
+
 let parse_commands lexbuf =
   try Parser.commands Lexer.token lexbuf with
   | Parser.Error ->
@@ -44,19 +46,24 @@ let initial_state =
   }
   |> fun state -> List.fold load_function state BuiltIn.functions
 
-let execute_command state = function
+let execute_command state cmd =
+  Format.printf "execute_command : %t\n" (Ast.print_command cmd);
+  match cmd with
   | Ast.TyDef ty_defs ->
       let typechecker_state' =
         Typechecker.add_type_definitions state.typechecker ty_defs
       in
       { state with typechecker = typechecker_state' }
   | Ast.TopLet (x, ty_sch, expr) ->
+      print "Top let 1\n";
       let interpreter_state' =
         Interpreter.eval_top_let state.interpreter x expr
       in
+      print "Top let 2\n";
       let typechecker_state' =
         Typechecker.add_top_definition state.typechecker x ty_sch expr
       in
+      print "Top let 3\n";
       {
         state with
         interpreter = interpreter_state';
@@ -72,10 +79,15 @@ let execute_command state = function
       { state with typechecker = typechecker_state' }
 
 let load_commands state cmds =
+  print "load_commands";
   let desugarer_state', cmds' =
     List.fold_map Desugarer.desugar_command state.desugarer cmds
   in
+  print "load_commands2";
   let state' = { state with desugarer = desugarer_state' } in
+  print "ALL COMANDS\n";
+  List.iter (fun c -> Format.printf "COMAND : %t\n" (Ast.print_command c)) cmds';
+  print "ALL COMANDS END\n\n";
   List.fold_left execute_command state' cmds'
 
 let load_source state source =
@@ -84,6 +96,7 @@ let load_source state source =
   load_commands state cmds
 
 let load_file state source =
+  print "load_file";
   let cmds = Lexer.read_file parse_commands source in
   load_commands state cmds
 
