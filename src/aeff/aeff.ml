@@ -3,7 +3,7 @@ module Ast = Core.Ast
 module Interpreter = Core.Interpreter
 module Loader = Core.Loader
 
-let print s = Format.printf "%s\n" s
+let print s = Format.printf "%s@." s
 
 type config = { filenames : string list; use_stdlib : bool }
 
@@ -39,7 +39,7 @@ let main () =
     let _states, finished_threads =
       Interpreter.run state.interpreter state.top_computations
     in
-    Format.printf "The process has terminated in the configuration:\n";
+    Format.printf "The process has terminated in the configuration:@.";
     Ast.print_threads finished_threads
   with Error.Error error ->
     Error.print error;

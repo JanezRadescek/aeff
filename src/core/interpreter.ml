@@ -13,7 +13,7 @@ let initial_state =
 
 exception PatternMismatch
 
-let print s = Format.printf "%s\n" s
+let print s = Format.printf "%s@." s
 
 let intersection_compliment aa bb =
   ( List.filter (fun (a1, _a2) -> List.mem a1 bb) aa,

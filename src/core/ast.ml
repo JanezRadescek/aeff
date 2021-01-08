@@ -441,7 +441,7 @@ let rec print_process ?max_level proc ppf =
 let rec print_threads : thread list -> unit = function
   | [] -> ()
   | (c, id, _) :: ts ->
-      Format.printf "thread id=%i %t\n" id (print_computation c);
+      Format.printf "thread id=%i %t@." id (print_computation c);
       print_threads ts
 
 let string_of_operation op =
