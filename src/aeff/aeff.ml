@@ -3,6 +3,8 @@ module Ast = Core.Ast
 module Interpreter = Core.Interpreter
 module Loader = Core.Loader
 
+let print s = Format.printf "%s\n" s
+
 type config = { filenames : string list; use_stdlib : bool }
 
 let parse_args_to_config () =
@@ -21,6 +23,7 @@ let parse_args_to_config () =
   { filenames = List.rev !filenames; use_stdlib = !use_stdlib }
 
 let main () =
+  print "main";
   let config = parse_args_to_config () in
   try
     Random.self_init ();
