@@ -193,3 +193,6 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
 
         substitution lazzy evaluation M[v/x] se pravi namesto da iščemo x-e in jih prepišemo z v, si shranimo v state x=v in ko bomo kasneje naleteli na x bomo imeli pač spremenljivko x, namesto neke konstate v.
                                       
+
+38      typecheker add_external_function se sesuje/zacikla v vrstici 
+        544 { state with variables_ty = Ast.VariableMap.add x ty_sch state.variables_ty }
