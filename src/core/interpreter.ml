@@ -25,33 +25,6 @@ let extend_variables (state : state) vars =
       { state with variables = Ast.VariableMap.add x expr state.variables })
     state vars
 
-(*
-
-
-  let substitute subst comp =
-  let subst = Ast.VariableMap.map (Ast.refresh_expression []) subst in
-  Ast.substitute_computation subst comp
-
-  let rec eval_function state = function
-  | Ast.Lambda (pat, comp) ->
-    fun arg ->
-      let subst = match_pattern_with_expression state pat arg in
-      substitute subst comp
-  | Ast.RecLambda (f, (pat, comp)) as expr ->
-    fun arg ->
-      let subst =
-        match_pattern_with_expression state pat arg
-        |> Ast.VariableMap.add f expr
-      in
-      substitute subst comp
-  | Ast.Var x -> (
-      match Ast.VariableMap.find_opt x state.variables with
-      | Some expr -> eval_function state expr
-      | None -> Ast.VariableMap.find x state.builtin_functions )
-  | Ast.Annotated (expr, _ty) -> eval_function state expr
-  | expr ->
-    Error.runtime "Function expected but got %t" (Ast.print_expression expr)
-*)
 let rec eval_tuple state = function
   | Ast.Tuple exprs -> exprs
   | Ast.Var x -> eval_tuple state (Ast.VariableMap.find x state.variables)
@@ -104,28 +77,6 @@ let substitution state (v : Ast.expression) ((x, m) : Ast.abstraction) :
   let state' = extend_variables state vars in
   (state', m)
 
-let rec eval_function state expr : state * Ast.abstraction =
-  match expr with
-  | Ast.Lambda abs -> (state, abs)
-  | Ast.RecLambda _ ->
-      (* | Ast.RecLambda (f, (pat, comp)) as expr -> *)
-      failwith "TODO rec eval"
-  (* fun arg ->
-     let subst =
-      match_pattern_with_expression state pat arg
-      |> Ast.VariableMap.add f expr
-     in
-     substitute subst comp *)
-  | Ast.Var x -> (
-      match Ast.VariableMap.find_opt x state.variables with
-      | Some expr -> eval_function state expr
-      | None ->
-          failwith "TODO build in"
-          (* Ast.VariableMap.find x state.builtin_functions *) )
-  | Ast.Annotated (expr, _ty) -> eval_function state expr
-  | expr ->
-      Error.runtime "Function expected but got %t" (Ast.print_expression expr)
-
 let rec eval_expression state expr : Ast.expression =
   match expr with
   | Ast.Var x -> eval_expression state (Ast.VariableMap.find x state.variables)
@@ -140,6 +91,33 @@ let rec eval_expression state expr : Ast.expression =
   | Ast.Fulfill e -> Ast.Fulfill (eval_expression state e)
   | Ast.Reference e -> Ast.Fulfill (eval_expression state !e)
 
+let rec eval_function state f arg : state * Ast.computation =
+  match f with
+  | Ast.Lambda abs ->
+      let state', farg = substitution state arg abs in
+      (state', farg)
+  | Ast.RecLambda (f, (pat, comp)) as expr ->
+      let vars = match_pattern_with_expression state pat arg in
+      let vars' = (f, expr) :: vars in
+      let state' = extend_variables state vars' in
+      (state', comp)
+  | Ast.Var x -> (
+      match Ast.VariableMap.find_opt x state.variables with
+      | Some e -> eval_function state e arg
+      | None ->
+          let f' = Ast.VariableMap.find x state.builtin_functions in
+          let arg' = eval_expression state arg in
+          (state, f' arg') )
+  | Ast.Annotated (e, _ty) -> eval_function state e arg
+  | expr ->
+      Error.runtime "Function expected but got %t" (Ast.print_expression expr)
+
+let rec eval_match state e abs =
+  match abs with
+  | [] -> assert false
+  | x :: xs -> (
+      try substitution state e x with PatternMismatch -> eval_match state e xs )
+
 let run_comp state comp : state * Ast.computation * Ast.condition =
   print "run_comp";
   let rec run_comp_rec (state : state) (comp : Ast.computation) =
@@ -151,11 +129,12 @@ let run_comp state comp : state * Ast.computation * Ast.condition =
     | Ast.Do (c, abs) ->
         let state', comp' = run_comp_rec state c in
         run_comp_rec state' (Ast.Do (comp', abs))
-    | Ast.Match (_e, _abs) -> failwith "TODO match"
+    | Ast.Match (e, abs) ->
+        let state', comp = eval_match state e abs in
+        run_comp_rec state' comp
     | Ast.Apply (e1, e2) ->
-        let state', f = eval_function state e1 in
-        let state'', e1e2 = substitution state' e2 f in
-        run_comp_rec state'' e1e2
+        let state', e1e2 = eval_function state e1 e2 in
+        run_comp_rec state' e1e2
     | Ast.Out _ -> (state, comp)
     | Ast.In (op, e, c) -> (
         match c with
@@ -185,9 +164,7 @@ let run_comp state comp : state * Ast.computation * Ast.condition =
   | Ast.Out _ -> (state', comp', Ast.Ready)
   | Ast.In _ -> (state', comp', Ast.Waiting)
   | Ast.Promise _ -> (state', comp', Ast.Waiting)
-  | _ ->
-      Format.printf "Printing fatal error %t \n" (Ast.print_computation comp');
-      assert false
+  | _ -> assert false
 
 let run_thread (state : state) ((comp, ops, condition) : Ast.thread) :
     state * Ast.thread =

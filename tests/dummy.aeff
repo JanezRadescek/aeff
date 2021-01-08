@@ -1,6 +1,6 @@
-let (compare : 'c -> 'd -> ('c * 'd)) a b =
+let (compare : 'c -> int -> ('c * int)) a b =
                 let id x : 'c = x in 
                 let a1 = (id a) in
-                (a1, b)
+                (a1, b+1)
 
-run compare "6" "4"
+run compare "6" 3
