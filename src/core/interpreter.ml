@@ -119,13 +119,21 @@ let rec eval_match state e abs =
       try substitution state e x with PatternMismatch -> eval_match state e xs )
 
 let run_comp state comp : state * Ast.computation * Ast.condition =
-  print "run_comp";
+  Format.printf "run_comp@.";
   let rec run_comp_rec (state : state) (comp : Ast.computation) =
+    Format.printf "comp = %t\n@." (Ast.print_computation comp);
+    print "press anything to continiue";
+    ( try
+        let _ = read_int () in
+        ()
+      with Failure _ -> () );
     match comp with
     | Ast.Return _ -> (state, comp)
     | Ast.Do (Ast.Return e, abs) ->
         let state', comp' = substitution state e abs in
         run_comp_rec state' comp'
+    | Ast.Do (Ast.Out (op, e, c), abs) ->
+        run_comp_rec state (Ast.Out (op, e, Ast.Do (c, abs)))
     | Ast.Do (c, abs) ->
         let state', comp' = run_comp_rec state c in
         run_comp_rec state' (Ast.Do (comp', abs))
@@ -135,7 +143,9 @@ let run_comp state comp : state * Ast.computation * Ast.condition =
     | Ast.Apply (e1, e2) ->
         let state', e1e2 = eval_function state e1 e2 in
         run_comp_rec state' e1e2
-    | Ast.Out _ -> (state, comp)
+    | Ast.Out _ ->
+        print "OUT";
+        (state, comp)
     | Ast.In (op, e, c) -> (
         match c with
         | Ast.Return _ -> (state, c)
@@ -152,6 +162,8 @@ let run_comp state comp : state * Ast.computation * Ast.condition =
             let state', comp' = run_comp_rec state c in
             (*Here we can get promise op ... *)
             run_comp_rec state' (Ast.In (op, e, comp')) )
+    | Ast.Promise (op, abs, p, Ast.Out (op', e, c)) ->
+        run_comp_rec state (Ast.Out (op', e, Ast.Promise (op, abs, p, c)))
     | Ast.Promise (op, abs, p, c) ->
         let state', comp' = run_comp_rec state c in
         (state', Ast.Promise (op, abs, p, comp'))
