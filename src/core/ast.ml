@@ -358,7 +358,15 @@ let rec print_pattern ?max_level p ppf =
       print ~at_level:1 "%t @[<hov>%t@]" (Label.print lbl) (print_pattern p)
   | PNonbinding -> print "_"
 
-let rec print_expression ?max_level e ppf =
+let rec print_command ?max_level c ppf =
+  let print ?at_level = Print.print ?max_level ?at_level ppf in
+  match c with
+  | TyDef _ -> print "TyDef"
+  | Operation _ -> print "Operation"
+  | TopLet (_, _, e) -> Format.printf "%t" (print_expression e)
+  | TopDo c -> Format.printf "%t" (print_computation c)
+
+and print_expression ?max_level e ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
   match e with
   | Var x -> print "%t" (Variable.print x)
