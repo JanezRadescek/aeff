@@ -1,7 +1,5 @@
 open Utils
 
-let print s = Format.printf "%s@." s
-
 type state = {
   variables_ty : Ast.ty_scheme Ast.VariableMap.t;
   operations : Ast.ty Ast.OperationMap.t;
@@ -539,10 +537,8 @@ let check_polymorphic_expression state (params, ty) expr =
   if free_params = params then () else Error.typing "There are to many params." *)
 
 let add_external_function x ty_sch state =
-  print "edd_external 1";
   Format.printf "@[val %t : %t@]@." (Ast.Variable.print x)
     (Ast.print_ty_scheme ty_sch);
-  print "edd_external 2";
   { state with variables_ty = Ast.VariableMap.add x ty_sch state.variables_ty }
 
 let add_operation state op ty =
@@ -551,11 +547,8 @@ let add_operation state op ty =
   { state with operations = Ast.OperationMap.add op ty state.operations }
 
 let add_top_definition state x ty_sch expr =
-  print "top_def 1";
   let _subst = check_polymorphic_expression state ty_sch expr in
-  print "top_def 1.5";
   let state' = add_external_function x ty_sch state in
-  print "top_def 2";
   (*subst_state subst state'*)
   state'
 

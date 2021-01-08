@@ -159,6 +159,7 @@ let run_comp state comp : state * Ast.computation * Ast.condition =
     (*(state, comp)   How do we know if we have expression yet or not?*)
   in
   let state', comp' = run_comp_rec state comp in
+  print "run_comp1";
   match comp' with
   | Ast.Return e -> (state', Ast.Return (eval_expression state' e), Ast.Done)
   | Ast.Out _ -> (state', comp', Ast.Ready)
