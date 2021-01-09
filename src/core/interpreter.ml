@@ -124,14 +124,19 @@ let run_comp state comp (id : int) :
     * Ast.condition
     * (Ast.operation * Ast.expression * int) list =
   Format.printf "run_comp@.";
+
   let ops = ref [] in
+
   let rec run_comp_rec (state : state) (comp : Ast.computation) =
     Format.printf "comp = %t\n@." (Ast.print_computation comp);
     print "press anything to continiue";
-    ( try
+    if false then
+      try
         let _ = read_int () in
         ()
-      with Failure _ -> () );
+      with Failure _ -> ()
+    else ();
+
     match comp with
     | Ast.Return _ -> (state, comp)
     | Ast.Do (Ast.Return e, abs) ->
@@ -162,9 +167,9 @@ let run_comp state comp (id : int) :
             run_comp_rec state'
               (Ast.Promise (op', abs', var', Ast.In (op, e, c'')))
         | _ ->
-            let state', comp' = run_comp_rec state c in
+            let state', c' = run_comp_rec state c in
             (*Here we can get promise op ... *)
-            run_comp_rec state' (Ast.In (op, e, comp')) )
+            run_comp_rec state' (Ast.In (op, e, c')) )
     | Ast.Promise (op, abs, p, c) ->
         let state', comp' = run_comp_rec state c in
         (state', Ast.Promise (op, abs, p, comp'))
@@ -178,7 +183,10 @@ let run_comp state comp (id : int) :
       (state', Ast.Return (eval_expression state' e), Ast.Done, !ops)
   | Ast.In _ -> (state', comp', Ast.Waiting, !ops)
   | Ast.Promise _ -> (state', comp', Ast.Waiting, !ops)
-  | _ -> assert false
+  | _ ->
+      Format.printf "THIS SHOULD NOT HAPPEN = %t@."
+        (Ast.print_computation comp');
+      assert false
 
 let run_thread (state : state) ((comp, id, condition) : Ast.thread) :
     state * Ast.thread * (Ast.operation * Ast.expression * int) list =
