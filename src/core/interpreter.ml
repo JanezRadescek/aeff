@@ -123,7 +123,7 @@ let run_comp state comp (id : int) :
   * Ast.computation
   * Ast.condition
   * (Ast.operation * Ast.expression * int) list =
-  Format.printf "run_comp@.";
+  Format.printf "run_comp start@.";
 
   let ops = ref [] in
 
@@ -152,6 +152,8 @@ let run_comp state comp (id : int) :
       | Ast.Do (Ast.Return e, abs) ->
         let state', comp' = substitution state e abs in
         run_comp_rec state' comp'
+      | Ast.Do (Ast.Promise (op, abs, p, c), abs') ->
+        run_comp_rec state (Ast.Promise (op, abs, p, Ast.Do (c, abs')))
       | Ast.Do (c, abs) -> (
           let state', comp' = run_comp_rec state c in
           match comp' with
@@ -164,18 +166,20 @@ let run_comp state comp (id : int) :
         let state', e1e2 = eval_function state e1 e2 in
         run_comp_rec state' e1e2
       | Ast.Out (op, e, c) ->
-        ops := (op, e, id) :: !ops;
+        let e' = eval_expression state e in
+        (* we need actual value not some variable. Variable in other thread might not even exist or have complitly different mining. *)
+        ops := (op, e', id) :: !ops;
         run_comp_rec state c
       | Ast.In (op, e, c) -> (
           match c with
           | Ast.Return _ ->
             exit_code := Ast.Done;
             (state, c)
-          | Ast.Out (op', e', c') ->
-            run_comp_rec state (Ast.Out (op', e', Ast.In (op, e, c')))
           | Ast.Promise (op', abs', var', c') when op = op' ->
+            print "inserting in in promise";
             let state', comp' = substitution state e abs' in
-            run_comp_rec state' (Ast.Do (comp', (Ast.PVar var', c')))
+            run_comp_rec state'
+              (Ast.Do (comp', (Ast.PVar var', Ast.In (op, e, c'))))
           | Ast.Promise (op', abs', var', c') ->
             let state', c'' = run_comp_rec state c' in
             run_comp_rec state'
@@ -198,7 +202,7 @@ let run_comp state comp (id : int) :
   in
 
   let state', comp' = run_comp_rec state comp in
-  print "run_comp1";
+  print "run_comp end";
   (state', comp', !exit_code, !ops)
 
 (* match comp' with
@@ -222,8 +226,10 @@ let run_thread (state : state) ((comp, id, condition) : Ast.thread) :
 
 let resolve_operations (threads : Ast.thread list) ops : Ast.thread list * bool
   =
+  let finished = ref true in
   let insert_interupts (thread : Ast.thread) =
-    let comp, id, _cond = thread in
+    let comp, id, cond = thread in
+    if cond = Ast.Ready then finished := false;
     let comp' =
       List.fold_left
         (fun comp (op, expr, id') ->
@@ -232,11 +238,11 @@ let resolve_operations (threads : Ast.thread list) ops : Ast.thread list * bool
     in
     (comp', id, Ast.Ready)
   in
-  (List.map insert_interupts threads, List.length ops = 0)
+  (List.map insert_interupts threads, List.length ops = 0 && !finished)
 
 let rec run_rec (states : state list) (threads : Ast.thread list) :
   state list * Ast.thread list =
-  print "run 1";
+  print "run_rec";
   let fold' state thread (states, threads, ops) =
     let state', thread', ops' = run_thread state thread in
     (state' :: states, thread' :: threads, ops' @ ops)
@@ -244,9 +250,7 @@ let rec run_rec (states : state list) (threads : Ast.thread list) :
   let states', threads', ops =
     List.fold_right2 fold' states threads ([], [], [])
   in
-  print "run 3";
   let threads'', done' = resolve_operations threads' ops in
-  print "run 4";
   match done' with
   | true -> (states', threads'')
   | false -> run_rec states' threads''
