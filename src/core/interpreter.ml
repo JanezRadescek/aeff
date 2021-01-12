@@ -127,66 +127,89 @@ let run_comp state comp (id : int) :
 
   let ops = ref [] in
 
-  let rec run_comp_rec (state : state) (comp : Ast.computation) =
+  let counter = ref (-1) in
+  let exit_code = ref Ast.Ready in
+
+  let rec run_comp_rec (state : state) (comp : Ast.computation) :
+      state * Ast.computation =
     Format.printf "comp = %t\n@." (Ast.print_computation comp);
     print "press anything to continiue";
-    if false then
+    if true then
       try
         let _ = read_int () in
         ()
       with Failure _ -> ()
     else ();
 
-    match comp with
-    | Ast.Return _ -> (state, comp)
-    | Ast.Do (Ast.Return e, abs) ->
-        let state', comp' = substitution state e abs in
-        run_comp_rec state' comp'
-    | Ast.Do (c, abs) ->
-        let state', comp' = run_comp_rec state c in
-        run_comp_rec state' (Ast.Do (comp', abs))
-    | Ast.Match (e, abs) ->
-        let state', comp = eval_match state e abs in
-        run_comp_rec state' comp
-    | Ast.Apply (e1, e2) ->
-        let state', e1e2 = eval_function state e1 e2 in
-        run_comp_rec state' e1e2
-    | Ast.Out (op, e, c) ->
-        ops := (op, e, id) :: !ops;
-        run_comp_rec state c
-    | Ast.In (op, e, c) -> (
-        match c with
-        | Ast.Return _ -> (state, c)
-        | Ast.Out (op', e', c') ->
-            run_comp_rec state (Ast.Out (op', e', Ast.In (op, e, c')))
-        | Ast.Promise (op', abs', var', comp') when op = op' ->
-            let state', comp'' = substitution state e abs' in
-            run_comp_rec state' (Ast.Do (comp'', (Ast.PVar var', comp')))
-        | Ast.Promise (op', abs', var', c') ->
-            let state', c'' = run_comp_rec state c' in
-            run_comp_rec state'
-              (Ast.Promise (op', abs', var', Ast.In (op, e, c'')))
-        | _ ->
-            let state', c' = run_comp_rec state c in
-            (*Here we can get promise op ... *)
-            run_comp_rec state' (Ast.In (op, e, c')) )
-    | Ast.Promise (op, abs, p, c) ->
-        let state', comp' = run_comp_rec state c in
-        (state', Ast.Promise (op, abs, p, comp'))
-    | Ast.Await _ -> failwith "TODO await"
-    (*(state, comp)   How do we know if we have expression yet or not?*)
+    (* If exit code_is done parent might be do and we still have some work to do. on the contrary we will triger waiting only when we realy have to stop
+       the problem before was we could come to promise somewhere in recursion and not realize it and call on same computation again not reazing we are not doing steps *)
+    if !counter < 1000 then (
+      incr counter;
+      match comp with
+      | Ast.Return _ ->
+          exit_code := Ast.Done;
+          (state, comp)
+      | Ast.Do (Ast.Return e, abs) ->
+          let state', comp' = substitution state e abs in
+          run_comp_rec state' comp'
+      | Ast.Do (c, abs) -> (
+          let state', comp' = run_comp_rec state c in
+          match comp' with
+          | Ast.Return _ -> run_comp_rec state' (Ast.Do (comp', abs))
+          | _ -> (state', Ast.Do (comp', abs)) )
+      | Ast.Match (e, abs) ->
+          let state', comp = eval_match state e abs in
+          run_comp_rec state' comp
+      | Ast.Apply (e1, e2) ->
+          let state', e1e2 = eval_function state e1 e2 in
+          run_comp_rec state' e1e2
+      | Ast.Out (op, e, c) ->
+          ops := (op, e, id) :: !ops;
+          run_comp_rec state c
+      | Ast.In (op, e, c) -> (
+          match c with
+          | Ast.Return _ ->
+              exit_code := Ast.Done;
+              (state, c)
+          | Ast.Out (op', e', c') ->
+              run_comp_rec state (Ast.Out (op', e', Ast.In (op, e, c')))
+          | Ast.Promise (op', abs', var', c') when op = op' ->
+              let state', comp' = substitution state e abs' in
+              run_comp_rec state' (Ast.Do (comp', (Ast.PVar var', c')))
+          | Ast.Promise (op', abs', var', c') ->
+              let state', c'' = run_comp_rec state c' in
+              run_comp_rec state'
+                (Ast.Promise (op', abs', var', Ast.In (op, e, c'')))
+          | _ ->
+              let state', c' = run_comp_rec state c in
+              (*Here we can get promise op ... *)
+              run_comp_rec state' (Ast.In (op, e, c')) )
+      | Ast.Promise (op, abs, p, c) ->
+          let state', comp' = run_comp_rec state c in
+          (state', Ast.Promise (op, abs, p, comp'))
+      | Ast.Await (e, abs) when !counter = 0 ->
+          (* promise must have been fulfiled since we are first in line *)
+          let state', comp' = substitution state e abs in
+          run_comp_rec state' comp'
+      | Ast.Await _ ->
+          exit_code := Ast.Waiting;
+          (state, comp) )
+    else (state, comp)
   in
+
   let state', comp' = run_comp_rec state comp in
   print "run_comp1";
-  match comp' with
-  | Ast.Return e ->
-      (state', Ast.Return (eval_expression state' e), Ast.Done, !ops)
-  | Ast.In _ -> (state', comp', Ast.Waiting, !ops)
-  | Ast.Promise _ -> (state', comp', Ast.Waiting, !ops)
-  | _ ->
-      Format.printf "THIS SHOULD NOT HAPPEN = %t@."
-        (Ast.print_computation comp');
-      assert false
+  (state', comp', !exit_code, !ops)
+
+(* match comp' with
+   | Ast.Return e ->
+   (state', Ast.Return (eval_expression state' e), Ast.Done, !ops)
+   | Ast.In _ -> (state', comp', Ast.Waiting, !ops)
+   | Ast.Promise _ -> (state', comp', Ast.Waiting, !ops)
+   | _ ->
+   Format.printf "THIS SHOULD NOT HAPPEN = %t@."
+    (Ast.print_computation comp');
+   assert false *)
 
 let run_thread (state : state) ((comp, id, condition) : Ast.thread) :
     state * Ast.thread * (Ast.operation * Ast.expression * int) list =
