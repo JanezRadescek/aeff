@@ -182,8 +182,8 @@ let run_comp state comp (id : int) :
                 (Ast.Promise (op', abs', var', Ast.In (op, e, c'')))
           | _ ->
               let state', c' = run_comp_rec state c in
-              (*Here we can get promise op ... *)
-              run_comp_rec state' (Ast.In (op, e, c')) )
+              (*Here we can get promise op, but it is rare so its ok to wait for next run_comp*)
+              (state', Ast.In (op, e, c')) )
       | Ast.Promise (op, abs, p, c) ->
           let state', comp' = run_comp_rec state c in
           (state', Ast.Promise (op, abs, p, comp'))
