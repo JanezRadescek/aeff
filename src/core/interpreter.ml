@@ -22,7 +22,7 @@ let intersection_compliment aa bb =
 let extend_variables (state : state) vars =
   List.fold_left
     (fun state (x, expr) ->
-      { state with variables = Ast.VariableMap.add x expr state.variables })
+       { state with variables = Ast.VariableMap.add x expr state.variables })
     state vars
 
 let rec eval_tuple state = function
@@ -30,49 +30,49 @@ let rec eval_tuple state = function
   | Ast.Var x -> eval_tuple state (Ast.VariableMap.find x state.variables)
   | Ast.Annotated (e, _anno) -> eval_tuple state e
   | expr ->
-      Error.runtime "Tuple expected but got %t" (Ast.print_expression expr)
+    Error.runtime "Tuple expected but got %t" (Ast.print_expression expr)
 
 let rec eval_variant state = function
   | Ast.Variant (lbl, expr) -> (lbl, expr)
   | Ast.Var x -> eval_variant state (Ast.VariableMap.find x state.variables)
   | Ast.Annotated (e, _anno) -> eval_variant state e
   | expr ->
-      Error.runtime "Variant expected but got %t" (Ast.print_expression expr)
+    Error.runtime "Variant expected but got %t" (Ast.print_expression expr)
 
 let rec eval_const state = function
   | Ast.Const c -> c
   | Ast.Var x -> eval_const state (Ast.VariableMap.find x state.variables)
   | Ast.Annotated (e, _anno) -> eval_const state e
   | expr ->
-      Error.runtime "Const expected but got %t" (Ast.print_expression expr)
+    Error.runtime "Const expected but got %t" (Ast.print_expression expr)
 
 let rec match_pattern_with_expression state pat expr :
-    (Ast.variable * Ast.expression) list =
+  (Ast.variable * Ast.expression) list =
   match pat with
   | Ast.PVar x -> [ (x, expr) ]
   | Ast.PAnnotated (pat, _) -> match_pattern_with_expression state pat expr
   | Ast.PAs (pat, x) ->
-      let vars = match_pattern_with_expression state pat expr in
-      (x, expr) :: vars
+    let vars = match_pattern_with_expression state pat expr in
+    (x, expr) :: vars
   | Ast.PTuple pats ->
-      let exprs = eval_tuple state expr in
-      List.fold_left2
-        (fun vars pat expr ->
-          let vars' = match_pattern_with_expression state pat expr in
-          vars' @ vars)
-        [] pats exprs
+    let exprs = eval_tuple state expr in
+    List.fold_left2
+      (fun vars pat expr ->
+         let vars' = match_pattern_with_expression state pat expr in
+         vars' @ vars)
+      [] pats exprs
   | Ast.PVariant (label, pat) -> (
       match (pat, eval_variant state expr) with
       | None, (label', None) when label = label' -> []
       | Some pat, (label', Some expr) when label = label' ->
-          match_pattern_with_expression state pat expr
+        match_pattern_with_expression state pat expr
       | _, _ -> raise PatternMismatch )
   | Ast.PConst c when Const.equal c (eval_const state expr) -> []
   | Ast.PNonbinding -> []
   | _ -> raise PatternMismatch
 
 let substitution state (v : Ast.expression) ((x, m) : Ast.abstraction) :
-    state * Ast.computation =
+  state * Ast.computation =
   let vars = match_pattern_with_expression state x v in
   let state' = extend_variables state vars in
   (state', m)
@@ -83,9 +83,9 @@ let rec eval_expression state expr : Ast.expression =
   | Ast.Const _ -> expr
   | Ast.Annotated (e, _a) -> eval_expression state e
   | Ast.Tuple _ ->
-      Ast.Tuple (List.map (eval_expression state) (eval_tuple state expr))
+    Ast.Tuple (List.map (eval_expression state) (eval_tuple state expr))
   | Ast.Variant (lbl, Some e) ->
-      Ast.Variant (lbl, Some (eval_expression state e))
+    Ast.Variant (lbl, Some (eval_expression state e))
   | Ast.Variant (lbl, None) -> Ast.Variant (lbl, None)
   | Ast.Lambda _ | Ast.RecLambda _ -> expr
   | Ast.Fulfill e -> Ast.Fulfill (eval_expression state e)
@@ -94,23 +94,23 @@ let rec eval_expression state expr : Ast.expression =
 let rec eval_function state f arg : state * Ast.computation =
   match f with
   | Ast.Lambda abs ->
-      let state', farg = substitution state arg abs in
-      (state', farg)
+    let state', farg = substitution state arg abs in
+    (state', farg)
   | Ast.RecLambda (f, (pat, comp)) as expr ->
-      let vars = match_pattern_with_expression state pat arg in
-      let vars' = (f, expr) :: vars in
-      let state' = extend_variables state vars' in
-      (state', comp)
+    let vars = match_pattern_with_expression state pat arg in
+    let vars' = (f, expr) :: vars in
+    let state' = extend_variables state vars' in
+    (state', comp)
   | Ast.Var x -> (
       match Ast.VariableMap.find_opt x state.variables with
       | Some e -> eval_function state e arg
       | None ->
-          let f' = Ast.VariableMap.find x state.builtin_functions in
-          let arg' = eval_expression state arg in
-          (state, f' arg') )
+        let f' = Ast.VariableMap.find x state.builtin_functions in
+        let arg' = eval_expression state arg in
+        (state, f' arg') )
   | Ast.Annotated (e, _ty) -> eval_function state e arg
   | expr ->
-      Error.runtime "Function expected but got %t" (Ast.print_expression expr)
+    Error.runtime "Function expected but got %t" (Ast.print_expression expr)
 
 let rec eval_match state e abs =
   match abs with
@@ -119,10 +119,10 @@ let rec eval_match state e abs =
       try substitution state e x with PatternMismatch -> eval_match state e xs )
 
 let run_comp state comp (id : int) :
-    state
-    * Ast.computation
-    * Ast.condition
-    * (Ast.operation * Ast.expression * int) list =
+  state
+  * Ast.computation
+  * Ast.condition
+  * (Ast.operation * Ast.expression * int) list =
   Format.printf "run_comp@.";
 
   let ops = ref [] in
@@ -131,7 +131,7 @@ let run_comp state comp (id : int) :
   let exit_code = ref Ast.Ready in
 
   let rec run_comp_rec (state : state) (comp : Ast.computation) :
-      state * Ast.computation =
+    state * Ast.computation =
     Format.printf "comp = %t\n@." (Ast.print_computation comp);
     print "press anything to continiue";
     if true then
@@ -147,53 +147,53 @@ let run_comp state comp (id : int) :
       incr counter;
       match comp with
       | Ast.Return _ ->
-          exit_code := Ast.Done;
-          (state, comp)
+        exit_code := Ast.Done;
+        (state, comp)
       | Ast.Do (Ast.Return e, abs) ->
-          let state', comp' = substitution state e abs in
-          run_comp_rec state' comp'
+        let state', comp' = substitution state e abs in
+        run_comp_rec state' comp'
       | Ast.Do (c, abs) -> (
           let state', comp' = run_comp_rec state c in
           match comp' with
           | Ast.Return _ -> run_comp_rec state' (Ast.Do (comp', abs))
           | _ -> (state', Ast.Do (comp', abs)) )
       | Ast.Match (e, abs) ->
-          let state', comp = eval_match state e abs in
-          run_comp_rec state' comp
+        let state', comp = eval_match state e abs in
+        run_comp_rec state' comp
       | Ast.Apply (e1, e2) ->
-          let state', e1e2 = eval_function state e1 e2 in
-          run_comp_rec state' e1e2
+        let state', e1e2 = eval_function state e1 e2 in
+        run_comp_rec state' e1e2
       | Ast.Out (op, e, c) ->
-          ops := (op, e, id) :: !ops;
-          run_comp_rec state c
+        ops := (op, e, id) :: !ops;
+        run_comp_rec state c
       | Ast.In (op, e, c) -> (
           match c with
           | Ast.Return _ ->
-              exit_code := Ast.Done;
-              (state, c)
+            exit_code := Ast.Done;
+            (state, c)
           | Ast.Out (op', e', c') ->
-              run_comp_rec state (Ast.Out (op', e', Ast.In (op, e, c')))
+            run_comp_rec state (Ast.Out (op', e', Ast.In (op, e, c')))
           | Ast.Promise (op', abs', var', c') when op = op' ->
-              let state', comp' = substitution state e abs' in
-              run_comp_rec state' (Ast.Do (comp', (Ast.PVar var', c')))
+            let state', comp' = substitution state e abs' in
+            run_comp_rec state' (Ast.Do (comp', (Ast.PVar var', c')))
           | Ast.Promise (op', abs', var', c') ->
-              let state', c'' = run_comp_rec state c' in
-              run_comp_rec state'
-                (Ast.Promise (op', abs', var', Ast.In (op, e, c'')))
+            let state', c'' = run_comp_rec state c' in
+            run_comp_rec state'
+              (Ast.Promise (op', abs', var', Ast.In (op, e, c'')))
           | _ ->
-              let state', c' = run_comp_rec state c in
-              (*Here we can get promise op, but it is rare so its ok to wait for next run_comp*)
-              (state', Ast.In (op, e, c')) )
+            let state', c' = run_comp_rec state c in
+            (*Here we can get promise op, but it is rare so its ok to wait for next run_comp*)
+            (state', Ast.In (op, e, c')) )
       | Ast.Promise (op, abs, p, c) ->
-          let state', comp' = run_comp_rec state c in
-          (state', Ast.Promise (op, abs, p, comp'))
+        let state', comp' = run_comp_rec state c in
+        (state', Ast.Promise (op, abs, p, comp'))
       | Ast.Await (e, abs) when !counter = 0 ->
-          (* promise must have been fulfiled since we are first in line *)
-          let state', comp' = substitution state e abs in
-          run_comp_rec state' comp'
+        (* promise must have been fulfiled since we are first in line *)
+        let state', comp' = substitution state e abs in
+        run_comp_rec state' comp'
       | Ast.Await _ ->
-          exit_code := Ast.Waiting;
-          (state, comp) )
+        exit_code := Ast.Waiting;
+        (state, comp) )
     else (state, comp)
   in
 
@@ -212,22 +212,22 @@ let run_comp state comp (id : int) :
    assert false *)
 
 let run_thread (state : state) ((comp, id, condition) : Ast.thread) :
-    state * Ast.thread * (Ast.operation * Ast.expression * int) list =
+  state * Ast.thread * (Ast.operation * Ast.expression * int) list =
   print "run_thread";
   match condition with
   | Ast.Ready ->
-      let state', comp', condition', ops = run_comp state comp id in
-      (state', (comp', id, condition'), ops)
+    let state', comp', condition', ops = run_comp state comp id in
+    (state', (comp', id, condition'), ops)
   | _ -> (state, (comp, id, condition), [])
 
 let resolve_operations (threads : Ast.thread list) ops : Ast.thread list * bool
-    =
+  =
   let insert_interupts (thread : Ast.thread) =
     let comp, id, _cond = thread in
     let comp' =
       List.fold_left
         (fun comp (op, expr, id') ->
-          if id = id' then comp else Ast.In (op, expr, comp))
+           if id = id' then comp else Ast.In (op, expr, comp))
         comp ops
     in
     (comp', id, Ast.Ready)
@@ -235,7 +235,7 @@ let resolve_operations (threads : Ast.thread list) ops : Ast.thread list * bool
   (List.map insert_interupts threads, List.length ops = 0)
 
 let rec run_rec (states : state list) (threads : Ast.thread list) :
-    state list * Ast.thread list =
+  state list * Ast.thread list =
   print "run 1";
   let fold' state thread (states, threads, ops) =
     let state', thread', ops' = run_thread state thread in
@@ -259,9 +259,9 @@ let run (state : state) (comps : Ast.computation list) =
   let threads =
     List.map
       (fun c ->
-        let id = !i in
-        incr i;
-        (c, id, Ast.Ready))
+         let id = !i in
+         incr i;
+         (c, id, Ast.Ready))
       comps
   in
   run_rec states threads
@@ -274,262 +274,3 @@ let add_external_function x def state =
 
 let eval_top_let state x expr =
   { state with variables = Ast.VariableMap.add x expr state.variables }
-
-(*let make_top_step = function
-  | Interpreter.TopOut (op, expr, proc) ->
-      Format.printf "↑ %t %t@." (Ast.Operation.print op)
-        (Ast.print_expression expr);
-      proc
-  | Interpreter.Step proc -> proc *)
-
-(*type computation_redex =
-  | PromiseOut
-  | InReturn
-  | InOut
-  | InPromise
-  | InPromise'
-  | Match
-  | ApplyFun
-  | DoReturn
-  | DoOut
-  | DoPromise
-  | AwaitFulfill
-
-  type computation_reduction =
-  | PromiseCtx of computation_reduction
-  | InCtx of computation_reduction
-  | OutCtx of computation_reduction
-  | DoCtx of computation_reduction
-  | ComputationRedex of computation_redex
-
-  type process_redex =
-  | RunOut
-  | ParallelOut1
-  | ParallelOut2
-  | InRun
-  | InParallel
-  | InOut
-  | TopOut
-
-  type process_reduction =
-  | LeftCtx of process_reduction
-  | RightCtx of process_reduction
-  | InProcCtx of process_reduction
-  | OutProcCtx of process_reduction
-  | RunCtx of computation_reduction
-  | ProcessRedex of process_redex
-
-  let rec eval_tuple state = function
-  | Ast.Tuple exprs -> exprs
-  | Ast.Var x -> eval_tuple state (Ast.VariableMap.find x state.variables)
-  | Ast.Annotated (e, _anno) -> eval_tuple state e
-  | expr ->
-      Error.runtime "Tuple expected but got %t" (Ast.print_expression expr)
-
-  let rec eval_variant state = function
-  | Ast.Variant (lbl, expr) -> (lbl, expr)
-  | Ast.Var x -> eval_variant state (Ast.VariableMap.find x state.variables)
-  | Ast.Annotated (e, _anno) -> eval_variant state e
-  | expr ->
-      Error.runtime "Variant expected but got %t" (Ast.print_expression expr)
-
-  let rec eval_const state = function
-  | Ast.Const c -> c
-  | Ast.Var x -> eval_const state (Ast.VariableMap.find x state.variables)
-  | Ast.Annotated (e, _anno) -> eval_const state e
-  | expr ->
-      Error.runtime "Const expected but got %t" (Ast.print_expression expr)
-
-  let rec match_pattern_with_expression state pat expr =
-  match pat with
-  | Ast.PVar x -> Ast.VariableMap.singleton x expr
-  | Ast.PAnnotated (pat, _) -> match_pattern_with_expression state pat expr
-  | Ast.PAs (pat, x) ->
-      let subst = match_pattern_with_expression state pat expr in
-      Ast.VariableMap.add x expr subst
-  | Ast.PTuple pats ->
-      let exprs = eval_tuple state expr in
-      List.fold_left2
-        (fun subst pat expr ->
-          let subst' = match_pattern_with_expression state pat expr in
-          Ast.VariableMap.union (fun _ _ _ -> assert false) subst subst')
-        Ast.VariableMap.empty pats exprs
-  | Ast.PVariant (label, pat) -> (
-      match (pat, eval_variant state expr) with
-      | None, (label', None) when label = label' -> Ast.VariableMap.empty
-      | Some pat, (label', Some expr) when label = label' ->
-          match_pattern_with_expression state pat expr
-      | _, _ -> raise PatternMismatch )
-  | Ast.PConst c when Const.equal c (eval_const state expr) ->
-      Ast.VariableMap.empty
-  | Ast.PNonbinding -> Ast.VariableMap.empty
-  | _ -> raise PatternMismatch
-
-  let substitute subst comp =
-  let subst = Ast.VariableMap.map (Ast.refresh_expression []) subst in
-  Ast.substitute_computation subst comp
-
-  let rec eval_function state = function
-  | Ast.Lambda (pat, comp) ->
-      fun arg ->
-        let subst = match_pattern_with_expression state pat arg in
-        substitute subst comp
-  | Ast.RecLambda (f, (pat, comp)) as expr ->
-      fun arg ->
-        let subst =
-          match_pattern_with_expression state pat arg
-          |> Ast.VariableMap.add f expr
-        in
-        substitute subst comp
-  | Ast.Var x -> (
-      match Ast.VariableMap.find_opt x state.variables with
-      | Some expr -> eval_function state expr
-      | None -> Ast.VariableMap.find x state.builtin_functions )
-  | Ast.Annotated (expr, _ty) -> eval_function state expr
-  | expr ->
-      Error.runtime "Function expected but got %t" (Ast.print_expression expr)
-
-  let step_in_context step state redCtx ctx term =
-  let terms' = step state term in
-  List.map (fun (red, term') -> (redCtx red, ctx term')) terms'
-
-  let rec step_computation state = function
-  | Ast.Return _ -> []
-  | Ast.Out (op, expr, comp) ->
-      step_in_context step_computation state
-        (fun red -> OutCtx red)
-        (fun comp' -> Ast.Out (op, expr, comp'))
-        comp
-  | Ast.Promise (op, op_comp, p, comp) -> (
-      let comps' =
-        step_in_context step_computation state
-          (fun red -> PromiseCtx red)
-          (fun comp' -> Ast.Promise (op, op_comp, p, comp'))
-          comp
-      in
-      match comp with
-      | Ast.Out (op', expr', cont') ->
-          ( ComputationRedex PromiseOut,
-            Ast.Out (op', expr', Ast.Promise (op, op_comp, p, cont')) )
-          :: comps'
-      | _ -> comps' )
-  | Ast.In (op, expr, comp) -> (
-      let comps' =
-        step_in_context step_computation state
-          (fun red -> InCtx red)
-          (fun comp' -> Ast.In (op, expr, comp'))
-          comp
-      in
-      match comp with
-      | Ast.Return expr ->
-          (ComputationRedex InReturn, Ast.Return expr) :: comps'
-      | Ast.Out (op', expr', cont') ->
-          ( ComputationRedex InOut,
-            Ast.Out (op', expr', Ast.In (op, expr, cont')) )
-          :: comps'
-      | Ast.Promise (op', (arg_pat, op_comp), p, comp) when op = op' ->
-          let subst = match_pattern_with_expression state arg_pat expr in
-          let y = Ast.Variable.fresh None in
-          let comp' =
-            Ast.Do
-              ( substitute subst op_comp,
-                ( Ast.PVar y,
-                  Ast.Do
-                    ( Ast.Return (Ast.Var y),
-                      (Ast.PVar p, Ast.In (op, expr, comp)) ) ) )
-          in
-          (ComputationRedex InPromise, comp') :: comps'
-      | Ast.Promise (op', op_comp, p, comp) ->
-          ( ComputationRedex InPromise',
-            Ast.Promise (op', op_comp, p, Ast.In (op, expr, comp)) )
-          :: comps'
-      | _ -> comps' )
-  | Ast.Match (expr, cases) ->
-      let rec find_case = function
-        | (pat, comp) :: cases -> (
-            match match_pattern_with_expression state pat expr with
-            | subst -> [ (ComputationRedex Match, substitute subst comp) ]
-            | exception PatternMismatch -> find_case cases )
-        | [] -> []
-      in
-      find_case cases
-  | Ast.Apply (expr1, expr2) ->
-      let f = eval_function state expr1 in
-      [ (ComputationRedex ApplyFun, f expr2) ]
-  | Ast.Do (comp1, comp2) -> (
-      let comps1' =
-        step_in_context step_computation state
-          (fun red -> DoCtx red)
-          (fun comp1' -> Ast.Do (comp1', comp2))
-          comp1
-      in
-      match comp1 with
-      | Ast.Return expr ->
-          let pat, comp2' = comp2 in
-          let subst = match_pattern_with_expression state pat expr in
-          (ComputationRedex DoReturn, substitute subst comp2') :: comps1'
-      | Ast.Out (op, expr, comp1) ->
-          (ComputationRedex DoOut, Ast.Out (op, expr, Ast.Do (comp1, comp2)))
-          :: comps1'
-      | Ast.Promise (op, op_comp, pat, comp1) ->
-          ( ComputationRedex DoPromise,
-            Ast.Promise (op, op_comp, pat, Ast.Do (comp1, comp2)) )
-          :: comps1'
-      | _ -> comps1' )
-  | Ast.Await (expr, (pat, comp)) -> (
-      match expr with
-      | Ast.Fulfill expr ->
-          let subst = match_pattern_with_expression state pat expr in
-          [ (ComputationRedex AwaitFulfill, substitute subst comp) ]
-      | _ -> [] )
-
-  let rec step_process state = function
-  | Ast.Run comp -> (
-      let comps' =
-        step_computation state comp
-        |> List.map (fun (red, comp') -> (RunCtx red, Ast.Run comp'))
-      in
-      match comp with
-      | Ast.Out (op, expr, comp') ->
-          (ProcessRedex RunOut, Ast.OutProc (op, expr, Ast.Run comp')) :: comps'
-      | _ -> comps' )
-  | Ast.InProc (op, expr, proc) -> (
-      let procs' =
-        step_in_context step_process state
-          (fun red -> InProcCtx red)
-          (fun proc' -> Ast.InProc (op, expr, proc'))
-          proc
-      in
-      match proc with
-      | Ast.Run comp ->
-          (ProcessRedex InRun, Ast.Run (Ast.In (op, expr, comp))) :: procs'
-      | Ast.OutProc (op', expr', proc') ->
-          ( ProcessRedex InOut,
-            Ast.OutProc (op', expr', Ast.InProc (op, expr, proc')) )
-          :: procs'
-      | _ -> procs' )
-  | Ast.OutProc (op, expr, proc) ->
-      step_in_context step_process state
-        (fun red -> OutProcCtx red)
-        (fun proc' -> Ast.OutProc (op, expr, proc'))
-        proc
-
-  let incoming_operation proc op expr = Ast.InProc (op, expr, proc)
-
-
-
-
-
-  type top_step =
-  | TopOut of Ast.operation * Ast.expression * Ast.process
-  | Step of Ast.process
-
-  let top_steps state proc =
-  let steps =
-    step_process state proc |> List.map (fun (red, proc) -> (red, Step proc))
-  in
-  match proc with
-  | Ast.OutProc (op, expr, proc) ->
-      (ProcessRedex TopOut, TopOut (op, expr, proc)) :: steps
-  | _ -> steps
-*)
