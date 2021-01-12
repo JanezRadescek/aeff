@@ -438,11 +438,11 @@ let rec print_process ?max_level proc ppf =
       print "↑%t(@[<hv>%t,@ %t@])" (Operation.print op)
         (print_expression expr) (print_process proc)
 
-let rec print_threads : thread list -> unit = function
-  | [] -> ()
-  | (c, id, _) :: ts ->
+(* let rec print_threads : thread list -> unit = function
+   | [] -> ()
+   | (c, id, _) :: ts ->
       Format.printf "thread id=%i %t@." id (print_computation c);
-      print_threads ts
+      print_threads ts *)
 
 let string_of_operation op =
   Operation.print op Format.str_formatter;

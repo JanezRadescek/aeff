@@ -126,7 +126,6 @@ let print_state (state : state) =
     state.variables
 
 let rec eval_fulfill state (e : Ast.expression) =
-  print_state state;
   match e with
   | Ast.Var x -> (
       match Ast.VariableMap.find_opt x state.variables with
@@ -135,7 +134,7 @@ let rec eval_fulfill state (e : Ast.expression) =
           match eval_fulfill state e' with
           | None -> None
           | Some e'' ->
-              Format.printf "Found %t" (Ast.print_expression e'');
+              (* Format.printf "Found %t" (Ast.print_expression e''); *)
               Some (eval_expression state e'') ) )
   | Ast.Fulfill e -> Some e
   | _ -> assert false
@@ -155,8 +154,9 @@ let run_comp state comp (id : int) :
   let rec run_comp_rec (state : state) (comp : Ast.computation) :
       state * Ast.computation =
     Format.printf "comp = %t\n@." (Ast.print_computation comp);
-    print "press anything to continiue";
-    ( if false then
+
+    if false then (
+      print "press anything to continiue";
       try
         let _ = read_int () in
         ()
@@ -213,11 +213,14 @@ let run_comp state comp (id : int) :
           let state', comp' = run_comp_rec state c in
           (state', Ast.Promise (op, abs, p, comp'))
       | Ast.Await (e, abs) -> (
+          print_state state;
           match eval_fulfill state e with
           | None ->
               exit_code := Ast.Waiting;
               (state, comp)
-          | Some e' -> substitution state e' abs ) )
+          | Some e' ->
+              let state', comp' = substitution state e' abs in
+              run_comp_rec state' comp' ) )
     else (state, comp)
   in
 
@@ -258,11 +261,14 @@ let resolve_operations (threads : Ast.thread list) ops : Ast.thread list * bool
     in
     (comp', id, Ast.Ready)
   in
-  (List.map insert_interupts threads, List.length ops = 0 && !finished)
+  let done' = List.length ops = 0 && !finished in
+  (* Format.printf "resolve #ops = %i finished = %b\n" (List.length ops) !finished; *)
+  (List.map insert_interupts threads, done')
 
 let rec run_rec (states : state list) (threads : Ast.thread list) :
     state list * Ast.thread list =
   print "run_rec";
+  (* Ast.print_threads threads; *)
   let fold' state thread (states, threads, ops) =
     let state', thread', ops' = run_thread state thread in
     (state' :: states, thread' :: threads, ops' @ ops)
@@ -289,6 +295,59 @@ let run (state : state) (comps : Ast.computation list) =
       comps
   in
   run_rec states threads
+
+let rec print_computation ?max_level state c ppf =
+  let print ?at_level = Print.print ?max_level ?at_level ppf in
+  match c with
+  | Ast.Return e ->
+      print ~at_level:1 "return %t"
+        (Ast.print_expression ~max_level:0 (eval_expression state e))
+  | Ast.Do (c1, (PNonbinding, c2)) ->
+      print "@[<hov>%t;@ %t@]"
+        (print_computation state c1)
+        (print_computation state c2)
+  | Ast.Do (c1, (pat, c2)) ->
+      print "@[<hov>let@[<hov>@ %t =@ %t@] in@ %t@]" (Ast.print_pattern pat)
+        (print_computation state c1)
+        (print_computation state c2)
+  | Match (e, lst) ->
+      print "match %t with (@[<hov>%t@])"
+        (Ast.print_expression (eval_expression state e))
+        (Print.print_sequence " | " (case state) lst)
+  | Apply (e1, e2) ->
+      print ~at_level:1 "@[%t@ %t@]"
+        (Ast.print_expression ~max_level:1 (eval_expression state e1))
+        (Ast.print_expression ~max_level:0 (eval_expression state e2))
+  | In (op, e, c) ->
+      print "↓%t(@[<hv>%t,@ %t@])" (Ast.Operation.print op)
+        (Ast.print_expression (eval_expression state e))
+        (print_computation state c)
+  | Out (op, e, c) ->
+      print "↑%t(@[<hv>%t,@ %t@])" (Ast.Operation.print op)
+        (Ast.print_expression (eval_expression state e))
+        (print_computation state c)
+  | Promise (op, (p1, c1), p2, c2) ->
+      print "@[<hv>promise (@[<hov>%t %t ↦@ %t@])@ as %t in@ %t@]"
+        (Ast.Operation.print op) (Ast.print_pattern p1)
+        (print_computation state c1)
+        (Ast.Variable.print p2)
+        (print_computation state c2)
+  | Await (e, (p, c)) ->
+      print "@[<hov>await @[<hov>%t until@ ⟨%t⟩@] in@ %t@]"
+        (Ast.print_expression (eval_expression state e))
+        (Ast.print_pattern p)
+        (print_computation state c)
+
+and print_abstraction state (p, c) ppf =
+  Format.fprintf ppf "%t ↦ %t" (Ast.print_pattern p)
+    (print_computation state c)
+
+and case state (a : Ast.abstraction) (ppf : Format.formatter) =
+  Format.fprintf ppf "%t" (print_abstraction state a)
+
+let print_thread (state : state) (thread : Ast.thread) : unit =
+  let comp, id, _cond = thread in
+  Format.printf "thread id=%i %t@." id (print_computation state comp)
 
 let add_external_function x def state =
   {

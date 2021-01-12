@@ -36,11 +36,11 @@ let main () =
     print "main2";
     let state = List.fold_left Loader.load_file state config.filenames in
     print "main3";
-    let _states, finished_threads =
+    let states, finished_threads =
       Interpreter.run state.interpreter state.top_computations
     in
     Format.printf "The process has terminated in the configuration:@.";
-    Ast.print_threads finished_threads
+    List.iter2 Interpreter.print_thread states finished_threads
   with Error.Error error ->
     Error.print error;
     exit 1
