@@ -144,8 +144,7 @@ let run_comp state comp (id : int) :
     * Ast.computation
     * Ast.condition
     * (Ast.operation * Ast.expression * int) list =
-  Format.printf "run_comp start@.";
-
+  (* print "run_comp start"; *)
   let ops = ref [] in
 
   let counter = ref (-1) in
@@ -154,7 +153,6 @@ let run_comp state comp (id : int) :
   let rec run_comp_rec (state : state) (comp : Ast.computation) :
       state * Ast.computation =
     Format.printf "comp = %t\n@." (Ast.print_computation comp);
-
     if false then (
       print "press anything to continiue";
       try
@@ -197,7 +195,7 @@ let run_comp state comp (id : int) :
               exit_code := Ast.Done;
               (state, c)
           | Ast.Promise (op', abs', var', c') when op = op' ->
-              print "inserting in in promise";
+              (* print "inserting in in promise"; *)
               let state', comp' = substitution state e abs' in
               run_comp_rec state'
                 (Ast.Do (comp', (Ast.PVar var', Ast.In (op, e, c'))))
@@ -205,15 +203,18 @@ let run_comp state comp (id : int) :
               let state', c'' = run_comp_rec state c' in
               run_comp_rec state'
                 (Ast.Promise (op', abs', var', Ast.In (op, e, c'')))
-          | _ ->
+          | _ -> (
               let state', c' = run_comp_rec state c in
-              (*Here we can get promise op, but it is rare so its ok to wait for next run_comp*)
-              (state', Ast.In (op, e, c')) )
+              match c' with
+              | Ast.Return _ -> (state', c')
+              | _ ->
+                  (*Here we can get promise op, but it is rare so its ok to wait for next run_comp*)
+                  (state', Ast.In (op, e, c')) ) )
       | Ast.Promise (op, abs, p, c) ->
           let state', comp' = run_comp_rec state c in
           (state', Ast.Promise (op, abs, p, comp'))
       | Ast.Await (e, abs) -> (
-          print_state state;
+          (* print_state state; *)
           match eval_fulfill state e with
           | None ->
               exit_code := Ast.Waiting;
@@ -225,7 +226,7 @@ let run_comp state comp (id : int) :
   in
 
   let state', comp' = run_comp_rec state comp in
-  print "run_comp end";
+  (* print "run_comp end"; *)
   (state', comp', !exit_code, !ops)
 
 (* match comp' with
@@ -240,7 +241,7 @@ let run_comp state comp (id : int) :
 
 let run_thread (state : state) ((comp, id, condition) : Ast.thread) :
     state * Ast.thread * (Ast.operation * Ast.expression * int) list =
-  print "run_thread";
+  (* print "run_thread"; *)
   match condition with
   | Ast.Ready ->
       let state', comp', condition', ops = run_comp state comp id in
@@ -249,6 +250,7 @@ let run_thread (state : state) ((comp, id, condition) : Ast.thread) :
 
 let resolve_operations (threads : Ast.thread list) ops : Ast.thread list * bool
     =
+  (* print "run_rec"; *)
   let finished = ref true in
   let insert_interupts (thread : Ast.thread) =
     let comp, id, cond = thread in
@@ -267,7 +269,7 @@ let resolve_operations (threads : Ast.thread list) ops : Ast.thread list * bool
 
 let rec run_rec (states : state list) (threads : Ast.thread list) :
     state list * Ast.thread list =
-  print "run_rec";
+  (* print "run_rec"; *)
   (* Ast.print_threads threads; *)
   let fold' state thread (states, threads, ops) =
     let state', thread', ops' = run_thread state thread in
@@ -282,7 +284,7 @@ let rec run_rec (states : state list) (threads : Ast.thread list) :
   | false -> run_rec states' threads''
 
 let run (state : state) (comps : Ast.computation list) =
-  print "run";
+  (* print "run"; *)
   let rec make n = if n = 0 then [] else state :: make (n - 1) in
   let states = make (List.length comps) in
   let i = ref 0 in
@@ -296,6 +298,7 @@ let run (state : state) (comps : Ast.computation list) =
   in
   run_rec states threads
 
+(* unlike prints in ast this have state and tries to convert variables to expressions *)
 let rec print_computation ?max_level state c ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
   match c with
@@ -346,8 +349,8 @@ and case state (a : Ast.abstraction) (ppf : Format.formatter) =
   Format.fprintf ppf "%t" (print_abstraction state a)
 
 let print_thread (state : state) (thread : Ast.thread) : unit =
-  let comp, id, _cond = thread in
-  Format.printf "thread id=%i %t@." id (print_computation state comp)
+  let comp, _id, _cond = thread in
+  Format.printf "%t@." (print_computation state comp)
 
 let add_external_function x def state =
   {
