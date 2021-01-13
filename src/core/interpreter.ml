@@ -89,7 +89,7 @@ let rec eval_expression state expr : Ast.expression =
   | Ast.Variant (lbl, None) -> Ast.Variant (lbl, None)
   | Ast.Lambda _ | Ast.RecLambda _ -> expr
   | Ast.Fulfill e -> Ast.Fulfill (eval_expression state e)
-  | Ast.Reference e -> Ast.Fulfill (eval_expression state !e)
+  | Ast.Reference e -> Ast.Reference (ref (eval_expression state !e))
 
 let rec eval_function state f arg : state * Ast.computation =
   match f with
@@ -107,6 +107,8 @@ let rec eval_function state f arg : state * Ast.computation =
       | None ->
           let f' = Ast.VariableMap.find x state.builtin_functions in
           let arg' = eval_expression state arg in
+          Format.printf "eval_expresion %t -->> %t@." (Ast.print_expression arg)
+            (Ast.print_expression arg');
           (state, f' arg') )
   | Ast.Annotated (e, _ty) -> eval_function state e arg
   | expr ->
@@ -118,11 +120,16 @@ let rec eval_match state e abs =
   | x :: xs -> (
       try substitution state e x with PatternMismatch -> eval_match state e xs )
 
+let starting_state = ref initial_state
+
 let print_state (state : state) =
   Ast.VariableMap.iter
     (fun k v ->
-      Format.printf "key=%t value=%t@." (Ast.Variable.print k)
-        (Ast.print_expression v))
+      match Ast.VariableMap.find_opt k !starting_state.variables with
+      | None ->
+          Format.printf "key=%t value=%t@." (Ast.Variable.print k)
+            (Ast.print_expression v)
+      | Some _v -> ())
     state.variables
 
 let rec eval_fulfill state (e : Ast.expression) =
@@ -152,6 +159,7 @@ let run_comp state comp (id : int) :
 
   let rec run_comp_rec (state : state) (comp : Ast.computation) :
       state * Ast.computation =
+    print_state state;
     Format.printf "comp = %t\n@." (Ast.print_computation comp);
     if false then (
       print "press anything to continiue";
@@ -182,6 +190,7 @@ let run_comp state comp (id : int) :
           let state', comp = eval_match state e abs in
           run_comp_rec state' comp
       | Ast.Apply (e1, e2) ->
+          print "applying";
           let state', e1e2 = eval_function state e1 e2 in
           run_comp_rec state' e1e2
       | Ast.Out (op, e, c) ->
@@ -285,6 +294,7 @@ let rec run_rec (states : state list) (threads : Ast.thread list) :
 
 let run (state : state) (comps : Ast.computation list) =
   (* print "run"; *)
+  starting_state := state;
   let rec make n = if n = 0 then [] else state :: make (n - 1) in
   let states = make (List.length comps) in
   let i = ref 0 in
