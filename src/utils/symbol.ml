@@ -27,7 +27,9 @@ module Make () : S = struct
 
   let print (n, ann) ppf =
     Format.fprintf ppf "%s"
-      (match ann with Some a -> a | None -> Printf.sprintf "var-%d" n)
+      ( match ann with
+      | Some a -> Printf.sprintf "%s-%d" a n
+      | None -> Printf.sprintf "var-%d" n )
 
   let split (n, ann) = (n, ann)
 end
