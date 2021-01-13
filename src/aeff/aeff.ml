@@ -39,7 +39,7 @@ let main () =
     let states, finished_threads =
       Interpreter.run state.interpreter state.top_computations
     in
-    Format.printf "The process has terminated in the configuration:@.";
+    Format.printf "The program has terminated in the configuration:@.";
     List.iter2 Interpreter.print_thread states finished_threads
   with Error.Error error ->
     Error.print error;

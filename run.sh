@@ -12,8 +12,8 @@ OK = 0
 
 ./aeff.exe ./examples/async.aeff
 ((OK = OK + $?))
-# ./aeff.exe ./examples/cancellableCall.aeff
-# ((OK = OK + $?))
+./aeff.exe ./examples/cancellableCall.aeff
+((OK = OK + $?))
 # ./aeff.exe ./examples/feed.aeff
 # ((OK = OK + $?))
 # ./aeff.exe ./examples/heapPure.aeff
@@ -31,4 +31,5 @@ OK = 0
 # ./aeff.exe ./examples/ticktock.aeff
 # ((OK = OK + $?))
 
-echo $OK
+echo
+echo "script exit code = " $OK
