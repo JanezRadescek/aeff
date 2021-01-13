@@ -308,13 +308,31 @@ let run (state : state) (comps : Ast.computation list) =
   in
   run_rec states threads
 
-(* unlike prints in ast this have state and tries to convert variables to expressions *)
+(* It might happen some part of code has never run and as such variable is not in state *)
+let rec try_eval_expression state expr =
+  match expr with
+  | Ast.Var x -> (
+      match Ast.VariableMap.find_opt x state.variables with
+      | Some e -> try_eval_expression state e
+      | None -> expr )
+  | Ast.Const _ -> expr
+  | Ast.Annotated (e, _a) -> try_eval_expression state e
+  | Ast.Tuple _ ->
+      Ast.Tuple (List.map (try_eval_expression state) (eval_tuple state expr))
+  | Ast.Variant (lbl, Some e) ->
+      Ast.Variant (lbl, Some (try_eval_expression state e))
+  | Ast.Variant (lbl, None) -> Ast.Variant (lbl, None)
+  | Ast.Lambda _ | Ast.RecLambda _ -> expr
+  | Ast.Fulfill e -> Ast.Fulfill (try_eval_expression state e)
+  | Ast.Reference e -> Ast.Reference (ref (try_eval_expression state !e))
+
+(* unlike prints in ast this have state and TRIES to convert variables to expressions *)
 let rec print_computation ?max_level state c ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
   match c with
   | Ast.Return e ->
       print ~at_level:1 "return %t"
-        (Ast.print_expression ~max_level:0 (eval_expression state e))
+        (Ast.print_expression ~max_level:0 (try_eval_expression state e))
   | Ast.Do (c1, (PNonbinding, c2)) ->
       print "@[<hov>%t;@ %t@]"
         (print_computation state c1)
@@ -325,19 +343,19 @@ let rec print_computation ?max_level state c ppf =
         (print_computation state c2)
   | Match (e, lst) ->
       print "match %t with (@[<hov>%t@])"
-        (Ast.print_expression (eval_expression state e))
+        (Ast.print_expression (try_eval_expression state e))
         (Print.print_sequence " | " (case state) lst)
   | Apply (e1, e2) ->
       print ~at_level:1 "@[%t@ %t@]"
-        (Ast.print_expression ~max_level:1 (eval_expression state e1))
-        (Ast.print_expression ~max_level:0 (eval_expression state e2))
+        (Ast.print_expression ~max_level:1 (try_eval_expression state e1))
+        (Ast.print_expression ~max_level:0 (try_eval_expression state e2))
   | In (op, e, c) ->
       print "↓%t(@[<hv>%t,@ %t@])" (Ast.Operation.print op)
-        (Ast.print_expression (eval_expression state e))
+        (Ast.print_expression (try_eval_expression state e))
         (print_computation state c)
   | Out (op, e, c) ->
       print "↑%t(@[<hv>%t,@ %t@])" (Ast.Operation.print op)
-        (Ast.print_expression (eval_expression state e))
+        (Ast.print_expression (try_eval_expression state e))
         (print_computation state c)
   | Promise (op, (p1, c1), p2, c2) ->
       print "@[<hv>promise (@[<hov>%t %t ↦@ %t@])@ as %t in@ %t@]"
@@ -347,7 +365,7 @@ let rec print_computation ?max_level state c ppf =
         (print_computation state c2)
   | Await (e, (p, c)) ->
       print "@[<hov>await @[<hov>%t until@ ⟨%t⟩@] in@ %t@]"
-        (Ast.print_expression (eval_expression state e))
+        (Ast.print_expression (try_eval_expression state e))
         (Ast.print_pattern p)
         (print_computation state c)
 
@@ -359,8 +377,8 @@ and case state (a : Ast.abstraction) (ppf : Format.formatter) =
   Format.fprintf ppf "%t" (print_abstraction state a)
 
 let print_thread (state : state) (thread : Ast.thread) : unit =
-  let comp, _id, _cond = thread in
-  Format.printf "%t@." (print_computation state comp)
+  let comp, id, _cond = thread in
+  Format.printf "Thread %i %t@." id (print_computation state comp)
 
 let add_external_function x def state =
   {
