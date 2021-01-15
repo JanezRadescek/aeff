@@ -1,14 +1,42 @@
 open Utils
 
+type value =
+  | Const of Const.t
+  | Tuple of value list
+  | Variant of Ast.label * value option
+  | Fulfill of value
+  | Reference of value ref
+  | Closure of (value -> result)
+
+and result =
+  | Done of value
+  | Await of Ast.computation
+  | Ready of Ast.computation
+
+(* 
+eval_value : state -> expression -> value
+eval_comp : state -> computation -> result
+let eval_computation state = function
+  | Apply (e1, e2) ->
+      let v1 = eval_value state e1
+      and v2 = eval_value state e2 in
+      match v1 with
+      | Closure f -> f v2
+      | _ -> failwith "Closure expected in application"
+let eval_abstraction state (p, c) =
+  fun v ->
+    let state' = extend_state state p v in
+    eval_comp state' c
+*)
+
+
 type state = {
-  variables : Ast.expression Ast.VariableMap.t;
-  builtin_functions : (Ast.expression -> Ast.computation) Ast.VariableMap.t;
+  variables : value Ast.VariableMap.t;
 }
 
 let initial_state =
   {
     variables = Ast.VariableMap.empty;
-    builtin_functions = Ast.VariableMap.empty;
   }
 
 exception PatternMismatch
@@ -146,19 +174,21 @@ let rec eval_fulfill state (e : Ast.expression) =
   | Ast.Fulfill e -> Some e
   | _ -> assert false
 
-let run_comp state comp (id : int) :
-    state
-    * Ast.computation
-    * Ast.condition
-    * (Ast.operation * Ast.expression * int) list =
-  (* print "run_comp start"; *)
-  let ops = ref [] in
-  let counter = ref (-1) in
-  let exit_code = ref Ast.Ready in
+type conf = {
+  counter : int;
+  id : int;
+  ops : (Ast.operation * Ast.expression * int) list;
+  vars : state;
+  computation : result
+}
 
-  let rec run_comp_rec (state : state) (comp : Ast.computation) :
-      state * Ast.computation =
-    print_state state;
+let run_comp state comp :
+    comp_state
+    * result =
+  (* print "run_comp start"; *)
+  let rec run_comp_rec (state : comp_state) (comp : Ast.computation) :
+      comp_state * result =
+    print_state state.state;
     Format.printf "comp = %t\n@." (Ast.print_computation comp);
     if false then (
       print "press anything to continiue";
@@ -166,42 +196,42 @@ let run_comp state comp (id : int) :
         let _ = read_int () in
         ()
       with Failure _ -> () );
-
     (* If exit code_is done parent might be do and we still have some work to do. on the contrary we will triger waiting only when we realy have to stop
        the problem before was we could come to promise somewhere in recursion and not realize it and call on same computation again not reazing we are not doing steps *)
-    if !counter < 1000 then (
-      incr counter;
+    if state.counter < 1000 then (
+      let state = {state with counter = state.counter - 1} in
       match comp with
-      | Ast.Return _ ->
-          exit_code := Ast.Done;
-          (state, comp)
+      | Ast.Return expr ->
+          state, Done expr
       | Ast.Do (Ast.Return e, abs) ->
-          let state', comp' = substitution state e abs in
-          run_comp_rec state' comp'
+          let vars', comp' = substitution state.vars e abs in
+          run_comp_rec {state with vars = vars'} comp'
       | Ast.Do (Ast.Promise (op, abs, p, c), abs') ->
           run_comp_rec state (Ast.Promise (op, abs, p, Ast.Do (c, abs')))
       | Ast.Do (c, abs) -> (
-          let state', comp' = run_comp_rec state c in
-          match comp' with
-          | Ast.Return _ -> run_comp_rec state' (Ast.Do (comp', abs))
-          | _ -> (state', Ast.Do (comp', abs)) )
+          let state', res = run_comp_rec state c in
+          match res with
+          | Done expr ->
+              let vars', comp' = substitution state'.vars expr abs in
+              run_comp_rec {state' with vars = vars'} comp'
+          | Await comp' -> (state', Await (Ast.Do (comp', abs)))
+          | Ready comp' -> (state', Ready (Ast.Do (comp', abs)))
+           )
       | Ast.Match (e, abs) ->
-          let state', comp = eval_match state e abs in
+          let vars', comp = eval_match state.vars e abs in
           run_comp_rec state' comp
       | Ast.Apply (e1, e2) ->
           print "applying";
           let state', e1e2 = eval_function state e1 e2 in
           run_comp_rec state' e1e2
       | Ast.Out (op, e, c) ->
-          let e' = eval_expression state e in
+          let e' = eval_expression state.vars e in
           (* we need actual value not some variable. Variable in other thread might not even exist or have complitly different mining. *)
-          ops := (op, e', id) :: !ops;
-          run_comp_rec state c
+          run_comp_rec {state with ops = (op, e', id) :: state.ops} c
       | Ast.In (op, e, c) -> (
           match c with
           | Ast.Return _ ->
-              exit_code := Ast.Done;
-              (state, c)
+              Done (state, c)
           | Ast.Promise (op', abs', var', c') when op = op' ->
               (* print "inserting in in promise"; *)
               let state', comp' = substitution state e abs' in
