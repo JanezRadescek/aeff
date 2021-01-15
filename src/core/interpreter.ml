@@ -35,6 +35,15 @@ type conf = {
   computation : result;
 }
 
+type conf_small = {
+  counter : int;
+  id : int;
+  ops : (Ast.operation * Ast.expression * int) list;
+  vars : state;
+  comp : Ast.computation;
+
+}
+
 let rec eval_value (state : state) (expr : Ast.expression) : value =
   match expr with
   | Ast.Var x -> eval_value state (Ast.VariableMap.find x state)
@@ -53,28 +62,23 @@ and eval_abstraction (_state : state) ((_p, _c) : Ast.abstraction) =
 
 
 
-(* 
-
-eval_comp : state -> computation -> result
- | Apply (e1, e2) ->
+(* eval_comp : state -> computation -> result
+   | Apply (e1, e2) ->
       let v1 = eval_value state e1
       and v2 = eval_value state e2 in
       match v1 with
       | Closure f -> f v2
       | _ -> failwith "Closure expected in application"
 
-let eval_abstraction state (p, c) =
-  fun v ->
+   let eval_abstraction state (p, c) =
+   fun v ->
     let state' = extend_state state p v in
-    eval_comp state' c
-*)
+    eval_comp state' c *)
+
 
 (* let intersection_compliment aa bb =
    ( List.filter (fun (a1, _a2) -> List.mem a1 bb) aa,
     List.filter (fun b -> not (List.mem_assoc b aa)) bb ) *)
-
-
-
 
 (* let rec eval_tuple state = function
    | Ast.Tuple exprs -> exprs
@@ -122,8 +126,10 @@ let eval_abstraction state (p, c) =
    | Ast.PNonbinding -> []
    | _ -> raise PatternMismatch
 
+
+
    let substitution state (v : Ast.expression) ((x, m) : Ast.abstraction) :
-    state * Ast.computation =
+   state * Ast.computation =
    let vars = match_pattern_with_expression state x v in
    let state' = extend_variables state vars in
    (state', m) *)
@@ -171,16 +177,17 @@ let eval_abstraction state (p, c) =
    | x :: xs -> (
       try substitution state e x with PatternMismatch -> eval_match state e xs ) *)
 
-(* let starting_state = ref initial_state
-   let print_state (state : state) =
-   Ast.VariableMap.iter
+let starting_state = ref initial_state
+
+let print_state (state : state) =
+  Ast.VariableMap.iter
     (fun k v ->
        match Ast.VariableMap.find_opt k !starting_state with
        | None ->
          Format.printf "key=%t value=%t@." (Ast.Variable.print k)
            (Ast.print_expression v)
        | Some _v -> ())
-    state *)
+    state
 
 (* let rec eval_fulfill state (e : Ast.expression) =
    match e with
@@ -295,47 +302,118 @@ let run_comp state comp : comp_state * result =
     (state', (comp', id, condition'), ops)
    | _ -> (state, (comp, id, condition), []) *)
 
+let big_step (conf : conf) : conf =
+  let rec small_steps (state : conf_small) : conf_small =
+    print_state state.vars;
+    Format.printf "comp = %t\n@." (Ast.print_computation state.comp);
+    if false then (
+      print "press anything to continiue";
+      try
+        let _ = read_int () in
+        ()
+      with Failure _ -> () );
+    (* If exit code_is done parent might be do and we still have some work to do. on the contrary we will triger waiting only when we realy have to stop
+       the problem before was we could come to promise somewhere in recursion and not realize it and call on same computation again not reazing we are not doing steps *)
+    if state.counter < 1000 then
+      let state = { state with counter = state.counter + 1 } in
+      match state.comp with
+      | Ast.Return _e -> state
+      | Ast.Do (Ast.Return e, abs) ->
+        let vars', comp' = substitution state.vars e abs in
+        run_comp_rec { state with vars = vars' } comp'
+      | Ast.Do (Ast.Promise (op, abs, p, c), abs') ->
+        run_comp_rec state (Ast.Promise (op, abs, p, Ast.Do (c, abs')))
+      | Ast.Do (c, abs) -> (
+          let state', res = run_comp_rec state c in
+          match res with
+          | Done expr ->
+            let vars', comp' = substitution state'.vars expr abs in
+            run_comp_rec { state' with vars = vars' } comp'
+          | Await comp' -> (state', Await (Ast.Do (comp', abs)))
+          | Ready comp' -> (state', Ready (Ast.Do (comp', abs))) )
+      | Ast.Match (e, abs) ->
+        let vars', comp = eval_match state.vars e abs in
+        run_comp_rec state' comp
+      | Ast.Apply (e1, e2) ->
+        print "applying";
+        let state', e1e2 = eval_function state e1 e2 in
+        run_comp_rec state' e1e2
+      | Ast.Out (op, e, c) ->
+        let e' = eval_expression state.vars e in
+        (* we need actual value not some variable. Variable in other thread might not even exist or have complitly different mining. *)
+        run_comp_rec { state with ops = (op, e', id) :: state.ops } c
+      | Ast.In (op, e, c) -> (
+          match c with
+          | Ast.Return _ -> Done (state, c)
+          | Ast.Promise (op', abs', var', c') when op = op' ->
+            (* print "inserting in in promise"; *)
+            let state', comp' = substitution state e abs' in
+            run_comp_rec state'
+              (Ast.Do (comp', (Ast.PVar var', Ast.In (op, e, c'))))
+          | Ast.Promise (op', abs', var', c') ->
+            let state', c'' = run_comp_rec state c' in
+            run_comp_rec state'
+              (Ast.Promise (op', abs', var', Ast.In (op, e, c'')))
+          | _ -> (
+              let state', c' = run_comp_rec state c in
+              match c' with
+              | Ast.Return _ -> (state', c')
+              | _ ->
+                (*Here we can get promise op, but it is rare so its ok to wait for next run_comp*)
+                (state', Ast.In (op, e, c')) ) )
+      | Ast.Promise (op, abs, p, c) ->
+        let state', comp' = run_comp_rec state c in
+        (state', Ast.Promise (op, abs, p, comp'))
+      | Ast.Await (e, abs) -> (
+          (* print_state state; *)
+          match eval_fulfill state e with
+          | None ->
+            exit_code := Ast.Waiting;
+            (state, comp)
+          | Some e' ->
+            let state', comp' = substitution state e' abs in
+            run_comp_rec state' comp' )
+    else (state, comp)
+  in
 
-let run_conf (_conf:conf) :conf =
-  failwith "TODO"
+  match conf.computation with
+  | Done _ -> conf
+  | _ -> failwith "TODO call small steps here"
 
-
-let resolve_operations (confs:conf list) : ((conf list) * bool)
-  =
+let resolve_operations (confs : conf list) : conf list * bool =
   (* print "run_rec"; *)
   let finished = ref true in
 
   let rec take_ops = function
-    | [] -> ([],[])
-    | c::cs -> 
+    | [] -> ([], [])
+    | c :: cs ->
       let ops', cs' = take_ops cs in
       let ops'' = c.ops in
-      let c'' = {c with ops = []} in
-      (ops''@ops', c''::cs')
+      let c'' = { c with ops = [] } in
+      (ops'' @ ops', c'' :: cs')
   in
 
   let ops, confs' = take_ops confs in
 
-  let insert_interupts (conf:conf) =
-    (match conf.computation with 
-     | Ready _ -> finished := false;
-     | _ -> ());
-    List.fold_right (fun (op, e, id) conf -> if id = conf.id then conf else {conf with interupts =  (op,e)::conf.interupts} ) ops conf
+  let insert_interupts (conf : conf) =
+    (match conf.computation with Ready _ -> finished := false | _ -> ());
+    List.fold_right
+      (fun (op, e, id) conf ->
+         if id = conf.id then conf
+         else { conf with interupts = (op, e) :: conf.interupts })
+      ops conf
   in
 
   let done' = List.length ops = 0 && !finished in
   (List.map insert_interupts confs', done')
 
-let rec run_rec (confs:conf list) : conf list =
+let rec run_rec (confs : conf list) : conf list =
   (* print "run_rec"; *)
   (* Ast.print_threads threads; *)
-  let confs' = List.map run_conf confs
-  in
+  let confs' = List.map big_step confs in
   (* Here we could remove done configurations and safe them into sam reference *)
   let confs'', done' = resolve_operations confs' in
-  match done' with
-  | true -> confs''
-  | false -> run_rec confs''
+  match done' with true -> confs'' | false -> run_rec confs''
 
 let run (state : state) (comps : Ast.computation list) =
   (* print "run"; *)
@@ -349,14 +427,12 @@ let run (state : state) (comps : Ast.computation list) =
 
          {
            counter = 1000;
-           id = id;
+           id;
            ops = [];
            interupts = [];
            vars = state;
            computation = Ready c;
-         }
-
-      )
+         })
       comps
   in
   run_rec configurations
@@ -433,10 +509,7 @@ let run (state : state) (comps : Ast.computation list) =
    let comp, id, _cond = thread in
    Format.printf "Thread %i %t@." id (print_computation state comp) *)
 
-let add_external_function x def state =
-  Ast.VariableMap.add x def state
-
+let add_external_function x def state = Ast.VariableMap.add x def state
 
 let eval_top_let (state : state) (x : Ast.variable) (expr : Ast.expression) =
-
   Ast.VariableMap.add x expr state
