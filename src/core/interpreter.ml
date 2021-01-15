@@ -17,7 +17,7 @@ and result =
   | Await of Ast.computation
   | Ready of Ast.computation
 
-type state = value Ast.VariableMap.t
+type state = Ast.expression Ast.VariableMap.t
 
 let initial_state = Ast.VariableMap.empty
 
@@ -37,7 +37,7 @@ type conf = {
 
 let rec eval_value (state : state) (expr : Ast.expression) : value =
   match expr with
-  | Ast.Var x -> Ast.VariableMap.find x state
+  | Ast.Var x -> eval_value state (Ast.VariableMap.find x state)
   | Ast.Const c -> Const c
   | Ast.Annotated (e, _a) -> eval_value state e
   | Ast.Tuple es -> Tuple (List.map (eval_value state) es)
@@ -50,17 +50,6 @@ let rec eval_value (state : state) (expr : Ast.expression) : value =
 
 and eval_abstraction (_state : state) ((_p, _c) : Ast.abstraction) =
   Closure (fun _v -> failwith "TODO")
-
-
-let big_step (conf: conf) : conf = 
-
-  let rec small_steps (conf:conf) =
-    if conf.counter >= 1000 then conf else 
-      (match conf.computation with
-       | Done _ -> conf
-       | Await _ -> conf
-       | Ready _ -> {conf with counter = conf.counter + 1; }
-      )
 
 
 
@@ -182,17 +171,16 @@ let eval_abstraction state (p, c) =
    | x :: xs -> (
       try substitution state e x with PatternMismatch -> eval_match state e xs ) *)
 
-let starting_state = ref initial_state
-
-let print_state (state : state) =
-  Ast.VariableMap.iter
+(* let starting_state = ref initial_state
+   let print_state (state : state) =
+   Ast.VariableMap.iter
     (fun k v ->
-       match Ast.VariableMap.find_opt k !starting_state.variables with
+       match Ast.VariableMap.find_opt k !starting_state with
        | None ->
          Format.printf "key=%t value=%t@." (Ast.Variable.print k)
            (Ast.print_expression v)
        | Some _v -> ())
-    state.variables
+    state *)
 
 (* let rec eval_fulfill state (e : Ast.expression) =
    match e with
@@ -307,7 +295,12 @@ let run_comp state comp : comp_state * result =
     (state', (comp', id, condition'), ops)
    | _ -> (state, (comp, id, condition), []) *)
 
-let resolve_operations (confs:conf list) : conf list * Bool
+
+let run_conf (_conf:conf) :conf =
+  failwith "TODO"
+
+
+let resolve_operations (confs:conf list) : ((conf list) * bool)
   =
   (* print "run_rec"; *)
   let finished = ref true in
@@ -316,7 +309,7 @@ let resolve_operations (confs:conf list) : conf list * Bool
     | [] -> ([],[])
     | c::cs -> 
       let ops', cs' = take_ops cs in
-      let ops'' = List.fold_left (fun ops op -> (c.id, op)::ops ) [] c.ops in
+      let ops'' = c.ops in
       let c'' = {c with ops = []} in
       (ops''@ops', c''::cs')
   in
@@ -324,38 +317,29 @@ let resolve_operations (confs:conf list) : conf list * Bool
   let ops, confs' = take_ops confs in
 
   let insert_interupts (conf:conf) =
-    if conf.computation = Ready _ then finished := false;
-    List.fold_right (fun (op, e, id), conf -> if id = conf.id then conf else {conf with interupts =  (op,e)::conf.interupts} ) ops conf
+    (match conf.computation with 
+     | Ready _ -> finished := false;
+     | _ -> ());
+    List.fold_right (fun (op, e, id) conf -> if id = conf.id then conf else {conf with interupts =  (op,e)::conf.interupts} ) ops conf
   in
-  (* let insert_interupts (thread : Ast.thread) =
-     let comp, id, cond = thread in
-     if cond = Ast.Ready then finished := false;
-     let comp' =
-      List.fold_left
-        (fun comp (op, expr, id') ->
-           if id = id' then comp else Ast.In (op, expr, comp))
-        comp ops
-     in
-     (comp', id, Ast.Ready)
-     in *)
-  let done' = List.length ops = 0 && !finished in
-  (* Format.printf "resolve #ops = %i finished = %b\n" (List.length ops) !finished; *)
-  (List.map insert_interupts threads, done')
 
-let rec run_rec (conf:conf list) : conf list =
+  let done' = List.length ops = 0 && !finished in
+  (List.map insert_interupts confs', done')
+
+let rec run_rec (confs:conf list) : conf list =
   (* print "run_rec"; *)
   (* Ast.print_threads threads; *)
-  let conf' = List.map run_conf conf
+  let confs' = List.map run_conf confs
   in
   (* Here we could remove done configurations and safe them into sam reference *)
-  let conf'', done' = resolve_operations conf' in
+  let confs'', done' = resolve_operations confs' in
   match done' with
-  | true -> conf''
-  | false -> run_rec conf''
+  | true -> confs''
+  | false -> run_rec confs''
 
 let run (state : state) (comps : Ast.computation list) =
   (* print "run"; *)
-  starting_state := state;
+  (* starting_state := state; *)
   let i = ref 0 in
   let configurations =
     List.map
@@ -367,93 +351,92 @@ let run (state : state) (comps : Ast.computation list) =
            counter = 1000;
            id = id;
            ops = [];
+           interupts = [];
            vars = state;
-           computation = c;
+           computation = Ready c;
          }
 
       )
-
       comps
   in
   run_rec configurations
 
-(* It might happen some part of code has never run and as such variable is not in state *)
-let rec try_eval_expression state expr =
-  match expr with
-  | Ast.Var x -> (
-      match Ast.VariableMap.find_opt x state.variables with
+(* It might happen some part of code has never run and as such variable is not in state
+   let rec try_eval_expression state expr =
+   match expr with
+   | Ast.Var x -> (
+      match Ast.VariableMap.find_opt x state with
       | Some e -> try_eval_expression state e
       | None -> expr )
-  | Ast.Const _ -> expr
-  | Ast.Annotated (e, _a) -> try_eval_expression state e
-  | Ast.Tuple _ ->
+   | Ast.Const _ -> expr
+   | Ast.Annotated (e, _a) -> try_eval_expression state e
+   | Ast.Tuple _ ->
     Ast.Tuple (List.map (try_eval_expression state) (eval_tuple state expr))
-  | Ast.Variant (lbl, Some e) ->
+   | Ast.Variant (lbl, Some e) ->
     Ast.Variant (lbl, Some (try_eval_expression state e))
-  | Ast.Variant (lbl, None) -> Ast.Variant (lbl, None)
-  | Ast.Lambda _ | Ast.RecLambda _ -> expr
-  | Ast.Fulfill e -> Ast.Fulfill (try_eval_expression state e)
-  | Ast.Reference e -> Ast.Reference (ref (try_eval_expression state !e))
+   | Ast.Variant (lbl, None) -> Ast.Variant (lbl, None)
+   | Ast.Lambda _ | Ast.RecLambda _ -> expr
+   | Ast.Fulfill e -> Ast.Fulfill (try_eval_expression state e)
+   | Ast.Reference e -> Ast.Reference (ref (try_eval_expression state !e))
 
-(* unlike prints in ast this have state and TRIES to convert variables to expressions *)
-let rec print_computation ?max_level state c ppf =
-  let print ?at_level = Print.print ?max_level ?at_level ppf in
-  match c with
-  | Ast.Return e ->
+   unlike prints in ast this have state and TRIES to convert variables to expressions
+   let rec print_computation ?max_level state c ppf =
+   let print ?at_level = Print.print ?max_level ?at_level ppf in
+   match c with
+   | Ast.Return e ->
     print ~at_level:1 "return %t"
       (Ast.print_expression ~max_level:0 (try_eval_expression state e))
-  | Ast.Do (c1, (PNonbinding, c2)) ->
+   | Ast.Do (c1, (PNonbinding, c2)) ->
     print "@[<hov>%t;@ %t@]"
       (print_computation state c1)
       (print_computation state c2)
-  | Ast.Do (c1, (pat, c2)) ->
+   | Ast.Do (c1, (pat, c2)) ->
     print "@[<hov>let@[<hov>@ %t =@ %t@] in@ %t@]" (Ast.print_pattern pat)
       (print_computation state c1)
       (print_computation state c2)
-  | Match (e, lst) ->
+   | Match (e, lst) ->
     print "match %t with (@[<hov>%t@])"
       (Ast.print_expression (try_eval_expression state e))
       (Print.print_sequence " | " (case state) lst)
-  | Apply (e1, e2) ->
+   | Apply (e1, e2) ->
     print ~at_level:1 "@[%t@ %t@]"
       (Ast.print_expression ~max_level:1 (try_eval_expression state e1))
       (Ast.print_expression ~max_level:0 (try_eval_expression state e2))
-  | In (op, e, c) ->
+   | In (op, e, c) ->
     print "↓%t(@[<hv>%t,@ %t@])" (Ast.Operation.print op)
       (Ast.print_expression (try_eval_expression state e))
       (print_computation state c)
-  | Out (op, e, c) ->
+   | Out (op, e, c) ->
     print "↑%t(@[<hv>%t,@ %t@])" (Ast.Operation.print op)
       (Ast.print_expression (try_eval_expression state e))
       (print_computation state c)
-  | Promise (op, (p1, c1), p2, c2) ->
+   | Promise (op, (p1, c1), p2, c2) ->
     print "@[<hv>promise (@[<hov>%t %t ↦@ %t@])@ as %t in@ %t@]"
       (Ast.Operation.print op) (Ast.print_pattern p1)
       (print_computation state c1)
       (Ast.Variable.print p2)
       (print_computation state c2)
-  | Await (e, (p, c)) ->
+   | Await (e, (p, c)) ->
     print "@[<hov>await @[<hov>%t until@ ⟨%t⟩@] in@ %t@]"
       (Ast.print_expression (try_eval_expression state e))
       (Ast.print_pattern p)
       (print_computation state c)
 
-and print_abstraction state (p, c) ppf =
-  Format.fprintf ppf "%t ↦ %t" (Ast.print_pattern p)
+   and print_abstraction state (p, c) ppf =
+   Format.fprintf ppf "%t ↦ %t" (Ast.print_pattern p)
     (print_computation state c)
 
-and case state (a : Ast.abstraction) (ppf : Format.formatter) =
-  Format.fprintf ppf "%t" (print_abstraction state a)
+   and case state (a : Ast.abstraction) (ppf : Format.formatter) =
+   Format.fprintf ppf "%t" (print_abstraction state a) *)
 
-let print_thread (state : state) (thread : Ast.thread) : unit =
-  let comp, id, _cond = thread in
-  Format.printf "Thread %i %t@." id (print_computation state comp)
+(* let print_thread (state : state) (thread : Ast.thread) : unit =
+   let comp, id, _cond = thread in
+   Format.printf "Thread %i %t@." id (print_computation state comp) *)
 
 let add_external_function x def state =
-  {
-    state with
-    builtin_functions = Ast.VariableMap.add x def state.builtin_functions;
-  }
+  Ast.VariableMap.add x def state
+
 
 let eval_top_let (state : state) (x : Ast.variable) (expr : Ast.expression) =
+
   Ast.VariableMap.add x expr state
