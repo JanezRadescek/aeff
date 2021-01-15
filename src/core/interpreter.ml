@@ -153,7 +153,6 @@ let run_comp state comp (id : int) :
     * (Ast.operation * Ast.expression * int) list =
   (* print "run_comp start"; *)
   let ops = ref [] in
-
   let counter = ref (-1) in
   let exit_code = ref Ast.Ready in
 
@@ -287,6 +286,7 @@ let rec run_rec (states : state list) (threads : Ast.thread list) :
   let states', threads', ops =
     List.fold_right2 fold' states threads ([], [], [])
   in
+  (* Here we could filter all threads that are done *)
   let threads'', done' = resolve_operations threads' ops in
   match done' with
   | true -> (states', threads'')

@@ -194,5 +194,15 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
         substitution lazzy evaluation M[v/x] se pravi namesto da iščemo x-e in jih prepišemo z v, si shranimo v state x=v in ko bomo kasneje naleteli na x bomo imeli pač spremenljivko x, namesto neke konstate v.
                                       
 
-38      typecheker add_external_function se sesuje/zacikla v vrstici 
-        544 { state with variables_ty = Ast.VariableMap.add x ty_sch state.variables_ty }
+39      dela vredu run_comp_rec?
+
+        kako pravilno narediti substitution?
+
+        Kako testirati, da deluje vredu?
+        Dokaz da je algoritev vredu, ne dokazuje, da je implementacija brez buggov.
+        Ne morem primerjati končnih rezultatov z prejšnjim interpreterjem, 
+        ker je končni rezultat odvisen od schedulerja, ki je tudi drugačen.
+
+
+40      bugg!!! operacije morajo ohranjati vrstni red (vsaj znotraj enega threada, kjer je vrstni red zagotovljen.)
+        trenutno jim obrneš vrstni red.
