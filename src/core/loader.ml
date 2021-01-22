@@ -53,7 +53,7 @@ let execute_command state cmd =
       { state with typechecker = typechecker_state' }
   | Ast.TopLet (x, ty_sch, expr) ->
       let interpreter_state' =
-        Interpreter.eval_top_let state.interpreter x expr
+        Interpreter.add_top_let state.interpreter x expr
       in
 
       let typechecker_state' =

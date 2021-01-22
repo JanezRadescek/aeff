@@ -44,7 +44,7 @@ type conf = {
 
 let rec eval_value (state : vars) (expr : Ast.expression) : value =
   match expr with
-  | Ast.Var x -> (Ast.VariableMap.find x state)
+  | Ast.Var x -> Ast.VariableMap.find x state
   | Ast.Const c -> Const c
   | Ast.Annotated (e, _a) -> eval_value state e
   | Ast.Tuple es -> Tuple (List.map (eval_value state) es)
@@ -53,7 +53,7 @@ let rec eval_value (state : vars) (expr : Ast.expression) : value =
   | Ast.Lambda abs -> eval_abstraction state abs
   | Ast.RecLambda _ -> failwith "TODO"
   | Ast.Fulfill e -> Fulfill (eval_value state e)
-  | Ast.Reference e -> Reference (ref (eval_value state !e)) 
+  | Ast.Reference e -> Reference (ref (eval_value state !e))
 
 and eval_abstraction (_vars : vars) ((_p, _c) : Ast.abstraction) =
   Closure (fun _v -> failwith "TODO")
@@ -113,15 +113,14 @@ let rec match_pattern_with_value (state : vars) pat (v : value) :
              vars' @ vars)
           [] pats vs
       | _ -> raise PatternMismatch )
-  | Ast.PVariant (label, pat') -> 
-    (match v with
-     | Variant (label', v') when label = label' -> 
-       (match pat', v' with
-        | None, None -> []
-        | Some pat'', Some v'' -> match_pattern_with_value state pat'' v''
-        | _ ->  raise PatternMismatch)
-     | _ -> raise PatternMismatch)
-
+  | Ast.PVariant (label, pat') -> (
+      match v with
+      | Variant (label', v') when label = label' -> (
+          match (pat', v') with
+          | None, None -> []
+          | Some pat'', Some v'' -> match_pattern_with_value state pat'' v''
+          | _ -> raise PatternMismatch )
+      | _ -> raise PatternMismatch )
   (* match (pat, eval_variant state expr) with
      | None, (label', None) when label = label' -> []
      | Some pat, (label', Some expr) when label = label' ->
@@ -532,5 +531,6 @@ let run (vars : vars) (comps : Ast.computation list) =
 
 let add_external_function x def state = Ast.VariableMap.add x def state
 
-let eval_top_let (state : vars) (x : Ast.variable) (expr : Ast.expression) =
-  Ast.VariableMap.add x expr state
+let add_top_let (state : vars) (x : Ast.variable) (expr : Ast.expression) =
+  let v = eval_value state expr in
+  Ast.VariableMap.add x v state
