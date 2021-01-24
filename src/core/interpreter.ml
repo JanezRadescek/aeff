@@ -10,9 +10,9 @@ type value =
   | Variant of Ast.label * value option
   | Fulfill of value
   | Reference of value ref
-  | Closure of (value -> result)
+  | Closure of (value -> Ast.computation)
 
-and result =
+type result =
   | Done of value
   | Await of Ast.computation
   | Ready of Ast.computation
@@ -152,30 +152,29 @@ let substitution (vars : vars) (v : value) ((x, m) : Ast.abstraction) :
    | Ast.Fulfill e -> Ast.Fulfill (eval_expression state e)
    | Ast.Reference e -> Ast.Reference (ref (eval_expression state !e)) *)
 
-(* let rec eval_function state f arg : state * Ast.computation =
-   match f with
-   | Ast.Lambda abs ->
-      let state', farg = substitution state arg abs in
-      (state', farg)
-   | Ast.RecLambda (f, (pat, comp)) as expr ->
-      let vars = match_pattern_with_expression state pat arg in
-      let vars' = (f, expr) :: vars in
-      let state' = extend_variables state vars' in
-      (state', comp)
-   | Ast.Var x -> (
-      match Ast.VariableMap.find_opt x state.variables with
-      | Some e -> eval_function state e arg
-      | None ->
-          let f' = Ast.VariableMap.find x state.builtin_functions in
-          let arg' = eval_expression state arg in
-          Format.printf "eval_expresion %t -->> %t@." (Ast.print_expression arg)
-            (Ast.print_expression arg');
-          (state, f' arg') )
-   | Ast.Annotated (e, _ty) -> eval_function state e arg
-   | expr ->
-      Error.runtime "Function expected but got %t" (Ast.print_expression expr)
+let rec eval_function state (f:Ast.expression) (arg:Ast.expression) : vars * Ast.computation =
+  match f with
+  | Ast.Lambda abs ->
+    let v = eval_value state arg in
+    let state', farg = substitution state v abs in
+    (state', farg)
+  | Ast.RecLambda (f, (pat, comp)) as expr ->
+    let v = eval_value state arg in
+    let vars' = match_pattern_with_value state pat v in
+    let vars'' = (f, expr) :: vars' in
+    let state' = extend_variables state vars'' in
+    (state', comp)
+  | Ast.Var x -> (
+      let v = eval_value state arg in
+      let f' = Ast.VariableMap.find x state in
+      (match f' with
+       | Closure c -> (state,c v)
+       | _ -> assert false))
+  | Ast.Annotated (e, _ty) -> eval_function state e arg
+  | expr ->
+    Error.runtime "Function expected but got %t" (Ast.print_expression expr)
 
-*)
+
 
 let rec eval_match vars e abs =
   match abs with

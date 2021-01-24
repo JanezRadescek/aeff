@@ -152,31 +152,6 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
         operation question : unit -> int
 
 
-
-36      a)      Kaj če dobimo recimo
-                        ↓ op (𝑉 , match... )
-                        Če nimamo navedenega pravila, naredimo korak v match..., 
-                        dokler ne dobimo željenega pravila za interupt propagation?
-
-                DA, ↓ op (𝑉 , ...) je evalvacijski kontekst, zato se ta, notri naprej delajo koraki
-
-        b)      Kaj se zgodi če imamo 
-                InProc(opA, e, Run promise opB ...as p in await p ...)    
-                in pride od nekod opB, e  
-                ~>
-                InProc(opB, e,   InProc(opA, e, Run promise opB ...as p in await p ...)   ) 
-                ~>
-                InProc(opB, e,  Run  InComp(opA, e, promise opB ...as p in await p ...)   ) 
-                ~> (tu je tudi varianta v Run (Incomp A (Incomp B (...))))
-                InProc(opB, e,  Run  promise opB ...as p in InComp(opA, e, await p ...)   ) 
-                ~>
-                Run InComp(opB, e, promise opB ...as p in InComp(opA, e, await p ...)   ) 
-                ~>
-                Run let p = ... in InComp(opB, e, InComp(opA, e, await p ...))
-                ~>
-                ...
-
-
 37      star interpreter sem v celoti zakomentiral, ker bi rad naredil od začetka, ker sicer bodo deli kode, ki bodo delali pa ne bom vedel zakaj, 
         potem se bo pa nekoč nekaj spremenilo, pa nebodo več delali, pa tudi ne bom vedel zakaj ali kako popraviti. 
 
@@ -192,17 +167,19 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
         resolve operations vsem thredom, ki so op_out vzemi operacijo, jo daj na global queue in nato vsakemu thredu daj operacije, ki jih hoče, če jih hoče.//vsakemu thredu damo vse operacije, ker nimamo MAGICAL FUNCTION in ne vemo če jih hoče ali
 
         substitution lazzy evaluation M[v/x] se pravi namesto da iščemo x-e in jih prepišemo z v, si shranimo v state x=v in ko bomo kasneje naleteli na x bomo imeli pač spremenljivko x, namesto neke konstate v.
-                                      
-
-39      dela vredu run_comp_rec?
-
-        kako pravilno narediti substitution?
-
-        Kako testirati, da deluje vredu?
-        Dokaz da je algoritev vredu, ne dokazuje, da je implementacija brez buggov.
-        Ne morem primerjati končnih rezultatov z prejšnjim interpreterjem, 
-        ker je končni rezultat odvisen od schedulerja, ki je tudi drugačen.
 
 
 40      bugg!!! operacije morajo ohranjati vrstni red (vsaj znotraj enega threada, kjer je vrstni red zagotovljen.)
         trenutno jim obrneš vrstni red.
+
+
+
+41      eval function, eval abstraction. Podvojeno. to mi ni všeč. Posledica tega, da imamo lambde IN closures?
+        je vredu, da si v state/vars shranjujem values?
+        Closure sem spremenil iz value -> result v value -> computation?
+        Ker imamo typecheck nam ni treba več preverjati tipov. OCaml tega neve in nam seveda ne dovoli direktno uporabiti aplikacije e1 e2. 
+        
+        Bi bilo smiselno, ko typechecker konča, tipe vršt stran ali pa vsaj zelo omejiti ali pa morda pretvoriti? 
+        Recimo e1 v applikaciji nebi bil več expression ampak function/var. 
+        Sepravi Apply of function * value, namesto Apply of expression * expression.
+
