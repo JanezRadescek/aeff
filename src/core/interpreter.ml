@@ -42,60 +42,6 @@ type conf = {
    comp : Ast.computation;
    } *)
 
-let rec eval_value (state : vars) (expr : Ast.expression) : value =
-  match expr with
-  | Ast.Var x -> Ast.VariableMap.find x state
-  | Ast.Const c -> Const c
-  | Ast.Annotated (e, _a) -> eval_value state e
-  | Ast.Tuple es -> Tuple (List.map (eval_value state) es)
-  | Ast.Variant (lbl, None) -> Variant (lbl, None)
-  | Ast.Variant (lbl, Some e) -> Variant (lbl, Some (eval_value state e))
-  | Ast.Lambda abs -> eval_abstraction state abs
-  | Ast.RecLambda _ -> failwith "TODO"
-  | Ast.Fulfill e -> Fulfill (eval_value state e)
-  | Ast.Reference e -> Reference (ref (eval_value state !e))
-
-and eval_abstraction (_vars : vars) ((_p, _c) : Ast.abstraction) : value =
-  Closure (fun _v -> failwith "TODO")
-
-(* eval_comp : state -> computation -> result
-   | Apply (e1, e2) ->
-      let v1 = eval_value state e1
-      and v2 = eval_value state e2 in
-      match v1 with
-      | Closure f -> f v2
-      | _ -> failwith "Closure expected in application"
-
-   let eval_abstraction state (p, c) =
-   fun v ->
-    let state' = extend_state state p v in
-    eval_comp state' c *)
-
-(* let intersection_compliment aa bb =
-   ( List.filter (fun (a1, _a2) -> List.mem a1 bb) aa,
-    List.filter (fun b -> not (List.mem_assoc b aa)) bb ) *)
-
-(* let rec eval_tuple state = function
-   | Ast.Tuple exprs -> exprs
-   | Ast.Var x -> eval_tuple state (Ast.VariableMap.find x state.variables)
-   | Ast.Annotated (e, _anno) -> eval_tuple state e
-   | expr ->
-      Error.runtime "Tuple expected but got %t" (Ast.print_expression expr)
-
-   let rec eval_variant state = function
-   | Ast.Variant (lbl, expr) -> (lbl, expr)
-   | Ast.Var x -> eval_variant state (Ast.VariableMap.find x state.variables)
-   | Ast.Annotated (e, _anno) -> eval_variant state e
-   | expr ->
-      Error.runtime "Variant expected but got %t" (Ast.print_expression expr)
-
-   let rec eval_const state = function
-   | Ast.Const c -> c
-   | Ast.Var x -> eval_const state (Ast.VariableMap.find x state.variables)
-   | Ast.Annotated (e, _anno) -> eval_const state e
-   | expr ->
-      Error.runtime "Const expected but got %t" (Ast.print_expression expr)
-*)
 let rec match_pattern_with_value (state : vars) pat (v : value) :
     (Ast.variable * value) list =
   match pat with
@@ -121,11 +67,6 @@ let rec match_pattern_with_value (state : vars) pat (v : value) :
           | Some pat'', Some v'' -> match_pattern_with_value state pat'' v''
           | _ -> raise PatternMismatch )
       | _ -> raise PatternMismatch )
-  (* match (pat, eval_variant state expr) with
-     | None, (label', None) when label = label' -> []
-     | Some pat, (label', Some expr) when label = label' ->
-     match_pattern_with_value state pat expr
-     | _, _ -> raise PatternMismatch ) *)
   | Ast.PConst c -> (
       match v with
       | Const c' when Const.equal c c' -> []
@@ -138,41 +79,21 @@ let substitution (vars : vars) (v : value) ((x, m) : Ast.abstraction) :
   let state' = extend_variables vars vars' in
   (state', m)
 
-(* let rec eval_expression state expr : Ast.expression =
-   match expr with
-   | Ast.Var x -> eval_expression state (Ast.VariableMap.find x state.variables)
-   | Ast.Const _ -> expr
-   | Ast.Annotated (e, _a) -> eval_expression state e
-   | Ast.Tuple _ ->
-      Ast.Tuple (List.map (eval_expression state) (eval_tuple state expr))
-   | Ast.Variant (lbl, Some e) ->
-      Ast.Variant (lbl, Some (eval_expression state e))
-   | Ast.Variant (lbl, None) -> Ast.Variant (lbl, None)
-   | Ast.Lambda _ | Ast.RecLambda _ -> expr
-   | Ast.Fulfill e -> Ast.Fulfill (eval_expression state e)
-   | Ast.Reference e -> Ast.Reference (ref (eval_expression state !e)) *)
+let rec eval_value (state : vars) (expr : Ast.expression) : value =
+  match expr with
+  | Ast.Var x -> Ast.VariableMap.find x state
+  | Ast.Const c -> Const c
+  | Ast.Annotated (e, _a) -> eval_value state e
+  | Ast.Tuple es -> Tuple (List.map (eval_value state) es)
+  | Ast.Variant (lbl, None) -> Variant (lbl, None)
+  | Ast.Variant (lbl, Some e) -> Variant (lbl, Some (eval_value state e))
+  | Ast.Lambda abs -> eval_abstraction state abs
+  | Ast.RecLambda _ -> failwith "TODO"
+  | Ast.Fulfill e -> Fulfill (eval_value state e)
+  | Ast.Reference e -> Reference (ref (eval_value state !e))
 
-(* let rec eval_function state (f:Ast.expression) (arg:Ast.expression) : vars * Ast.computation =
-   match f with
-   | Ast.Lambda abs ->
-    let v = eval_value state arg in
-    let state', farg = substitution state v abs in
-    (state', farg)
-   | Ast.RecLambda (f, (pat, comp)) as expr ->
-    let v = eval_value state arg in
-    let vars' = match_pattern_with_value state pat v in
-    let vars'' = (f, expr) :: vars' in
-    let state' = extend_variables state vars'' in
-    (state', comp)
-   | Ast.Var x -> (
-      let v = eval_value state arg in
-      let f' = Ast.VariableMap.find x state in
-      (match f' with
-       | Closure c -> (state,c v)
-       | _ -> assert false))
-   | Ast.Annotated (e, _ty) -> eval_function state e arg
-   | expr ->
-    Error.runtime "Function expected but got %t" (Ast.print_expression expr) *)
+and eval_abstraction (_vars : vars) ((_p, _c) : Ast.abstraction) : value =
+  Closure (fun _v -> failwith "TODO")
 
 let rec eval_match vars e abs =
   match abs with
@@ -199,105 +120,6 @@ let eval_fulfill (vars : vars) (e : Ast.expression) =
       | Some v -> ( match v with Fulfill v' -> Some v' | _ -> assert false ) )
   | Ast.Fulfill e -> Some (eval_value vars e)
   | _ -> assert false
-
-(* let run_comp state comp : comp_state * result =
-   (* print "run_comp start"; *)
-   let rec run_comp_rec (state : comp_state) (comp : Ast.computation) :
-    comp_state * result =
-    print_state state.state;
-    Format.printf "comp = %t\n@." (Ast.print_computation comp);
-    if false then (
-      print "press anything to continiue";
-      try
-        let _ = read_int () in
-        ()
-      with Failure _ -> () );
-    (* If exit code_is done parent might be do and we still have some work to do. on the contrary we will triger waiting only when we realy have to stop
-       the problem before was we could come to promise somewhere in recursion and not realize it and call on same computation again not reazing we are not doing steps *)
-    if state.counter < 1000 then
-      let state = { state with counter = state.counter - 1 } in
-      match comp with
-      | Ast.Return expr -> (state, Done expr)
-      | Ast.Do (Ast.Return e, abs) ->
-        let vars', comp' = substitution state.vars e abs in
-        run_comp_rec { state with vars = vars' } comp'
-      | Ast.Do (Ast.Promise (op, abs, p, c), abs') ->
-        run_comp_rec state (Ast.Promise (op, abs, p, Ast.Do (c, abs')))
-      | Ast.Do (c, abs) -> (
-          let state', res = run_comp_rec state c in
-          match res with
-          | Done expr ->
-            let vars', comp' = substitution state'.vars expr abs in
-            run_comp_rec { state' with vars = vars' } comp'
-          | Await comp' -> (state', Await (Ast.Do (comp', abs)))
-          | Ready comp' -> (state', Ready (Ast.Do (comp', abs))) )
-      | Ast.Match (e, abs) ->
-        let vars', comp = eval_match state.vars e abs in
-        run_comp_rec state' comp
-      | Ast.Apply (e1, e2) ->
-        print "applying";
-        let state', e1e2 = eval_function state e1 e2 in
-        run_comp_rec state' e1e2
-      | Ast.Out (op, e, c) ->
-        let e' = eval_expression state.vars e in
-        (* we need actual value not some variable. Variable in other thread might not even exist or have complitly different mining. *)
-        run_comp_rec { state with ops = (op, e', id) :: state.ops } c
-      | Ast.In (op, e, c) -> (
-          match c with
-          | Ast.Return _ -> Done (state, c)
-          | Ast.Promise (op', abs', var', c') when op = op' ->
-            (* print "inserting in in promise"; *)
-            let state', comp' = substitution state e abs' in
-            run_comp_rec state'
-              (Ast.Do (comp', (Ast.PVar var', Ast.In (op, e, c'))))
-          | Ast.Promise (op', abs', var', c') ->
-            let state', c'' = run_comp_rec state c' in
-            run_comp_rec state'
-              (Ast.Promise (op', abs', var', Ast.In (op, e, c'')))
-          | _ -> (
-              let state', c' = run_comp_rec state c in
-              match c' with
-              | Ast.Return _ -> (state', c')
-              | _ ->
-                (*Here we can get promise op, but it is rare so its ok to wait for next run_comp*)
-                (state', Ast.In (op, e, c')) ) )
-      | Ast.Promise (op, abs, p, c) ->
-        let state', comp' = run_comp_rec state c in
-        (state', Ast.Promise (op, abs, p, comp'))
-      | Ast.Await (e, abs) -> (
-          (* print_state state; *)
-          match eval_fulfill state e with
-          | None ->
-            exit_code := Ast.Waiting;
-            (state, comp)
-          | Some e' ->
-            let state', comp' = substitution state e' abs in
-            run_comp_rec state' comp' )
-    else (state, comp)
-   in
-
-   let state', comp' = run_comp_rec state comp in
-   (* print "run_comp end"; *)
-   (state', comp', !exit_code, !ops) *)
-
-(* match comp' with
-   | Ast.Return e ->
-   (state', Ast.Return (eval_expression state' e), Ast.Done, !ops)
-   | Ast.In _ -> (state', comp', Ast.Waiting, !ops)
-   | Ast.Promise _ -> (state', comp', Ast.Waiting, !ops)
-   | _ ->
-   Format.printf "THIS SHOULD NOT HAPPEN = %t@."
-    (Ast.print_computation comp');
-   assert false *)
-
-(* let run_thread (state : state) ((comp, id, condition) : Ast.thread) :
-   state * Ast.thread * (Ast.operation * Ast.expression * int) list =
-   (* print "run_thread"; *)
-   match condition with
-   | Ast.Ready ->
-    let state', comp', condition', ops = run_comp state comp id in
-    (state', (comp', id, condition'), ops)
-   | _ -> (state, (comp, id, condition), []) *)
 
 let big_step (conf : conf) : conf =
   let rec small_steps (conf_small : conf) : conf =

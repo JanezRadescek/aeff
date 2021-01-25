@@ -3,13 +3,13 @@ open Utils
 let parse_commands lexbuf =
   try Parser.commands Lexer.token lexbuf with
   | Parser.Error ->
-    Error.syntax
-      ~loc:(Location.of_lexeme (Lexing.lexeme_start_p lexbuf))
-      "parser error"
+      Error.syntax
+        ~loc:(Location.of_lexeme (Lexing.lexeme_start_p lexbuf))
+        "parser error"
   | Failure failmsg when failmsg = "lexing: empty token" ->
-    Error.syntax
-      ~loc:(Location.of_lexeme (Lexing.lexeme_start_p lexbuf))
-      "unrecognised symbol."
+      Error.syntax
+        ~loc:(Location.of_lexeme (Lexing.lexeme_start_p lexbuf))
+        "unrecognised symbol."
 
 type state = {
   desugarer : Desugarer.state;
@@ -47,32 +47,32 @@ let initial_state =
 let execute_command state cmd =
   match cmd with
   | Ast.TyDef ty_defs ->
-    let typechecker_state' =
-      Typechecker.add_type_definitions state.typechecker ty_defs
-    in
-    { state with typechecker = typechecker_state' }
+      let typechecker_state' =
+        Typechecker.add_type_definitions state.typechecker ty_defs
+      in
+      { state with typechecker = typechecker_state' }
   | Ast.TopLet (x, ty_sch, expr) ->
-    let interpreter_state' =
-      Interpreter.add_top_let state.interpreter x expr
-    in
+      let interpreter_state' =
+        Interpreter.add_top_let state.interpreter x expr
+      in
 
-    let typechecker_state' =
-      Typechecker.add_top_definition state.typechecker x ty_sch expr
-    in
+      let typechecker_state' =
+        Typechecker.add_top_definition state.typechecker x ty_sch expr
+      in
 
-    {
-      state with
-      interpreter = interpreter_state';
-      typechecker = typechecker_state';
-    }
+      {
+        state with
+        interpreter = interpreter_state';
+        typechecker = typechecker_state';
+      }
   | Ast.TopDo comp ->
-    let _ = Typechecker.infer_top_computation state.typechecker comp in
-    { state with top_computations = comp :: state.top_computations }
+      let _ = Typechecker.infer_top_computation state.typechecker comp in
+      { state with top_computations = comp :: state.top_computations }
   | Ast.Operation (op, ty) ->
-    let typechecker_state' =
-      Typechecker.add_operation state.typechecker op ty
-    in
-    { state with typechecker = typechecker_state' }
+      let typechecker_state' =
+        Typechecker.add_operation state.typechecker op ty
+      in
+      { state with typechecker = typechecker_state' }
 
 let load_commands state cmds =
   let desugarer_state', cmds' =
