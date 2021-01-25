@@ -35,13 +35,6 @@ type conf = {
   res : result;
 }
 
-(* type conf_small = {
-   counter : int;
-   ops : (Ast.operation * Ast.expression * int) list;
-   vars : vars;
-   comp : Ast.computation;
-   } *)
-
 let rec match_pattern_with_value (state : vars) pat (v : value) :
     (Ast.variable * value) list =
   match pat with
