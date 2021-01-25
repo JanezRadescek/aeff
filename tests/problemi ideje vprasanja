@@ -174,12 +174,11 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
 
 
 
-41      eval function, eval abstraction. Podvojeno. to mi ni všeč. Posledica tega, da imamo lambde IN closures?
-        je vredu, da si v state/vars shranjujem values?
+41      je vredu, da si v state/vars shranjujem values namesto expressions?
         Closure sem spremenil iz value -> result v value -> computation?
         Ker imamo typecheck nam ni treba več preverjati tipov. OCaml tega neve in nam seveda ne dovoli direktno uporabiti aplikacije e1 e2. 
         
-        Bi bilo smiselno, ko typechecker konča, tipe vršt stran ali pa vsaj zelo omejiti ali pa morda pretvoriti? 
+        Bi bilo smiselno, ko typechecker konča, tipe vržemo stran ali pa vsaj zelo omejimo ali pa morda pretvorimo? 
         Recimo e1 v applikaciji nebi bil več expression ampak function/var. 
-        Sepravi Apply of function * value, namesto Apply of expression * expression.
+        Sepravi Apply of function * expression, namesto Apply of expression * expression.
 
