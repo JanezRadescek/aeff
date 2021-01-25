@@ -179,6 +179,6 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
         Ker imamo typecheck nam ni treba več preverjati tipov. OCaml tega neve in nam seveda ne dovoli direktno uporabiti aplikacije e1 e2. 
         
         Bi bilo smiselno, ko typechecker konča, tipe vržemo stran ali pa vsaj zelo omejimo ali pa morda pretvorimo? 
-        Recimo e1 v applikaciji nebi bil več expression ampak function/var. 
+        Recimo e1 v applikaciji nebi bil več expression ampak function. 
         Sepravi Apply of function * expression, namesto Apply of expression * expression.
 
