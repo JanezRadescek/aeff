@@ -176,9 +176,4 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
 
 41      je vredu, da si v state/vars shranjujem values namesto expressions?
         Closure sem spremenil iz value -> result v value -> computation?
-        Ker imamo typecheck nam ni treba več preverjati tipov. OCaml tega neve in nam seveda ne dovoli direktno uporabiti aplikacije e1 e2. 
-        
-        Bi bilo smiselno, ko typechecker konča, tipe vržemo stran ali pa vsaj zelo omejimo ali pa morda pretvorimo? 
-        Recimo e1 v applikaciji nebi bil več expression ampak function. 
-        Sepravi Apply of function * expression, namesto Apply of expression * expression.
-
+        Vsebolj se mi zdi da bi bilo treba narediti pravo substitucijo. Nevem kako bi sicer naredil eval abstraction

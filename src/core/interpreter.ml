@@ -55,7 +55,7 @@ let rec eval_value (state : vars) (expr : Ast.expression) : value =
   | Ast.Fulfill e -> Fulfill (eval_value state e)
   | Ast.Reference e -> Reference (ref (eval_value state !e))
 
-and eval_abstraction (_vars : vars) ((_p, _c) : Ast.abstraction) =
+and eval_abstraction (_vars : vars) ((_p, _c) : Ast.abstraction) : value =
   Closure (fun _v -> failwith "TODO")
 
 (* eval_comp : state -> computation -> result
@@ -97,21 +97,21 @@ and eval_abstraction (_vars : vars) ((_p, _c) : Ast.abstraction) =
       Error.runtime "Const expected but got %t" (Ast.print_expression expr)
 *)
 let rec match_pattern_with_value (state : vars) pat (v : value) :
-  (Ast.variable * value) list =
+    (Ast.variable * value) list =
   match pat with
   | Ast.PVar x -> [ (x, v) ]
   | Ast.PAnnotated (pat, _) -> match_pattern_with_value state pat v
   | Ast.PAs (pat, x) ->
-    let vars = match_pattern_with_value state pat v in
-    (x, v) :: vars
+      let vars = match_pattern_with_value state pat v in
+      (x, v) :: vars
   | Ast.PTuple pats -> (
       match v with
       | Tuple vs ->
-        List.fold_left2
-          (fun vars pat v ->
-             let vars' = match_pattern_with_value state pat v in
-             vars' @ vars)
-          [] pats vs
+          List.fold_left2
+            (fun vars pat v ->
+              let vars' = match_pattern_with_value state pat v in
+              vars' @ vars)
+            [] pats vs
       | _ -> raise PatternMismatch )
   | Ast.PVariant (label, pat') -> (
       match v with
@@ -133,7 +133,7 @@ let rec match_pattern_with_value (state : vars) pat (v : value) :
   | Ast.PNonbinding -> []
 
 let substitution (vars : vars) (v : value) ((x, m) : Ast.abstraction) :
-  vars * Ast.computation =
+    vars * Ast.computation =
   let vars' = match_pattern_with_value vars x v in
   let state' = extend_variables vars vars' in
   (state', m)
@@ -152,29 +152,27 @@ let substitution (vars : vars) (v : value) ((x, m) : Ast.abstraction) :
    | Ast.Fulfill e -> Ast.Fulfill (eval_expression state e)
    | Ast.Reference e -> Ast.Reference (ref (eval_expression state !e)) *)
 
-let rec eval_function state (f:Ast.expression) (arg:Ast.expression) : vars * Ast.computation =
-  match f with
-  | Ast.Lambda abs ->
+(* let rec eval_function state (f:Ast.expression) (arg:Ast.expression) : vars * Ast.computation =
+   match f with
+   | Ast.Lambda abs ->
     let v = eval_value state arg in
     let state', farg = substitution state v abs in
     (state', farg)
-  | Ast.RecLambda (f, (pat, comp)) as expr ->
+   | Ast.RecLambda (f, (pat, comp)) as expr ->
     let v = eval_value state arg in
     let vars' = match_pattern_with_value state pat v in
     let vars'' = (f, expr) :: vars' in
     let state' = extend_variables state vars'' in
     (state', comp)
-  | Ast.Var x -> (
+   | Ast.Var x -> (
       let v = eval_value state arg in
       let f' = Ast.VariableMap.find x state in
       (match f' with
        | Closure c -> (state,c v)
        | _ -> assert false))
-  | Ast.Annotated (e, _ty) -> eval_function state e arg
-  | expr ->
-    Error.runtime "Function expected but got %t" (Ast.print_expression expr)
-
-
+   | Ast.Annotated (e, _ty) -> eval_function state e arg
+   | expr ->
+    Error.runtime "Function expected but got %t" (Ast.print_expression expr) *)
 
 let rec eval_match vars e abs =
   match abs with
@@ -182,9 +180,8 @@ let rec eval_match vars e abs =
   | x :: xs -> (
       try substitution vars e x with PatternMismatch -> eval_match vars e xs )
 
-let starting_state = ref initial_state
-
-(* let print_state (state : vars) =
+(*let starting_state = ref initial_state
+  let print_state (state : vars) =
    Ast.VariableMap.iter
     (fun k v ->
        match Ast.VariableMap.find_opt k !starting_state with
@@ -194,19 +191,14 @@ let starting_state = ref initial_state
        | Some _v -> ())
     state *)
 
-(* let rec eval_fulfill state (e : Ast.expression) =
-   match e with
-   | Ast.Var x -> (
-      match Ast.VariableMap.find_opt x state.variables with
+let eval_fulfill (vars : vars) (e : Ast.expression) =
+  match e with
+  | Ast.Var x -> (
+      match Ast.VariableMap.find_opt x vars with
       | None -> None
-      | Some e' -> (
-          match eval_fulfill state e' with
-          | None -> None
-          | Some e'' ->
-              (* Format.printf "Found %t" (Ast.print_expression e''); *)
-              Some (eval_expression state e'') ) )
-   | Ast.Fulfill e -> Some e
-   | _ -> assert false *)
+      | Some v -> ( match v with Fulfill v' -> Some v' | _ -> assert false ) )
+  | Ast.Fulfill e -> Some (eval_value vars e)
+  | _ -> assert false
 
 (* let run_comp state comp : comp_state * result =
    (* print "run_comp start"; *)
@@ -327,81 +319,87 @@ let big_step (conf : conf) : conf =
       | Ready comp -> (
           match comp with
           | Ast.Return e ->
-            let v = eval_value cs.vars e in
-            { cs with res = Done v }
+              let v = eval_value cs.vars e in
+              { cs with res = Done v }
           | Ast.Do (Ast.Return e, abs) ->
-            let v = eval_value cs.vars e in
-            let vars', comp' = substitution cs.vars v abs in
-            small_steps { cs with vars = vars'; res = Ready comp' }
+              let v = eval_value cs.vars e in
+              let vars', comp' = substitution cs.vars v abs in
+              small_steps { cs with vars = vars'; res = Ready comp' }
           | Ast.Do (Ast.Promise (op, abs, p, c), abs') ->
-            small_steps
-              {
-                cs with
-                res = Ready (Ast.Promise (op, abs, p, Ast.Do (c, abs')));
-              }
+              small_steps
+                {
+                  cs with
+                  res = Ready (Ast.Promise (op, abs, p, Ast.Do (c, abs')));
+                }
           | Ast.Do (c, abs) -> (
               let cs' = small_steps { cs with res = Ready c } in
               match cs'.res with
               | Done v ->
-                let vars', comp' = substitution cs'.vars v abs in
-                small_steps { cs' with vars = vars'; res = Ready comp' }
+                  let vars', comp' = substitution cs'.vars v abs in
+                  small_steps { cs' with vars = vars'; res = Ready comp' }
               | Await c' -> { cs' with res = Await (Ast.Do (c', abs)) }
               | Ready c' -> { cs' with res = Ready (Ast.Do (c', abs)) } )
           | Ast.Match (e, abs) ->
-            let v = eval_value cs.vars e in
-            let vars', comp' = eval_match cs.vars v abs in
-            small_steps { cs with vars = vars'; res = Ready comp' }
-          | Ast.Apply (e1, e2) ->
-            let vars', e1e2 = eval_function cs.vars e1 e2 in
-            small_steps { cs with vars = vars'; res = Done e1e2 }
+              let v = eval_value cs.vars e in
+              let vars', comp' = eval_match cs.vars v abs in
+              small_steps { cs with vars = vars'; res = Ready comp' }
+          | Ast.Apply (e1, e2) -> (
+              let v1 = eval_value cs.vars e1 in
+              let v2 = eval_value cs.vars e2 in
+              match v1 with
+              | Closure c ->
+                  let v1v2 = c v2 in
+                  small_steps { cs with res = Ready v1v2 }
+              | _ -> assert false )
           | Ast.Out (op, e, c) ->
-            let v = eval_value cs.vars e in
-            small_steps
-              { cs with ops = (op, v, cs.id) :: cs.ops; res = Ready c }
-          | Ast.In (op, v, c) -> (
+              let v = eval_value cs.vars e in
+              small_steps
+                { cs with ops = (op, v, cs.id) :: cs.ops; res = Ready c }
+          | Ast.In (op, e, c) -> (
               match c with
               | Ast.Return _ -> { cs with res = Ready c }
               | Ast.Promise (op', abs', var', c') when op = op' ->
-                (* print "inserting in in promise"; *)
-                let vars', comp' = substitution cs.vars v abs' in
-                small_steps
-                  {
-                    cs with
-                    vars = vars';
-                    res =
-                      Ready
-                        (Ast.Do (comp', (Ast.PVar var', Ast.In (op, v, c'))));
-                  }
+                  (* print "inserting in in promise"; *)
+                  let v = eval_value cs.vars e in
+                  let vars', comp' = substitution cs.vars v abs' in
+                  small_steps
+                    {
+                      cs with
+                      vars = vars';
+                      res =
+                        Ready
+                          (Ast.Do (comp', (Ast.PVar var', Ast.In (op, e, c'))));
+                    }
               | Ast.Promise (op', abs', var', c') ->
-                small_steps
-                  {
-                    cs with
-                    res =
-                      Ready
-                        (Ast.Promise (op', abs', var', Ast.In (op, v, c')));
-                  }
+                  small_steps
+                    {
+                      cs with
+                      res =
+                        Ready
+                          (Ast.Promise (op', abs', var', Ast.In (op, e, c')));
+                    }
               | _ -> (
                   let cs' = small_steps { cs with res = Ready c } in
                   match cs'.res with
                   | Done _ -> small_steps cs'
-                  | Await c' -> { cs' with res = Await (Ast.In (op, v, c')) }
-                  | Ready c' -> { cs' with res = Ready (Ast.In (op, v, c')) } )
-            )
+                  | Await c' -> { cs' with res = Await (Ast.In (op, e, c')) }
+                  | Ready c' -> { cs' with res = Ready (Ast.In (op, e, c')) } )
+              )
           | Ast.Promise (op, abs, p, c) -> (
               let cs' = small_steps { cs with res = Ready c } in
               match cs'.res with
               | Done _ -> small_steps cs'
               | Await c' ->
-                { cs' with res = Await (Ast.Promise (op, abs, p, c')) }
+                  { cs' with res = Await (Ast.Promise (op, abs, p, c')) }
               | Ready c' ->
-                { cs' with res = Ready (Ast.Promise (op, abs, p, c')) } )
+                  { cs' with res = Ready (Ast.Promise (op, abs, p, c')) } )
           | Ast.Await (e, abs) as c -> (
               (* print_state state; *)
               match eval_fulfill cs.vars e with
               | None -> { cs with res = Await c }
               | Some e' ->
-                let vars', comp' = substitution cs.vars e' abs in
-                small_steps { cs with vars = vars'; res = Ready comp' } ) )
+                  let vars', comp' = substitution cs.vars e' abs in
+                  small_steps { cs with vars = vars'; res = Ready comp' } ) )
     else conf_small
   in
   small_steps conf
@@ -413,10 +411,10 @@ let resolve_operations (confs : conf list) : conf list * bool =
   let rec take_ops = function
     | [] -> ([], [])
     | c :: cs ->
-      let ops', cs' = take_ops cs in
-      let ops'' = c.ops in
-      let c'' = { c with ops = [] } in
-      (ops'' @ ops', c'' :: cs')
+        let ops', cs' = take_ops cs in
+        let ops'' = c.ops in
+        let c'' = { c with ops = [] } in
+        (ops'' @ ops', c'' :: cs')
   in
 
   let ops, confs' = take_ops confs in
@@ -425,8 +423,8 @@ let resolve_operations (confs : conf list) : conf list * bool =
     (match conf.res with Ready _ -> finished := false | _ -> ());
     List.fold_right
       (fun (op, v, id) conf ->
-         if id = conf.id then conf
-         else { conf with interupts = (op, v) :: conf.interupts })
+        if id = conf.id then conf
+        else { conf with interupts = (op, v) :: conf.interupts })
       ops conf
   in
 
@@ -448,10 +446,10 @@ let run (vars : vars) (comps : Ast.computation list) =
   let configurations =
     List.map
       (fun c ->
-         let id = !i in
-         incr i;
+        let id = !i in
+        incr i;
 
-         { counter = 1000; id; ops = []; interupts = []; vars; res = Ready c })
+        { counter = 1000; id; ops = []; interupts = []; vars; res = Ready c })
       comps
   in
   run_rec configurations
