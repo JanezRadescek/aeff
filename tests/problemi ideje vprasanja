@@ -176,4 +176,5 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
 
 41      je vredu, da si v state/vars shranjujem values namesto expressions?
         Closure sem spremenil iz value -> result v value -> computation?
-        Vsebolj se mi zdi da bi bilo treba narediti pravo substitucijo. Nevem kako bi sicer naredil eval abstraction
+        Vsebolj se mi zdi da bi bilo treba narediti pravo substitucijo. 
+        Nevem kako bi sicer naredil eval abstraction.
