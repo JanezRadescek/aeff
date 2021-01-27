@@ -36,11 +36,11 @@ let main () =
 
     let state = List.fold_left Loader.load_file state config.filenames in
 
-    let states, finished_threads =
+    let finished_conf =
       Interpreter.run state.interpreter state.top_computations
     in
     Format.printf "The program has terminated in the configuration:@.";
-    List.iter2 Interpreter.print_thread states finished_threads
+    List.iter Interpreter.print_conf finished_conf
   with Error.Error error ->
     Error.print error;
     exit 1

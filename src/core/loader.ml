@@ -13,7 +13,7 @@ let parse_commands lexbuf =
 
 type state = {
   desugarer : Desugarer.state;
-  interpreter : Interpreter.vars;
+  interpreter : Interpreter.state;
   typechecker : Typechecker.state;
   top_computations : Ast.computation list;
 }
