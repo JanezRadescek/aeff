@@ -174,7 +174,19 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
 
 
 
+
+
+
+
+
 41      je vredu, da si v state/vars shranjujem values namesto expressions?
         Closure sem spremenil iz value -> result v value -> computation?
         Vsebolj se mi zdi da bi bilo treba narediti pravo substitucijo. 
-        Nevem kako bi sicer naredil eval abstraction.
+
+42      ops in interupts v conf bi morala biti value, ker recimo Out(op,x,1) ima smisel samo skupaj z state1 v state2 pa ne.
+        Medtem ko Out(op,(7,fun x -> x + 1),1) ima pa vedno smisel, ker imamo vrednosti.
+
+        Zakaj imamo v value closure namesto lambda/reclambda?
+
+43      Trenutno bi najbrž delalo če bi se dalo pretvoriti value nazaj v expression.
+        
