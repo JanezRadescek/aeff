@@ -34,7 +34,7 @@ type conf = {
   counter : int;
   id : int;
   ops : (Ast.operation * Ast.expression * int) list;
-  interupts : (Ast.operation * Ast.expression) list;
+  (* interupts : (Ast.operation * Ast.expression) list; *)
   res : result;
 }
 
@@ -215,6 +215,7 @@ let big_step (conf : conf) : conf =
               | _ -> assert false ) )
     else conf_small
   in
+
   small_steps conf
 
 let resolve_operations (confs : conf list) : conf list * bool =
@@ -235,9 +236,12 @@ let resolve_operations (confs : conf list) : conf list * bool =
   let insert_interupts (conf : conf) =
     (match conf.res with Ready _ -> finished := false | _ -> ());
     List.fold_right
-      (fun (op, v, id) conf ->
+      (fun (op, e, id) conf ->
         if id = conf.id then conf
-        else { conf with interupts = (op, v) :: conf.interupts })
+        else
+          match conf.res with
+          | Done _ -> conf
+          | Await c | Ready c -> { conf with res = Ready (Ast.In (op, e, c)) })
       ops conf
   in
 
@@ -263,7 +267,7 @@ let run (state : state) (comps : Ast.computation list) : conf list =
         let id = !i in
         incr i;
 
-        { counter = 1000; id; ops = []; interupts = []; res = Ready c })
+        { counter = 1000; id; ops = []; res = Ready c })
       comps
   in
   run_rec configurations
@@ -341,7 +345,7 @@ let run (state : state) (comps : Ast.computation list) : conf list =
    Format.printf "Thread %i %t@." id (print_computation state comp) *)
 
 let print_conf conf =
-  Format.printf "Conf id = %d; res = %t" conf.id
+  Format.printf "Conf id = %d; res = %t@." conf.id
     ( match conf.res with
     | Done e -> Ast.print_expression e
     | Await c | Ready c -> Ast.print_computation c )

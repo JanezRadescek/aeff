@@ -16,20 +16,20 @@ OK = 0
 ((OK = OK + $?))
 # ./aeff.exe ./examples/feed.aeff
 # ((OK = OK + $?))
-# ./aeff.exe ./examples/heapPure.aeff
-# ((OK = OK + $?))
-# ./aeff.exe ./examples/heapRef.aeff
-# ((OK = OK + $?))
-# ./aeff.exe ./examples/preemptive.aeff
-# ((OK = OK + $?))
-# ./aeff.exe ./examples/process_with.aeff
-# ((OK = OK + $?))
-# ./aeff.exe ./examples/remoteCall.aeff
-# ((OK = OK + $?))
-# ./aeff.exe ./examples/runner.aeff
-# ((OK = OK + $?))
-# ./aeff.exe ./examples/ticktock.aeff
-# ((OK = OK + $?))
+./aeff.exe ./examples/heapPure.aeff
+((OK = OK + $?))
+./aeff.exe ./examples/heapRef.aeff
+((OK = OK + $?))
+./aeff.exe ./examples/preemptive.aeff
+((OK = OK + $?))
+./aeff.exe ./examples/process_with.aeff
+((OK = OK + $?))
+./aeff.exe ./examples/remoteCall.aeff
+((OK = OK + $?))
+./aeff.exe ./examples/runner.aeff
+((OK = OK + $?))
+./aeff.exe ./examples/ticktock.aeff
+((OK = OK + $?))
 
 echo
 echo "script exit code = " $OK
