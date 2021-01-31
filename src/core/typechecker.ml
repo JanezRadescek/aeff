@@ -537,8 +537,8 @@ let check_polymorphic_expression state (params, ty) expr =
   if free_params = params then () else Error.typing "There are to many params." *)
 
 let add_external_function x ty_sch state =
-  Format.printf "@[val %t : %t@]@." (Ast.Variable.print x)
-    (Ast.print_ty_scheme ty_sch);
+  (* Format.printf "@[val %t : %t@]@." (Ast.Variable.print x)
+     (Ast.print_ty_scheme ty_sch); *)
   { state with variables_ty = Ast.VariableMap.add x ty_sch state.variables_ty }
 
 let add_operation state op ty =
