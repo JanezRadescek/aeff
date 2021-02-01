@@ -109,6 +109,7 @@ let rec eval_expression (expr : Ast.expression) : Ast.expression =
       match Ast.VariableMap.find_opt x !starting_state.toplet with
       | None -> expr
       | Some e -> eval_expression e )
+  | Ast.Annotated (e, _a) -> eval_expression e
   | e -> e
 
 let rec eval_match (e : Ast.expression) abs : Ast.computation =
@@ -185,13 +186,19 @@ let big_step (conf : conf) : conf =
               | Ast.Lambda abs ->
                   let c = substitution e2' abs in
                   small_steps { cs with res = Ready c }
-              | Ast.RecLambda (_f, _abs) -> failwith "TODO"
+              | Ast.RecLambda (f, (p, c)) as recf ->
+                  let c' = substitution e2' (p, c) in
+                  let c'' = substitution recf (Ast.PVar f, c') in
+                  small_steps { cs with res = Ready c'' }
               | Ast.Var x ->
                   let f =
                     Ast.VariableMap.find x !starting_state.builtin_functions
                   in
                   small_steps { cs with res = Ready (f e2') }
-              | _ -> assert false )
+              | _ ->
+                  Format.printf "Cant apply \ne1 = %t@."
+                    (Ast.print_expression e1');
+                  assert false )
           | Ast.Out (op, e, c) ->
               let e' = eval_expression e in
               small_steps
