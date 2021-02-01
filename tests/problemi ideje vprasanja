@@ -27,39 +27,6 @@
 
 
 
-25      Kako izvajamo program?  
-        normalno izvajamo dokler ni IN/OUT
-        Ko dobimo v enem processu OUT ga pošljemo ven in obrnemo v IN v drugih. 
-        Kako pošiljati in?
-                Če si shranimo promise. Kako si jih shranimo? promise bi moral biti ovit v comp, 
-                ki bi imel shranjen pointer na naslednjo comp, 
-                da bi lahko ta comp(promise) zamenjali z do. ne pa vrednosti
-                
-        Do takrat pointerjev ali gruge rešitve.
-                kako izvajati OUT
-
-                        Kaj se zgodi če op = op' v
-                        Commutativity of signals with interrupt handlers 24:9
-                        promise (op 𝑥 ↦→ 𝑀) as 𝑝 in ↑ op′
-                        (𝑉 , 𝑁) { ↑ op′
-                        (𝑉 , promise (op 𝑥 ↦→ 𝑀) as 𝑝 in 𝑁)
-                        ?
-
-                        Out lahko vedno takoj pošljemo ven do konca?
-
-                Kako izvajati IN
-
-                        36
-
-                        
-
-                        Namesto InProc = op * e * process
-                                bi imeli ali 
-                                        InProc = (op * e) list * process //seznam operacij ki čakajo da jih nekam damo
-                                        ali
-                                        process = (op * e) list * (op * e) list * comp//seznam in, seznam out, computation?
-
-
 26      GO example
 
         var results = chanel<int>()
@@ -152,41 +119,5 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
         operation question : unit -> int
 
 
-37      star interpreter sem v celoti zakomentiral, ker bi rad naredil od začetka, ker sicer bodo deli kode, ki bodo delali pa ne bom vedel zakaj, 
-        potem se bo pa nekoč nekaj spremenilo, pa nebodo več delali, pa tudi ne bom vedel zakaj ali kako popraviti. 
-
-        namesto process je sedaj thread
-        thread = stari run comp + seznam operacij, ki jih hočemo + stanje
-        //seznam operacij ki jih poslušamo gre stran, in ga nadomestimo z pointerjem na global queue operacij, ker bomo sprejeli vse operacije če jih hočemo ali ne.
-
-        run top_commputations spremeni v threade in kliče run_rec 
-        run_rec poganjaj induvidualne threade enega za drugim dokler se ne bodo prekinili. Resolve operation reši operacije in interupte. Če je kakšen thread, ki še ni končan se rekurzivno pokliči.
-        run_thread Če smo Ready predaj run_comp
-        run_comp rekurzivno izvajaj comp. in na koncu odloči v kakšnem stanju smo se ustavili.
-
-        resolve operations vsem thredom, ki so op_out vzemi operacijo, jo daj na global queue in nato vsakemu thredu daj operacije, ki jih hoče, če jih hoče.//vsakemu thredu damo vse operacije, ker nimamo MAGICAL FUNCTION in ne vemo če jih hoče ali
-
-        substitution lazzy evaluation M[v/x] se pravi namesto da iščemo x-e in jih prepišemo z v, si shranimo v state x=v in ko bomo kasneje naleteli na x bomo imeli pač spremenljivko x, namesto neke konstate v.
-
-
-40      bugg!!! operacije morajo ohranjati vrstni red (vsaj znotraj enega threada, kjer je vrstni red zagotovljen.)
-        trenutno jim obrneš vrstni red.
-
-
-
-
-
-
-
-
-41      je vredu, da si v state/vars shranjujem values namesto expressions?
-        Closure sem spremenil iz value -> result v value -> computation?
-        Vsebolj se mi zdi da bi bilo treba narediti pravo substitucijo. 
-
-42      ops in interupts v conf bi morala biti value, ker recimo Out(op,x,1) ima smisel samo skupaj z state1 v state2 pa ne.
-        Medtem ko Out(op,(7,fun x -> x + 1),1) ima pa vedno smisel, ker imamo vrednosti.
-
-        Zakaj imamo v value closure namesto lambda/reclambda?
-
-43      Trenutno bi najbrž delalo če bi se dalo pretvoriti value nazaj v expression.
-        
+30      Ast.Out damo na seznam in obdelamo na koncu velikega koraka namesto, da bi počasi pripraval na vrh.
+        Bi lahko tako tudi Ast.Promise dali na nek seznam, namesto da počasi potuje vn?

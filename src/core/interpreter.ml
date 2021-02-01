@@ -1,5 +1,7 @@
 open Utils
 
+let debugg = false
+
 exception PatternMismatch
 
 let print s = Format.printf "%s@." s
@@ -125,9 +127,9 @@ let big_step (conf : conf) : conf =
   let rec small_steps (conf_small : conf) : conf =
     (* print_state conf_small.vars; *)
     (* Format.printf "comp = %t\n@." (Ast.print_computation conf_small.res); *)
-    print_conf conf_small;
-    Format.printf "count = %i@." conf_small.counter;
-    if true then (
+    if debugg then (
+      print_conf conf_small;
+      Format.printf "count = %i@." conf_small.counter;
       print "press enter to do SMALL step";
       try
         let _ = read_int () in
@@ -142,23 +144,37 @@ let big_step (conf : conf) : conf =
       | Ready comp -> (
           match comp with
           | Ast.Return e -> { cs with res = Done (eval_expression e) }
-          | Ast.Do (Ast.Return e, abs) ->
-              let comp' = substitution e abs in
-              small_steps { cs with res = Ready comp' }
-          | Ast.Do (Ast.Promise (op, abs, p, c), abs') ->
-              small_steps
-                {
-                  cs with
-                  res = Ready (Ast.Promise (op, abs, p, Ast.Do (c, abs')));
-                }
           | Ast.Do (c, abs) -> (
-              let cs' = small_steps { cs with res = Ready c } in
-              match cs'.res with
-              | Done e ->
+              match c with
+              | Ast.Return e ->
                   let comp' = substitution e abs in
-                  small_steps { cs' with res = Ready comp' }
-              | Await c' -> { cs' with res = Await (Ast.Do (c', abs)) }
-              | Ready c' -> { cs' with res = Ready (Ast.Do (c', abs)) } )
+                  small_steps { cs with res = Ready comp' }
+              | Ast.Promise (op, abs', p, c') ->
+                  small_steps
+                    {
+                      cs with
+                      res = Ready (Ast.Promise (op, abs', p, Ast.Do (c', abs)));
+                    }
+              | _ -> (
+                  let cs' = small_steps { cs with res = Ready c } in
+
+                  match cs'.res with
+                  | Done e ->
+                      let c' = substitution e abs in
+
+                      small_steps { cs' with res = Ready c' }
+                  | Await c' -> (
+                      match c' with
+                      | Ast.Promise _ ->
+                          small_steps
+                            { cs' with res = Ready (Ast.Do (c', abs)) }
+                      | _ -> { cs' with res = Await (Ast.Do (c', abs)) } )
+                  | Ready c' -> (
+                      match c' with
+                      | Ast.Promise _ ->
+                          small_steps
+                            { cs' with res = Ready (Ast.Do (c', abs)) }
+                      | _ -> { cs' with res = Ready (Ast.Do (c', abs)) } ) ) )
           | Ast.Match (e, abs) ->
               let comp' = eval_match e abs in
               small_steps { cs with res = Ready comp' }
@@ -204,14 +220,39 @@ let big_step (conf : conf) : conf =
               | _ -> (
                   let cs' = small_steps { cs with res = Ready c } in
                   match cs'.res with
-                  | Done _ -> small_steps cs'
-                  | Await c' -> { cs' with res = Await (Ast.In (op, e, c')) }
-                  | Ready c' -> { cs' with res = Ready (Ast.In (op, e, c')) } )
-              )
+                  | Done _ -> cs'
+                  | Await c' -> (
+                      (* Zgodil se je await. Ne moremo naprej. Moramo iti z Ast.In notri v upanju da najdemo primeren Ast.Promise.*)
+                      match c' with
+                      | Ast.Do (c1, (p, c2)) ->
+                          small_steps
+                            {
+                              cs' with
+                              res =
+                                Ready
+                                  (Ast.Do
+                                     ( Ast.In (op, e, c1),
+                                       (p, Ast.In (op, e, c2)) ));
+                            }
+                      | Ast.Promise _ ->
+                          small_steps
+                            { cs' with res = Ready (Ast.In (op, e, c')) }
+                      | Ast.In _ | Ast.Await _ ->
+                          { cs' with res = Await (Ast.In (op, e, c')) }
+                      | _ ->
+                          (* Here we have:  Return, cant end in await. Match can always do step if we have type. Apply can always do step. Out can always do step. *)
+                          assert false )
+                  | Ready c' ->
+                      (* Zmanjkalo nam je malih korakov *)
+                      { cs' with res = Ready (Ast.In (op, e, c')) } ) )
           | Ast.Promise (op, abs, p, c) -> (
               let cs' = small_steps { cs with res = Ready c } in
               match cs'.res with
-              | Done _ -> small_steps cs'
+              | Done c' ->
+                  {
+                    cs' with
+                    res = Await (Ast.Promise (op, abs, p, Ast.Return c'));
+                  }
               | Await c' ->
                   { cs' with res = Await (Ast.Promise (op, abs, p, c')) }
               | Ready c' ->
@@ -233,6 +274,8 @@ let resolve_operations (confs : conf list) : conf list * bool =
   (* print "run_rec"; *)
   let finished = ref true in
 
+  if debugg then Format.printf "RESOLVE@.";
+
   let rec take_ops = function
     | [] -> ([], [])
     | c :: cs ->
@@ -242,6 +285,21 @@ let resolve_operations (confs : conf list) : conf list * bool =
         (ops'' @ ops', c'' :: cs')
   in
   let ops, confs' = take_ops confs in
+
+  if debugg then (
+    List.iter print_conf confs';
+    List.iter
+      (fun (o, e, id) ->
+        Format.printf "op=%t, e=%t, id=%i@." (Ast.Operation.print o)
+          (Ast.print_expression e) id)
+      ops;
+    print "press enter to do INSERT";
+
+    try
+      let _ = read_int () in
+      ()
+    with Failure _ -> () );
+
   let insert_interupts (conf : conf) =
     (match conf.res with Ready _ -> finished := false | _ -> ());
     List.fold_right
@@ -254,6 +312,7 @@ let resolve_operations (confs : conf list) : conf list * bool =
       ops conf
   in
   let confs'' = List.map insert_interupts confs' in
+  (* if debugg then List.iter print_conf confs''; *)
   let done' = List.length ops = 0 && !finished in
   (confs'', done')
 
@@ -263,10 +322,9 @@ let reset_counters confs : conf list =
 let rec run_rec (confs : conf list) : conf list =
   (* print "run_rec"; *)
   (* Ast.print_threads threads; *)
-  List.iter print_conf confs;
-
-  if true then (
-    print "press enter to do BIG step";
+  if debugg then (
+    List.iter print_conf confs;
+    print "press enter to do BIG steps";
     try
       let _ = read_int () in
       ()
