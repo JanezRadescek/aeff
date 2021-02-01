@@ -125,7 +125,7 @@ let big_step (conf : conf) : conf =
   let rec small_steps (conf_small : conf) : conf =
     (* print_state conf_small.vars; *)
     (* Format.printf "comp = %t\n@." (Ast.print_computation conf_small.res); *)
-    print_conf conf;
+    print_conf conf_small;
     Format.printf "count = %i@." conf_small.counter;
     if true then (
       print "press enter to do SMALL step";
