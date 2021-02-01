@@ -121,3 +121,15 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
 
 30      Ast.Out damo na seznam in obdelamo na koncu velikega koraka namesto, da bi počasi pripraval na vrh.
         Bi lahko tako tudi Ast.Promise dali na nek seznam, namesto da počasi potuje vn?
+
+
+31      bug 
+        guarded promise ne delajo kot bi morali
+        reproduce bug:
+        run remoteCall.aeff
+
+        expected
+        yt() = 240
+
+        bugedd result
+        yt() = 360
