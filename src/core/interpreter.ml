@@ -101,6 +101,14 @@ let substitution (e : Ast.expression) ((x, m) : Ast.abstraction) :
 (* and eval_abstraction (_vars : vars) ((_p, _c) : Ast.abstraction) : value =
    Closure (fun _v -> failwith "TODO") *)
 
+let rec eval_expression (expr : Ast.expression) : Ast.expression =
+  match expr with
+  | Ast.Var x -> (
+      match Ast.VariableMap.find_opt x !starting_state.toplet with
+      | None -> expr
+      | Some e -> eval_expression e )
+  | e -> e
+
 let rec eval_match (e : Ast.expression) abs : Ast.computation =
   match abs with
   | [] -> assert false
@@ -117,8 +125,10 @@ let big_step (conf : conf) : conf =
   let rec small_steps (conf_small : conf) : conf =
     (* print_state conf_small.vars; *)
     (* Format.printf "comp = %t\n@." (Ast.print_computation conf_small.res); *)
-    if false then (
-      print "press anything to continiue";
+    print_conf conf;
+    Format.printf "count = %i@." conf_small.counter;
+    if true then (
+      print "press enter to do SMALL step";
       try
         let _ = read_int () in
         ()
@@ -131,7 +141,7 @@ let big_step (conf : conf) : conf =
       | Await _ -> cs
       | Ready comp -> (
           match comp with
-          | Ast.Return e -> { cs with res = Done e }
+          | Ast.Return e -> { cs with res = Done (eval_expression e) }
           | Ast.Do (Ast.Return e, abs) ->
               let comp' = substitution e abs in
               small_steps { cs with res = Ready comp' }
@@ -153,15 +163,23 @@ let big_step (conf : conf) : conf =
               let comp' = eval_match e abs in
               small_steps { cs with res = Ready comp' }
           | Ast.Apply (e1, e2) -> (
-              match e1 with
+              let e1' = eval_expression e1 in
+              let e2' = eval_expression e2 in
+              match e1' with
               | Ast.Lambda abs ->
-                  let c = substitution e2 abs in
+                  let c = substitution e2' abs in
                   small_steps { cs with res = Ready c }
               | Ast.RecLambda (_f, _abs) -> failwith "TODO"
+              | Ast.Var x ->
+                  let f =
+                    Ast.VariableMap.find x !starting_state.builtin_functions
+                  in
+                  small_steps { cs with res = Ready (f e2') }
               | _ -> assert false )
           | Ast.Out (op, e, c) ->
+              let e' = eval_expression e in
               small_steps
-                { cs with ops = (op, e, cs.id) :: cs.ops; res = Ready c }
+                { cs with ops = (op, e', cs.id) :: cs.ops; res = Ready c }
           | Ast.In (op, e, c) -> (
               match c with
               | Ast.Return _ -> { cs with res = Ready c }
@@ -248,7 +266,7 @@ let rec run_rec (confs : conf list) : conf list =
   List.iter print_conf confs;
 
   if true then (
-    print "press enter to continiue";
+    print "press enter to do BIG step";
     try
       let _ = read_int () in
       ()
@@ -271,7 +289,7 @@ let run (state : state) (comps : Ast.computation list) : conf list =
         let id = !i in
         incr i;
 
-        { counter = 1000; id; ops = []; res = Ready c })
+        { counter = 0; id; ops = []; res = Ready c })
       comps
   in
   run_rec configurations
