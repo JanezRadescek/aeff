@@ -307,6 +307,12 @@ let resolve_operations (confs : conf list) : conf list * bool =
       ()
     with Failure _ -> () );
 
+  List.iter
+    (fun (o, e, id) ->
+      Format.printf "↑%t %t, id=%i@." (Ast.Operation.print o)
+        (Ast.print_expression e) id)
+    ops;
+
   let insert_interupts (conf : conf) =
     (match conf.res with Ready _ -> finished := false | _ -> ());
     List.fold_right
@@ -319,7 +325,6 @@ let resolve_operations (confs : conf list) : conf list * bool =
       ops conf
   in
   let confs'' = List.map insert_interupts confs' in
-  (* if debugg then List.iter print_conf confs''; *)
   let done' = List.length ops = 0 && !finished in
   (confs'', done')
 
