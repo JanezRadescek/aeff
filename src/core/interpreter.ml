@@ -6,14 +6,6 @@ exception PatternMismatch
 
 let print s = Format.printf "%s@." s
 
-(* type value =
-   | Const of Const.t
-   | Tuple of value list
-   | Variant of Ast.label * value option
-   | Fulfill of value
-   | Reference of value ref
-   | Closure of (value -> Ast.computation) *)
-
 type result =
   | Done of Ast.expression
   | Await of Ast.computation
@@ -31,8 +23,6 @@ type state = {
 
 let initial_state =
   { toplet = Ast.VariableMap.empty; builtin_functions = Ast.VariableMap.empty }
-
-let starting_state = ref initial_state
 
 type conf = {
   counter : int;
@@ -87,29 +77,13 @@ let substitution (e : Ast.expression) ((x, m) : Ast.abstraction) :
   in
   Ast.substitute_computation subst' m
 
-(* let rec eval_value (state : vars) (expr : Ast.expression) : value =
-   match expr with
-   | Ast.Var x -> Ast.VariableMap.find x state
-   | Ast.Const c -> Const c
-   | Ast.Annotated (e, _a) -> eval_value state e
-   | Ast.Tuple es -> Tuple (List.map (eval_value state) es)
-   | Ast.Variant (lbl, None) -> Variant (lbl, None)
-   | Ast.Variant (lbl, Some e) -> Variant (lbl, Some (eval_value state e))
-   | Ast.Lambda abs -> eval_abstraction state abs
-   | Ast.RecLambda _ -> failwith "TODO"
-   | Ast.Fulfill e -> Fulfill (eval_value state e)
-   | Ast.Reference e -> Reference (ref (eval_value state !e)) *)
-
-(* and eval_abstraction (_vars : vars) ((_p, _c) : Ast.abstraction) : value =
-   Closure (fun _v -> failwith "TODO") *)
-
-let rec eval_expression (expr : Ast.expression) : Ast.expression =
+let rec eval_expression state (expr : Ast.expression) : Ast.expression =
   match expr with
   | Ast.Var x -> (
-      match Ast.VariableMap.find_opt x !starting_state.toplet with
+      match Ast.VariableMap.find_opt x state.toplet with
       | None -> expr
-      | Some e -> eval_expression e )
-  | Ast.Annotated (e, _a) -> eval_expression e
+      | Some e -> eval_expression state e )
+  | Ast.Annotated (e, _a) -> eval_expression state e
   | e -> e
 
 let rec eval_match (e : Ast.expression) abs : Ast.computation =
@@ -124,7 +98,7 @@ let eval_fulfill (e : Ast.expression) =
   | Ast.Fulfill e -> Some e
   | _ -> assert false
 
-let big_step (conf : conf) : conf =
+let big_step state (conf : conf) : conf =
   let rec small_steps (conf_small : conf) : conf =
     (* print_state conf_small.vars; *)
     (* Format.printf "comp = %t\n@." (Ast.print_computation conf_small.res); *)
@@ -144,7 +118,7 @@ let big_step (conf : conf) : conf =
       | Await _ -> cs
       | Ready comp -> (
           match comp with
-          | Ast.Return e -> { cs with res = Done (eval_expression e) }
+          | Ast.Return e -> { cs with res = Done (eval_expression state e) }
           | Ast.Do (c, abs) -> (
               match c with
               | Ast.Return e ->
@@ -180,8 +154,8 @@ let big_step (conf : conf) : conf =
               let comp' = eval_match e abs in
               small_steps { cs with res = Ready comp' }
           | Ast.Apply (e1, e2) -> (
-              let e1' = eval_expression e1 in
-              let e2' = eval_expression e2 in
+              let e1' = eval_expression state e1 in
+              let e2' = eval_expression state e2 in
               match e1' with
               | Ast.Lambda abs ->
                   let c = substitution e2' abs in
@@ -191,16 +165,14 @@ let big_step (conf : conf) : conf =
                   let c'' = substitution recf (Ast.PVar f, c') in
                   small_steps { cs with res = Ready c'' }
               | Ast.Var x ->
-                  let f =
-                    Ast.VariableMap.find x !starting_state.builtin_functions
-                  in
+                  let f = Ast.VariableMap.find x state.builtin_functions in
                   small_steps { cs with res = Ready (f e2') }
               | _ ->
                   Format.printf "Cant apply \ne1 = %t@."
                     (Ast.print_expression e1');
                   assert false )
           | Ast.Out (op, e, c) ->
-              let e' = eval_expression e in
+              let e' = eval_expression state e in
               small_steps
                 { cs with ops = (op, e', cs.id) :: cs.ops; res = Ready c }
           | Ast.In (op, e, c) -> (
@@ -279,8 +251,6 @@ let big_step (conf : conf) : conf =
 
 let resolve_operations (confs : conf list) : conf list * bool =
   (* print "run_rec"; *)
-  let finished = ref true in
-
   if debugg then Format.printf "RESOLVE@.";
 
   let rec take_ops = function
@@ -313,8 +283,8 @@ let resolve_operations (confs : conf list) : conf list * bool =
         (Ast.print_expression e) id)
     ops;
 
-  let insert_interupts (conf : conf) =
-    (match conf.res with Ready _ -> finished := false | _ -> ());
+  let is_done conf = match conf.res with Ready _ -> false | _ -> true
+  and insert_interupts (conf : conf) =
     List.fold_right
       (fun (op, e, id) conf ->
         if id = conf.id then conf
@@ -325,13 +295,13 @@ let resolve_operations (confs : conf list) : conf list * bool =
       ops conf
   in
   let confs'' = List.map insert_interupts confs' in
-  let done' = List.length ops = 0 && !finished in
+  let done' = List.length ops = 0 && List.for_all is_done confs' in
   (confs'', done')
 
 let reset_counters confs : conf list =
   List.map (fun conf -> { conf with counter = 0 }) confs
 
-let rec run_rec (confs : conf list) : conf list =
+let rec run_rec state (confs : conf list) : conf list =
   (* print "run_rec"; *)
   (* Ast.print_threads threads; *)
   if debugg then (
@@ -342,27 +312,20 @@ let rec run_rec (confs : conf list) : conf list =
       ()
     with Failure _ -> () );
 
-  let confs' = List.map big_step confs in
+  let confs' = List.map (big_step state) confs in
 
   (* Here we could remove done configurations and safe them into sam reference *)
   let confs'', done' = resolve_operations confs' in
-  match done' with true -> confs'' | false -> run_rec (reset_counters confs'')
+  match done' with
+  | true -> confs''
+  | false -> run_rec state (reset_counters confs'')
 
 let run (state : state) (comps : Ast.computation list) : conf list =
   (* print "run"; *)
-  (* starting_state := state; *)
-  starting_state := state;
-  let i = ref 0 in
   let configurations =
-    List.map
-      (fun c ->
-        let id = !i in
-        incr i;
-
-        { counter = 0; id; ops = []; res = Ready c })
-      comps
+    List.mapi (fun id c -> { counter = 0; id; ops = []; res = Ready c }) comps
   in
-  run_rec configurations
+  run_rec state configurations
 
 let add_external_function x def state =
   {
