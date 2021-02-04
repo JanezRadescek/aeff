@@ -1,6 +1,6 @@
 open Utils
 
-let debugg = false
+let debugg = true
 
 exception PatternMismatch
 
