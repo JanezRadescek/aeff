@@ -1,4 +1,3 @@
-main
 type option-8
 operation randomReq-0 : int-1
 operation randomRes-1 : int-1 × int-1

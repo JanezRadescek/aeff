@@ -36,7 +36,6 @@ let parse_args_to_config () =
   }
 
 let main () =
-  print "main";
   let config = parse_args_to_config () in
   try
     if not config.fixed_random_seed then Random.self_init ();

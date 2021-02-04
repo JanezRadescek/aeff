@@ -1,4 +1,3 @@
-main
 type option-8
 operation listInterrupt-0 : int-1 list-5
 operation productSignal-1 : int-1
