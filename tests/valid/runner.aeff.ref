@@ -16,13 +16,13 @@ Conf
   res = (1, 6, 1, 0)
 Conf
   id = 1;
-  res = promise (randomReq-0 callNo-217 ↦
-                                let seed'-220 =
-                                   let var-218 =
-                                      let var-219 = (+)-7 (603, 89) in
-                                      (*)-8 (567, var-219) in
-                                   (mod)-10 (var-218, 1234) in
-                                ↑randomRes-1((callNo-217, 603), return ());
-                                (rec loop-215 ...) seed'-220)
-                       as p-221 in
-                       return p-221
+  res = promise (randomReq-0 callNo-356 ↦
+                                let seed'-357 =
+                                   let var-358 =
+                                      let var-359 = (+)-7 (603, 89) in
+                                      (*)-8 (567, var-359) in
+                                   (mod)-10 (var-358, 1234) in
+                                ↑randomRes-1((callNo-356, 603), return ());
+                                (rec loop-390 ...) seed'-357)
+                       as p-355 in
+                       return p-355

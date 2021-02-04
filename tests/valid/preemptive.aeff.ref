@@ -5,33 +5,33 @@ operation go-1 : int-1
 The program has terminated in the configuration:
 Conf
   id = 0;
-  res = promise (stop-0 threadID'-212 ↦
-                                let var-221 = (=)-0 (2, threadID'-212) in
-                                match var-221 with (true ↦ let var-215 =
-                                                                return (rec var-215 ...) in
-                                                             let p-214 =
-                                                                var-215 () in
-                                                             await p-214 until
+  res = promise (stop-0 threadID'-244 ↦
+                                let var-245 = (=)-0 (2, threadID'-244) in
+                                match var-245 with (true ↦ let var-246 =
+                                                                return (rec var-262 ...) in
+                                                             let p-247 =
+                                                                var-246 () in
+                                                             await p-247 until
                                                                    ⟨_⟩ in
-                                                             (rec waitForStop-210 ...)
+                                                             (rec waitForStop-248 ...)
                                                              2 | 
-                                                    false ↦ (rec var-219 ...)
+                                                    false ↦ (rec var-266 ...)
                                                               ()))
-                       as var-220 in
+                       as var-243 in
                        return 50
 Conf
   id = 1;
-  res = promise (stop-0 threadID'-212 ↦
-                                let var-221 = (=)-0 (1, threadID'-212) in
-                                match var-221 with (true ↦ let var-215 =
-                                                                return (rec var-215 ...) in
-                                                             let p-214 =
-                                                                var-215 () in
-                                                             await p-214 until
+  res = promise (stop-0 threadID'-306 ↦
+                                let var-307 = (=)-0 (1, threadID'-306) in
+                                match var-307 with (true ↦ let var-308 =
+                                                                return (rec var-324 ...) in
+                                                             let p-309 =
+                                                                var-308 () in
+                                                             await p-309 until
                                                                    ⟨_⟩ in
-                                                             (rec waitForStop-210 ...)
+                                                             (rec waitForStop-310 ...)
                                                              1 | 
-                                                    false ↦ (rec var-219 ...)
+                                                    false ↦ (rec var-328 ...)
                                                               ()))
-                       as var-220 in
+                       as var-305 in
                        return 5

@@ -1,6 +1,6 @@
 open Utils
 
-let debugg = true
+let debugg = false
 
 exception PatternMismatch
 
@@ -75,7 +75,8 @@ let substitution (e : Ast.expression) ((x, m) : Ast.abstraction) :
   let subst' =
     List.fold_left (fun sub (x, v) -> Ast.VariableMap.add x v sub) subst vars
   in
-  Ast.substitute_computation subst' m
+  let subst'' = Ast.VariableMap.map (Ast.refresh_expression []) subst' in
+  Ast.substitute_computation subst'' m
 
 let rec eval_expression state (expr : Ast.expression) : Ast.expression =
   match expr with

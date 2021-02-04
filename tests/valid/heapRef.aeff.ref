@@ -26,43 +26,43 @@ operation allocRes-5 : loc-10 × callId-9
 The program has terminated in the configuration:
 Conf
   id = 0;
-  res = promise (lookupReq-0 (l-236, callId-235) ↦
-                                let v-239 =
-                                   let var-237 =
-                                      let var-238 =
+  res = promise (lookupReq-0 (l-757, callId-756) ↦
+                                let v-758 =
+                                   let var-759 =
+                                      let var-760 =
                                          (!)-13
                                          { contents = (1, 14)::(0, 10)::[] } in
-                                      lookupHeap-211 var-238 in var-237 l-236 in
-                                ↑lookupRes-3((v-239, callId-235), return ());
-                                (rec awaitLookup-234 ...) ())
-                       as p-240 in
-                       promise (updateReq-1 (l-244, v-243, callId-242) ↦
-                                let heap'-248 =
-                                   let var-245 =
-                                      let var-246 =
-                                         let var-247 =
+                                      lookupHeap-211 var-760 in var-759 l-757 in
+                                ↑lookupRes-3((v-758, callId-756), return ());
+                                (rec awaitLookup-808 ...) ())
+                       as p-755 in
+                       promise (updateReq-1 (l-548, v-547, callId-546) ↦
+                                let heap'-549 =
+                                   let var-550 =
+                                      let var-551 =
+                                         let var-552 =
                                             (!)-13
                                             { contents = (1, 14)::(0, 10)::[] } in
-                                         updateHeap-218 var-247 in
-                                      var-246 l-244 in var-245 v-243 in
-                                ↑updateRes-4(callId-242, return ());
+                                         updateHeap-218 var-552 in
+                                      var-551 l-548 in var-550 v-547 in
+                                ↑updateRes-4(callId-546, return ());
                                 (:=)-14
                                 ({ contents = (1, 14)::(0, 10)::[] }, 
-                                 heap'-248); (rec awaitUpdate-241 ...) ())
-                       as p-249 in
-                       promise (allocReq-2 (v-252, callId-251) ↦
-                                let (heap'-256, l-255) =
-                                   let var-253 =
-                                      let var-254 =
+                                 heap'-549); (rec awaitUpdate-686 ...) ())
+                       as p-545 in
+                       promise (allocReq-2 (v-385, callId-384) ↦
+                                let (heap'-387, l-386) =
+                                   let var-388 =
+                                      let var-389 =
                                          (!)-13
                                          { contents = (1, 14)::(0, 10)::[] } in
-                                      allocHeap-228 var-254 in var-253 v-252 in
-                                ↑allocRes-5((l-255, callId-251), return ());
+                                      allocHeap-228 var-389 in var-388 v-385 in
+                                ↑allocRes-5((l-386, callId-384), return ());
                                 (:=)-14
                                 ({ contents = (1, 14)::(0, 10)::[] }, 
-                                 heap'-256); (rec awaitAlloc-250 ...) ())
-                       as p-257 in
-                       return p-257
+                                 heap'-387); (rec awaitAlloc-427 ...) ())
+                       as p-383 in
+                       return p-383
 Conf
   id = 1;
   res = (10, 14)

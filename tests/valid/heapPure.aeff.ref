@@ -23,66 +23,66 @@ operation opRes-1 : payloadRes-12 × int-1
 The program has terminated in the configuration:
 Conf
   id = 0;
-  res = promise (opReq-0 (reqPayload-235, callNo-234) ↦
-                                let (heap'-249, resPayload-248) =
-                                   match reqPayload-235 with (LookupReq-4 
-                                                              l-236 ↦ 
-                                                              let v-238 =
+  res = promise (opReq-0 (reqPayload-849, callNo-848) ↦
+                                let (heap'-851, resPayload-850) =
+                                   match reqPayload-849 with (LookupReq-4 
+                                                              l-852 ↦ 
+                                                              let v-853 =
                                                                  let
-                                                                    var-237 =
+                                                                    var-854 =
                                                                     lookupHeap-211
                                                                     ((
                                                                     1, 14)::(
                                                                     0, 10)::[]) in
-                                                                 var-237
-                                                                 l-236 in
+                                                                 var-854
+                                                                 l-852 in
                                                               return-205
                                                               ((1, 14)::(
                                                                0, 10)::[], 
                                                                LookupRes-7 
-                                                               v-238) | 
+                                                               v-853) | 
                                                               UpdateReq-5 
-                                                              (l-240, v-239) ↦ 
-                                                              let heap'-243 =
+                                                              (l-856, v-855) ↦ 
+                                                              let heap'-857 =
                                                                  let
-                                                                    var-241 =
+                                                                    var-858 =
                                                                     let
                                                                     
-                                                                    var-242 =
+                                                                    var-859 =
                                                                     updateHeap-218
                                                                     ((
                                                                     1, 14)::(
                                                                     0, 10)::[]) in
-                                                                    var-242
-                                                                    l-240 in
-                                                                 var-241
-                                                                 v-239 in
+                                                                    var-859
+                                                                    l-856 in
+                                                                 var-858
+                                                                 v-855 in
                                                               return-205
-                                                              (heap'-243, 
+                                                              (heap'-857, 
                                                                UpdateRes-8 
                                                                ()) | 
                                                               AllocReq-6 
-                                                              v-244 ↦ 
+                                                              v-860 ↦ 
                                                               let
-                                                                 (heap'-247, 
-                                                                  l-246) =
+                                                                 (heap'-862, 
+                                                                  l-861) =
                                                                  let
-                                                                    var-245 =
+                                                                    var-863 =
                                                                     allocHeap-228
                                                                     ((
                                                                     1, 14)::(
                                                                     0, 10)::[]) in
-                                                                 var-245
-                                                                 v-244 in
+                                                                 var-863
+                                                                 v-860 in
                                                               return-205
-                                                              (heap'-247, 
+                                                              (heap'-862, 
                                                                AllocRes-9 
-                                                               l-246)) in
-                                ↑opRes-1((resPayload-248, callNo-234),
+                                                               l-861)) in
+                                ↑opRes-1((resPayload-850, callNo-848),
                                            return ());
-                                (rec heapRunner-232 ...) heap'-249)
-                       as p-250 in
-                       return p-250
+                                (rec heapRunner-935 ...) heap'-851)
+                       as p-847 in
+                       return p-847
 Conf
   id = 1;
   res = (10, 14)
