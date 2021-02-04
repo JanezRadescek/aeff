@@ -3,7 +3,7 @@ operation result : int * int
 operation cancel : int
 operation dummy : empty
 
-let callWith callCounter =
+let (callWith : (int ref) -> int -> ( (unit -> int) * (unit -> unit) * (int -> unit) )) callCounter =
     fun x |->
         let callNo = !callCounter in
         send call (x, callNo);
@@ -16,7 +16,7 @@ let callWith callCounter =
         let changeMind x = cancelThunk (); send call (x, callNo) in
         return (valueThunk, cancelThunk, changeMind)
 
-let rec awaitCancel callNo runBeforeStall =
+let rec (awaitCancel : int -> (unit -> 'a) -> 'b) callNo runBeforeStall =
     promise (cancel callNo' when callNo = callNo'|->
         promise (dummy empty |-> return <<empty>>) as dummyPromise in
         runBeforeStall ();
@@ -24,7 +24,7 @@ let rec awaitCancel callNo runBeforeStall =
         awaitCancel callNo runBeforeStall
     ) as p in return p
 
-let remote f =
+let (remote : (int -> int) -> 'd) f =
     let rec loop () =
         promise (call (x, callNo) |->
             awaitCancel callNo loop;
@@ -35,7 +35,7 @@ let remote f =
     in
     loop ()
 
-let remoteCallReInvoker () =
+let (remoteCallReInvoker : unit -> <<unit>>) () =
     let callsToReInvoke = ref [] in
     let rec reInvokerCall () =
         promise (call (x,callNo) |->

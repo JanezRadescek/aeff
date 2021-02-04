@@ -28,6 +28,8 @@ OK = 0
 ((OK = OK + $?))
 ./aeff.exe ./examples/runner.aeff
 ((OK = OK + $?))
+./aeff.exe ./examples/select.aeff
+((OK = OK + $?))
 ./aeff.exe ./examples/ticktock.aeff
 ((OK = OK + $?))
 

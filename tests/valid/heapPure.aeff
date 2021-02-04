@@ -14,19 +14,19 @@ type payloadRes =
 operation opReq : payloadRec * int
 operation opRes : payloadRes * int
 
-let empty = []
+let (empty : 'a list) = []
 
-let rec lookupHeap ((l', v) :: heap') l =
+let rec (lookupHeap : ('a * 'b) list -> 'a -> 'b) ((l', v) :: heap') l =
   if l = l' then v else lookupHeap heap' l
 
-let rec updateHeap ((l', v') :: heap') l v =
+let rec (updateHeap : ('a * 'b) list -> 'a -> 'b -> ('a * 'b) list) ((l', v') :: heap') l v =
   if l = l' then (l, v) :: heap' else (l', v') :: updateHeap heap' l v
 
-let allocHeap heap v =
+let (allocHeap : (int * 'b) list -> 'b -> ((int * 'b) list * int)) heap v =
   let l = length heap in
   (l, v) :: heap, l
 
-let rec heapRunner heap =
+let rec (heapRunner : (int * int) list -> 'a) heap =
     promise (opReq (reqPayload, callNo) |->
         let heap', resPayload =
             match reqPayload with
@@ -45,7 +45,7 @@ let rec heapRunner heap =
     )
     as p in return p
 
-let callWith callCounter x =
+let (callWith : int ref -> payloadRec -> payloadRes) callCounter x =
     let callNo = !callCounter in
     send opReq (x, callNo);
     callCounter := callNo + 1;
@@ -53,11 +53,11 @@ let callWith callCounter x =
         return <<y>>
     ) as p in awaitValue p
 
-let lookup callCounter l =
+let (lookup : int ref -> int -> int) callCounter l =
     match callWith callCounter (LookupReq l) with LookupRes v |-> return v
-let update callCounter l v =
+let (update : int ref -> int -> int -> unit) callCounter l v =
     match callWith callCounter (UpdateReq (l, v)) with UpdateRes () |-> return ()
-let alloc callCounter v =
+let (alloc : int ref -> int -> int) callCounter v =
     match callWith callCounter (AllocReq v) with AllocRes l |-> return l
 
 run
