@@ -424,6 +424,19 @@ and infer_computation state subst = function
       let state' = extend_variables state [ (p, ty_a) ] in
       let ty_c, subs_c = infer_computation state' subs_a comp in
       (ty_c, subs_c)
+  | Ast.RecPromise (k, op, abs, p, comp) ->
+      let ty_op = Ast.OperationMap.find op state.operations in
+      let ty_op' = unfold_type_definitions state ty_op in
+
+      let ty_in = Ast.TyApply (Ast.unit_ty_name, []) in
+      let ty_abs = fresh_ty () in
+      let ty_k = Ast.TyArrow (ty_in, ty_abs) in
+
+      let state' = extend_variables state [ (k, ty_k) ] in
+      let subs_k = check_abstraction state' subst (ty_op', ty_abs) abs in
+      let state'' = extend_variables state [ (p, ty_abs) ] in
+      let ty_c, subs_c = infer_computation state'' subs_k comp in
+      (ty_c, subs_c)
 
 and check_computation state subs annotation = function
   | Ast.Return expr -> check_expression state subs annotation expr
@@ -466,6 +479,16 @@ and check_computation state subs annotation = function
       let ty_a, subs_a = infer_abstraction state subs ty_op' abs in
       let state' = extend_variables state [ (p, ty_a) ] in
       check_computation state' subs_a annotation comp
+  | Ast.RecPromise (k, op, abs, p, comp) ->
+      let ty_op = Ast.OperationMap.find op state.operations in
+      let ty_op' = unfold_type_definitions state ty_op in
+      let ty_in = Ast.TyApply (Ast.unit_ty_name, []) in
+      let ty_abs = fresh_ty () in
+      let ty_k = Ast.TyArrow (ty_in, ty_abs) in
+      let state' = extend_variables state [ (k, ty_k) ] in
+      let subs_k = check_abstraction state' subs (ty_op', ty_abs) abs in
+      let state'' = extend_variables state [ (p, ty_abs) ] in
+      check_computation state'' subs_k annotation comp
 
 and infer_abstraction state subs ty_argument (pat, comp) :
     Ast.ty * (Ast.ty_param * Ast.ty) list =

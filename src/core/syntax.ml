@@ -70,6 +70,8 @@ and plain_term =
   | Apply of term * term  (** [t1 t2] *)
   | Promise of operation * guarded_abstraction * abstraction
       (** [with op (p1 |-> t1) as p2 in t2] *)
+  | RecPromise of variable * operation * guarded_abstraction * abstraction
+      (** [with op (p1 k |-> t1) as p2 in t2] *)
   | Await of term * abstraction  (** [await t1 until <<p>> in t2] *)
   | Fulfill of term  (** [<<t>>] *)
   | Send of operation * term  (** [send op t] *)

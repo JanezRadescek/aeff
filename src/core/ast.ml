@@ -195,6 +195,7 @@ and computation =
   | Out of operation * expression * computation
   | In of operation * expression * computation
   | Promise of operation * abstraction * variable * computation
+  | RecPromise of variable * operation * abstraction * variable * computation
   | Await of expression * abstraction
 
 and abstraction = pattern * computation
@@ -270,6 +271,15 @@ and refresh_computation vars = function
           refresh_abstraction vars abs,
           p',
           refresh_computation ((p, p') :: vars) comp )
+  | RecPromise (k, op, abs, p, comp) ->
+      let p' = Variable.refresh p in
+      let k' = Variable.refresh k in
+      RecPromise
+        ( k',
+          op,
+          refresh_abstraction ((k, k') :: vars) abs,
+          p',
+          refresh_computation ((p, p') :: vars) comp )
   | Await (expr, abs) ->
       Await (refresh_expression vars expr, refresh_abstraction vars abs)
 
@@ -311,6 +321,14 @@ and substitute_computation subst = function
       let subst' = remove_pattern_bound_variables subst (PVar p) in
       Promise
         ( op,
+          substitute_abstraction subst abs,
+          p,
+          substitute_computation subst' comp )
+  | RecPromise (k, op, abs, p, comp) ->
+      let subst' = remove_pattern_bound_variables subst (PVar p) in
+      RecPromise
+        ( k,
+          op,
           substitute_abstraction subst abs,
           p,
           substitute_computation subst' comp )
@@ -415,6 +433,10 @@ and print_computation ?max_level c ppf =
       print "@[<hv>promise (@[<hov>%t %t ↦@ %t@])@ as %t in@ %t@]"
         (Operation.print op) (print_pattern p1) (print_computation c1)
         (Variable.print p2) (print_computation c2)
+  | RecPromise (k, op, (p1, c1), p2, c2) ->
+      print "@[<hv>promise (@[<hov>%t %t %t ↦@ %t@])@ as %t in@ %t@]"
+        (Operation.print op) (print_pattern p1) (Variable.print k)
+        (print_computation c1) (Variable.print p2) (print_computation c2)
   | Await (e, (p, c)) ->
       print "@[<hov>await @[<hov>%t until@ ⟨%t⟩@] in@ %t@]"
         (print_expression e) (print_pattern p) (print_computation c)

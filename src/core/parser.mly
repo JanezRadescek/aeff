@@ -91,6 +91,10 @@ plain_term:
     { Promise (op, (p1, None, t1), (p2, t2)) }
   | PROMISE LPAREN op = operation p1 = pattern WHEN t = term MAPSTO t1 = term RPAREN AS p2 = pattern IN t2 = term
     { Promise (op, (p1, Some t, t1), (p2, t2)) }
+  | PROMISE LPAREN op = operation p1 = pattern k = ident MAPSTO t1 = term RPAREN AS p2 = pattern IN t2 = term
+    { RecPromise (k, op, (p1, None, t1), (p2, t2)) }
+  | PROMISE LPAREN op = operation p1 = pattern k = ident WHEN t = term MAPSTO t1 = term RPAREN AS p2 = pattern IN t2 = term
+    { RecPromise (k, op, (p1, Some t, t1), (p2, t2)) }
   | AWAIT t1 = term UNTIL LPROMISE p = pattern RPROMISE IN t2 = term
     { Await (t1, (p, t2)) }
   | t1 = term SEMI t2 = term

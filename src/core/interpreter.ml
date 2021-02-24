@@ -197,6 +197,35 @@ let big_step state (conf : conf) : conf =
                         Ready
                           (Ast.Promise (op', abs', var', Ast.In (op, e, c')));
                     }
+              | Ast.RecPromise (k, op', abs', var', c') when op = op' ->
+                  (* print "inserting in in promise"; *)
+                  let comp' = substitution e abs' in
+                  let var'' = Ast.Variable.fresh None in
+                  let comp'' =
+                    substitution
+                      (Ast.Lambda
+                         ( Ast.PVariant (Ast.nil_label, None),
+                           Ast.RecPromise
+                             (k, op', abs', var'', Ast.Return (Ast.Var var''))
+                         ))
+                      (Ast.PVar k, comp')
+                  in
+                  small_steps
+                    {
+                      cs with
+                      res =
+                        Ready
+                          (Ast.Do (comp'', (Ast.PVar var', Ast.In (op, e, c'))));
+                    }
+              | Ast.RecPromise (k, op', abs', var', c') ->
+                  small_steps
+                    {
+                      cs with
+                      res =
+                        Ready
+                          (Ast.RecPromise
+                             (k, op', abs', var', Ast.In (op, e, c')));
+                    }
               | _ -> (
                   let cs' = small_steps { cs with res = Ready c } in
                   match cs'.res with
@@ -237,6 +266,19 @@ let big_step state (conf : conf) : conf =
                   { cs' with res = Await (Ast.Promise (op, abs, p, c')) }
               | Ready c' ->
                   { cs' with res = Ready (Ast.Promise (op, abs, p, c')) } )
+          | Ast.RecPromise (k, op, abs, p, c) -> (
+              let cs' = small_steps { cs with res = Ready c } in
+              match cs'.res with
+              | Done c' ->
+                  {
+                    cs' with
+                    res = Await (Ast.RecPromise (k, op, abs, p, Ast.Return c'));
+                  }
+              | Await c' ->
+                  { cs' with res = Await (Ast.RecPromise (k, op, abs, p, c')) }
+              | Ready c' ->
+                  { cs' with res = Ready (Ast.RecPromise (k, op, abs, p, c')) }
+              )
           | Ast.Await (e, abs) as c -> (
               (* print_state state; *)
               match e with

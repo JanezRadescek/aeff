@@ -185,7 +185,7 @@ and desugar_plain_expression ~loc state = function
       let binds, e = desugar_expression state term in
       (binds, Ast.Fulfill e)
   | ( S.Apply _ | S.Match _ | S.Let _ | S.LetRec _ | S.Conditional _
-    | S.Promise _ | S.Await _ | S.Send _ ) as term ->
+    | S.Promise _ | S.RecPromise _ | S.Await _ | S.Send _ ) as term ->
       let x = Ast.Variable.fresh None in
       let comp = desugar_computation state (Location.add_loc ~loc term) in
       let hoist = (Ast.PVar x, comp) in
@@ -238,8 +238,15 @@ and desugar_plain_computation ~loc state =
       let abs1' = desugar_abstraction state (p, c) in
       let p, cont = desugar_promise_abstraction ~loc state abs2 in
       ([], Ast.Promise (op', abs1', p, cont))
+  | S.RecPromise (k, op, (p, None, c), abs2) ->
+      let k' = Ast.Variable.fresh (Some k) in
+      let state' = add_fresh_variables state [ (k, k') ] in
+      let op' = lookup_operation ~loc state op in
+      let abs1' = desugar_abstraction state' (p, c) in
+      let p, cont = desugar_promise_abstraction ~loc state abs2 in
+      ([], Ast.RecPromise (k', op', abs1', p, cont))
   | S.Promise (op, (x, Some guard, comp), (p, cont)) ->
-      let op = lookup_operation ~loc state op
+      let op' = lookup_operation ~loc state op
       and x, guard, comp = desugar_guarded_abstraction state (x, guard, comp)
       and p, cont = desugar_promise_abstraction ~loc state (p, cont) in
       let wait_for_guard = Ast.Variable.fresh None
@@ -253,7 +260,35 @@ and desugar_plain_computation ~loc state =
                  ( wait_for_guard,
                    ( Ast.PTuple [],
                      Ast.Promise
-                       ( op,
+                       ( op',
+                         ( x,
+                           Ast.Do
+                             ( guard,
+                               ( Ast.PVar guard_var,
+                                 if_then_else (Ast.Var guard_var) comp
+                                   recursive_call ) ) ),
+                         p',
+                         Ast.Return (Ast.Var p') ) ) )),
+            ( Ast.PVar wait_for_guard,
+              Ast.Do (recursive_call, (Ast.PVar p, cont)) ) ) )
+  | S.RecPromise (k, op, (x, Some guard, comp), (p, cont)) ->
+      let k' = Ast.Variable.fresh (Some k) in
+      let state' = add_fresh_variables state [ (k, k') ] in
+      let op' = lookup_operation ~loc state op
+      and x, guard, comp = desugar_guarded_abstraction state' (x, guard, comp)
+      and p, cont = desugar_promise_abstraction ~loc state (p, cont) in
+      let wait_for_guard = Ast.Variable.fresh None
+      and p' = Ast.Variable.fresh None
+      and guard_var = Ast.Variable.fresh None in
+      let recursive_call = Ast.Apply (Ast.Var wait_for_guard, Ast.Tuple []) in
+      ( [],
+        Ast.Do
+          ( Ast.Return
+              (Ast.RecLambda
+                 ( wait_for_guard,
+                   ( Ast.PTuple [],
+                     Ast.Promise
+                       ( op',
                          ( x,
                            Ast.Do
                              ( guard,
