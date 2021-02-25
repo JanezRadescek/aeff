@@ -32,7 +32,13 @@ type conf = {
 }
 
 let print_conf conf =
-  Format.printf "Conf\n  id = %d;\n  res = %t@." conf.id
+  Format.printf "Conf\n  id = %d;@." conf.id;
+  Format.printf
+    ( match conf.res with
+    | Done _ -> "Done"
+    | Await _ -> "Await"
+    | Ready _ -> "Ready" );
+  Format.printf "\nres = %t@."
     ( match conf.res with
     | Done e -> Ast.print_expression e
     | Await c | Ready c -> Ast.print_computation c )
@@ -131,6 +137,14 @@ let big_step state (conf : conf) : conf =
                       cs with
                       res = Ready (Ast.Promise (op, abs', p, Ast.Do (c', abs)));
                     }
+              | Ast.RecPromise (k, op, abs', p, c') ->
+                  small_steps
+                    {
+                      cs with
+                      res =
+                        Ready
+                          (Ast.RecPromise (k, op, abs', p, Ast.Do (c', abs)));
+                    }
               | _ -> (
                   let cs' = small_steps { cs with res = Ready c } in
 
@@ -141,13 +155,13 @@ let big_step state (conf : conf) : conf =
                       small_steps { cs' with res = Ready c' }
                   | Await c' -> (
                       match c' with
-                      | Ast.Promise _ ->
+                      | Ast.Promise _ | Ast.RecPromise _ ->
                           small_steps
                             { cs' with res = Ready (Ast.Do (c', abs)) }
                       | _ -> { cs' with res = Await (Ast.Do (c', abs)) } )
                   | Ready c' -> (
                       match c' with
-                      | Ast.Promise _ ->
+                      | Ast.Promise _ | Ast.RecPromise _ ->
                           small_steps
                             { cs' with res = Ready (Ast.Do (c', abs)) }
                       | _ -> { cs' with res = Ready (Ast.Do (c', abs)) } ) ) )
@@ -204,7 +218,7 @@ let big_step state (conf : conf) : conf =
                   let comp'' =
                     substitution
                       (Ast.Lambda
-                         ( Ast.PVariant (Ast.nil_label, None),
+                         ( Ast.PTuple [],
                            Ast.RecPromise
                              (k, op', abs', var'', Ast.Return (Ast.Var var''))
                          ))
@@ -243,7 +257,7 @@ let big_step state (conf : conf) : conf =
                                      ( Ast.In (op, e, c1),
                                        (p, Ast.In (op, e, c2)) ));
                             }
-                      | Ast.Promise _ ->
+                      | Ast.Promise _ | Ast.RecPromise _ ->
                           small_steps
                             { cs' with res = Ready (Ast.In (op, e, c')) }
                       | Ast.In _ | Ast.Await _ ->
