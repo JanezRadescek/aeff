@@ -49,8 +49,10 @@ let (callWith : int ref -> payloadRec -> payloadRes) callCounter x =
     let callNo = !callCounter in
     send opReq (x, callNo);
     callCounter := callNo + 1;
-    promise (opRes (y, callNo') when callNo = callNo' |->
-        return <<y>>
+    promise (opRes (y, callNo') k |->
+        if callNo = callNo' then
+            return <<y>>
+        else k ()
     ) as p in awaitValue p
 
 let (lookup : int ref -> int -> int) callCounter l =
