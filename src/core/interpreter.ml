@@ -131,19 +131,12 @@ let big_step state (conf : conf) : conf =
               | Ast.Return e ->
                   let comp' = substitution e abs in
                   small_steps { cs with res = Ready comp' }
-              | Ast.Promise (op, abs', p, c') ->
-                  small_steps
-                    {
-                      cs with
-                      res = Ready (Ast.Promise (op, abs', p, Ast.Do (c', abs)));
-                    }
-              | Ast.RecPromise (k, op, abs', p, c') ->
+              | Ast.Promise (k, op, abs', p, c') ->
                   small_steps
                     {
                       cs with
                       res =
-                        Ready
-                          (Ast.RecPromise (k, op, abs', p, Ast.Do (c', abs)));
+                        Ready (Ast.Promise (k, op, abs', p, Ast.Do (c', abs)));
                     }
               | _ -> (
                   let cs' = small_steps { cs with res = Ready c } in
@@ -155,13 +148,13 @@ let big_step state (conf : conf) : conf =
                       small_steps { cs' with res = Ready c' }
                   | Await c' -> (
                       match c' with
-                      | Ast.Promise _ | Ast.RecPromise _ ->
+                      | Ast.Promise _ ->
                           small_steps
                             { cs' with res = Ready (Ast.Do (c', abs)) }
                       | _ -> { cs' with res = Await (Ast.Do (c', abs)) } )
                   | Ready c' -> (
                       match c' with
-                      | Ast.Promise _ | Ast.RecPromise _ ->
+                      | Ast.Promise _ ->
                           small_steps
                             { cs' with res = Ready (Ast.Do (c', abs)) }
                       | _ -> { cs' with res = Ready (Ast.Do (c', abs)) } ) ) )
@@ -193,36 +186,25 @@ let big_step state (conf : conf) : conf =
           | Ast.In (op, e, c) -> (
               match c with
               | Ast.Return _ -> { cs with res = Ready c }
-              | Ast.Promise (op', abs', var', c') when op = op' ->
-                  (* print "inserting in in promise"; *)
-                  let comp' = substitution e abs' in
-                  small_steps
-                    {
-                      cs with
-                      res =
-                        Ready
-                          (Ast.Do (comp', (Ast.PVar var', Ast.In (op, e, c'))));
-                    }
-              | Ast.Promise (op', abs', var', c') ->
-                  small_steps
-                    {
-                      cs with
-                      res =
-                        Ready
-                          (Ast.Promise (op', abs', var', Ast.In (op, e, c')));
-                    }
-              | Ast.RecPromise (k, op', abs', var', c') when op = op' ->
+              | Ast.Promise (k, op', abs', var', c') when op = op' ->
                   (* print "inserting in in promise"; *)
                   let comp' = substitution e abs' in
                   let var'' = Ast.Variable.fresh None in
+
                   let comp'' =
-                    substitution
-                      (Ast.Lambda
-                         ( Ast.PTuple [],
-                           Ast.RecPromise
-                             (k, op', abs', var'', Ast.Return (Ast.Var var''))
-                         ))
-                      (Ast.PVar k, comp')
+                    match k with
+                    | None -> comp'
+                    | Some k' ->
+                        substitution
+                          (Ast.Lambda
+                             ( Ast.PTuple [],
+                               Ast.Promise
+                                 ( k,
+                                   op',
+                                   abs',
+                                   var'',
+                                   Ast.Return (Ast.Var var'') ) ))
+                          (Ast.PVar k', comp')
                   in
                   small_steps
                     {
@@ -231,14 +213,13 @@ let big_step state (conf : conf) : conf =
                         Ready
                           (Ast.Do (comp'', (Ast.PVar var', Ast.In (op, e, c'))));
                     }
-              | Ast.RecPromise (k, op', abs', var', c') ->
+              | Ast.Promise (k, op', abs', var', c') ->
                   small_steps
                     {
                       cs with
                       res =
                         Ready
-                          (Ast.RecPromise
-                             (k, op', abs', var', Ast.In (op, e, c')));
+                          (Ast.Promise (k, op', abs', var', Ast.In (op, e, c')));
                     }
               | _ -> (
                   let cs' = small_steps { cs with res = Ready c } in
@@ -257,7 +238,7 @@ let big_step state (conf : conf) : conf =
                                      ( Ast.In (op, e, c1),
                                        (p, Ast.In (op, e, c2)) ));
                             }
-                      | Ast.Promise _ | Ast.RecPromise _ ->
+                      | Ast.Promise _ ->
                           small_steps
                             { cs' with res = Ready (Ast.In (op, e, c')) }
                       | Ast.In _ | Ast.Await _ ->
@@ -268,31 +249,18 @@ let big_step state (conf : conf) : conf =
                   | Ready c' ->
                       (* Zmanjkalo nam je malih korakov *)
                       { cs' with res = Ready (Ast.In (op, e, c')) } ) )
-          | Ast.Promise (op, abs, p, c) -> (
+          | Ast.Promise (k, op, abs, p, c) -> (
               let cs' = small_steps { cs with res = Ready c } in
               match cs'.res with
               | Done c' ->
                   {
                     cs' with
-                    res = Await (Ast.Promise (op, abs, p, Ast.Return c'));
+                    res = Await (Ast.Promise (k, op, abs, p, Ast.Return c'));
                   }
               | Await c' ->
-                  { cs' with res = Await (Ast.Promise (op, abs, p, c')) }
+                  { cs' with res = Await (Ast.Promise (k, op, abs, p, c')) }
               | Ready c' ->
-                  { cs' with res = Ready (Ast.Promise (op, abs, p, c')) } )
-          | Ast.RecPromise (k, op, abs, p, c) -> (
-              let cs' = small_steps { cs with res = Ready c } in
-              match cs'.res with
-              | Done c' ->
-                  {
-                    cs' with
-                    res = Await (Ast.RecPromise (k, op, abs, p, Ast.Return c'));
-                  }
-              | Await c' ->
-                  { cs' with res = Await (Ast.RecPromise (k, op, abs, p, c')) }
-              | Ready c' ->
-                  { cs' with res = Ready (Ast.RecPromise (k, op, abs, p, c')) }
-              )
+                  { cs' with res = Ready (Ast.Promise (k, op, abs, p, c')) } )
           | Ast.Await (e, abs) as c -> (
               (* print_state state; *)
               match e with

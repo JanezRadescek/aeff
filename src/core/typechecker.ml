@@ -417,14 +417,13 @@ and infer_computation state subst = function
       let subs' = List.fold_left fold' subs_1 cases in
       let ty_1' = apply_subs subs' ty_1 in
       (ty_1', subs')
-  | Ast.Promise (op, abs, p, comp) ->
+  | Ast.Promise (None, op, abs, p, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations in
       let ty_op' = unfold_type_definitions state ty_op in
       let ty_a, subs_a = infer_abstraction state subst ty_op' abs in
       let state' = extend_variables state [ (p, ty_a) ] in
-      let ty_c, subs_c = infer_computation state' subs_a comp in
-      (ty_c, subs_c)
-  | Ast.RecPromise (k, op, abs, p, comp) ->
+      infer_computation state' subs_a comp
+  | Ast.Promise (Some k, op, abs, p, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations in
       let ty_op' = unfold_type_definitions state ty_op in
 
@@ -434,9 +433,9 @@ and infer_computation state subst = function
 
       let state' = extend_variables state [ (k, ty_k) ] in
       let subs_k = check_abstraction state' subst (ty_op', ty_abs) abs in
-      let state'' = extend_variables state [ (p, ty_abs) ] in
-      let ty_c, subs_c = infer_computation state'' subs_k comp in
-      (ty_c, subs_c)
+      (* (apply_subs subs_abs ty, subs_abs) *)
+      let state'' = extend_variables state [ (p, apply_subs subs_k ty_abs) ] in
+      infer_computation state'' subs_k comp
 
 and check_computation state subs annotation = function
   | Ast.Return expr -> check_expression state subs annotation expr
@@ -457,13 +456,17 @@ and check_computation state subs annotation = function
       let subs_e = check_expression state subs ty_op' e in
       let subs_comp = check_computation state subs_e annotation comp in
       subs_comp
-  | Ast.Await (e, abs) -> (
+  | Ast.Await (e, abs) as c -> (
       let ty_1, subs_1 = infer_expression state subs e in
       match ty_1 with
       | Ast.TyPromise ty ->
           let subs_2 = check_abstraction state subs_1 (ty, annotation) abs in
           subs_2
-      | _ -> Error.typing "Expected Promise" )
+      | _ ->
+          let print_param = Ast.new_print_param () in
+          Error.typing "Expected Promise, but got %t in %t"
+            (Ast.print_ty print_param ty_1)
+            (Ast.print_computation c) )
   | Ast.Match (_e, []) -> Error.typing "Canot check match without cases."
   | Ast.Match (e, case :: cases) ->
       let ty_e, subs_e = infer_expression state subs e in
@@ -473,21 +476,23 @@ and check_computation state subs annotation = function
       in
       let subs' = List.fold_left fold' subs_1 cases in
       subs'
-  | Ast.Promise (op, abs, p, comp) ->
+  | Ast.Promise (None, op, abs, p, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations in
       let ty_op' = unfold_type_definitions state ty_op in
       let ty_a, subs_a = infer_abstraction state subs ty_op' abs in
       let state' = extend_variables state [ (p, ty_a) ] in
       check_computation state' subs_a annotation comp
-  | Ast.RecPromise (k, op, abs, p, comp) ->
+  | Ast.Promise (Some k, op, abs, p, comp) ->
       let ty_op = Ast.OperationMap.find op state.operations in
       let ty_op' = unfold_type_definitions state ty_op in
+
       let ty_in = Ast.TyApply (Ast.unit_ty_name, []) in
       let ty_abs = fresh_ty () in
       let ty_k = Ast.TyArrow (ty_in, ty_abs) in
+
       let state' = extend_variables state [ (k, ty_k) ] in
       let subs_k = check_abstraction state' subs (ty_op', ty_abs) abs in
-      let state'' = extend_variables state [ (p, ty_abs) ] in
+      let state'' = extend_variables state [ (p, apply_subs subs_k ty_abs) ] in
       check_computation state'' subs_k annotation comp
 
 and infer_abstraction state subs ty_argument (pat, comp) :
