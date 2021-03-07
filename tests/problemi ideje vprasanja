@@ -133,3 +133,15 @@ ground types 𝐴, 𝐵, . . ., which include standard base, unit, empty, produc
 
         bugedd result
         yt() = 360
+
+
+32      fix reference
+        Meni zgleda kot, da deluje
+        Če naredimo narobe (recimo napišemo ref int namesto int ref) pa dobimo čisto napačen error msg
+
+
+33      Kje točno postavimo črno škatlo?
+        Kaj naredimo z variables? 
+        
+
+
