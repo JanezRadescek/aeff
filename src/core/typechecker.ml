@@ -559,10 +559,15 @@ let check_polymorphic_expression state (params, ty) expr =
 
   subs
 
-(*let ty, subs = check_expression state ty expr in
-  let ty' = apply_substitution state subs ty in
-  let free_params = find_free_params ty' in
-  if free_params = params then () else Error.typing "There are to many params." *)
+let rec is_ground_type state (ty : Ast.ty) : bool =
+  match ty with
+  | Ast.TyConst _ -> true
+  | Ast.TyApply (_ty_name, tys) -> List.for_all (is_ground_type state) tys
+  | Ast.TyParam _ -> false
+  | Ast.TyArrow _ -> false
+  | Ast.TyTuple tys -> List.for_all (is_ground_type state) tys
+  | Ast.TyPromise _ -> false
+  | Ast.TyReference _ -> false
 
 let add_external_function x ty_sch state =
   (* Format.printf "@[val %t : %t@]@." (Ast.Variable.print x)
@@ -572,7 +577,9 @@ let add_external_function x ty_sch state =
 let add_operation state op ty =
   Format.printf "@[operation %t : %t@]@." (Ast.Operation.print op)
     (Ast.print_ty_scheme ([], ty));
-  { state with operations = Ast.OperationMap.add op ty state.operations }
+  if is_ground_type state ty then
+    { state with operations = Ast.OperationMap.add op ty state.operations }
+  else Error.typing "Payload of an operation must be of a ground type"
 
 let add_top_definition state x ty_sch expr =
   let _subst = check_polymorphic_expression state ty_sch expr in
