@@ -575,9 +575,10 @@ let add_external_function x ty_sch state =
   { state with variables_ty = Ast.VariableMap.add x ty_sch state.variables_ty }
 
 let add_operation state op ty =
+  let ty' = unfold_type_definitions state ty in
   Format.printf "@[operation %t : %t@]@." (Ast.Operation.print op)
-    (Ast.print_ty_scheme ([], ty));
-  if is_ground_type state ty then
+    (Ast.print_ty_scheme ([], ty'));
+  if is_ground_type state ty' then
     { state with operations = Ast.OperationMap.add op ty state.operations }
   else Error.typing "Payload of an operation must be of a ground type"
 

@@ -1,0 +1,25 @@
+operation shared_variable : int ref
+operation sync : unit
+
+let (thread_1 : unit -> int * int) () =
+    let aa = 7 in 
+    let a = ref aa in
+    send shared_variable a;
+
+    promise(sync () |-> let b = !a in return <<b>>) 
+    as p in
+    (aa, awaitValue p)
+
+let (thread_0 : unit -> int * int) () =
+    promise(shared_variable sv |-> 
+        let a = !sv in 
+        sv := 42;
+        send sync ();
+        <<(a, !sv)>>) as p in
+    awaitValue p
+
+
+
+run thread_1()
+
+run thread_0()
