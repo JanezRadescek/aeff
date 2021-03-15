@@ -1,9 +1,12 @@
 open Utils
+module SemiGround = Set.Make (Ast.TyName)
 
 type state = {
   variables_ty : Ast.ty_scheme Ast.VariableMap.t;
   operations : Ast.ty Ast.OperationMap.t;
   type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
+  semi_ground_variants : SemiGround.t;
+      (**This Variant are ground if all params are ground *)
 }
 
 let initial_state =
@@ -40,6 +43,7 @@ let initial_state =
                        Ast.TyApply (Ast.list_ty_name, [ Ast.TyParam a ]);
                      ]) );
             ] ) );
+    semi_ground_variants = SemiGround.empty;
   }
 
 let fresh_ty () =
@@ -562,12 +566,44 @@ let check_polymorphic_expression state (params, ty) expr =
 let rec is_ground_type state (ty : Ast.ty) : bool =
   match ty with
   | Ast.TyConst _ -> true
-  | Ast.TyApply (_ty_name, tys) -> List.for_all (is_ground_type state) tys
+  | Ast.TyApply (ty_name, tys) ->
+      is_apply_semi_ground_type_apply state ty_name tys
   | Ast.TyParam _ -> false
   | Ast.TyArrow _ -> false
   | Ast.TyTuple tys -> List.for_all (is_ground_type state) tys
   | Ast.TyPromise _ -> false
   | Ast.TyReference _ -> false
+
+and is_apply_semi_ground_type_apply state ty_name tys =
+  match SemiGround.mem ty_name state.semi_ground_variants with
+  | true -> true
+  | false -> (
+      match Ast.TyNameMap.find ty_name state.type_definitions with
+      | params, Ast.TyInline ty_def ->
+          let subst =
+            List.combine params tys |> List.to_seq |> Ast.TyParamMap.of_seq
+          in
+          is_ground_type state (Ast.substitute_ty subst ty_def)
+      | params, Ast.TySum tys' ->
+          let state' =
+            {
+              state with
+              semi_ground_variants =
+                SemiGround.add ty_name state.semi_ground_variants;
+            }
+          in
+          let subst =
+            List.combine params tys |> List.to_seq |> Ast.TyParamMap.of_seq
+          in
+          let tys'' =
+            List.fold_left
+              (fun todo_tys (_lbl, ty) ->
+                match ty with
+                | None -> todo_tys
+                | Some ty -> Ast.substitute_ty subst ty :: todo_tys)
+              [] tys'
+          in
+          List.for_all (is_ground_type state') tys'' )
 
 let add_external_function x ty_sch state =
   (* Format.printf "@[val %t : %t@]@." (Ast.Variable.print x)
