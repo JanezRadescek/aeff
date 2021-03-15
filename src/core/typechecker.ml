@@ -576,7 +576,7 @@ let rec is_ground_type state (ty : Ast.ty) : bool =
 
 and is_apply_semi_ground_type_apply state ty_name tys =
   match SemiGround.mem ty_name state.semi_ground_variants with
-  | true -> true
+  | true -> List.for_all (is_ground_type state) tys
   | false -> (
       match Ast.TyNameMap.find ty_name state.type_definitions with
       | params, Ast.TyInline ty_def ->
