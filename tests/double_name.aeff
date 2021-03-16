@@ -1,0 +1,5 @@
+type 'a foo = 'a bar
+and 'a bar = 'a foo
+
+operation abc : int foo
+run send abc 3

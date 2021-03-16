@@ -1,0 +1,9 @@
+type 'a foo = 'a list
+operation abc : int foo
+
+
+
+type 'a foo = 'a bar
+and 'a bar = 'a foo
+
+run send abc [42]
