@@ -2,7 +2,7 @@ open Utils
 module SemiGround = Set.Make (Ast.TyName)
 
 type state = {
-  variables_ty : Ast.ty_scheme Ast.VariableMap.t;
+  variables_ty : Ast.ty_scheme Ast.VariableMap.t list;
   operations : Ast.ty Ast.OperationMap.t;
   type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
   semi_ground_variants : SemiGround.t;
@@ -11,7 +11,7 @@ type state = {
 
 let initial_state =
   {
-    variables_ty = Ast.VariableMap.empty;
+    variables_ty = [ Ast.VariableMap.empty ];
     operations = Ast.OperationMap.empty;
     type_definitions =
       ( Ast.TyNameMap.empty
@@ -46,6 +46,48 @@ let initial_state =
     semi_ground_variants = SemiGround.empty;
   }
 
+let rec is_ground_type state (ty : Ast.ty) : bool =
+  match ty with
+  | Ast.TyConst _ -> true
+  | Ast.TyApply (ty_name, tys) -> is_apply_semi_ground_type state ty_name tys
+  | Ast.TyParam _ -> false
+  | Ast.TyArrow _ -> false
+  | Ast.TyTuple tys -> List.for_all (is_ground_type state) tys
+  | Ast.TyPromise _ -> false
+  | Ast.TyReference _ -> false
+  | Ast.TyBoxed _ -> true
+
+and is_apply_semi_ground_type state ty_name tys =
+  match SemiGround.mem ty_name state.semi_ground_variants with
+  | true -> List.for_all (is_ground_type state) tys
+  | false -> (
+      let state' =
+        {
+          state with
+          semi_ground_variants =
+            SemiGround.add ty_name state.semi_ground_variants;
+        }
+      in
+      match Ast.TyNameMap.find ty_name state.type_definitions with
+      | params, Ast.TyInline ty_def ->
+          let subst =
+            List.combine params tys |> List.to_seq |> Ast.TyParamMap.of_seq
+          in
+          is_ground_type state (Ast.substitute_ty subst ty_def)
+      | params, Ast.TySum tys' ->
+          let subst =
+            List.combine params tys |> List.to_seq |> Ast.TyParamMap.of_seq
+          in
+          let tys'' =
+            List.fold_left
+              (fun todo_tys (_lbl, ty) ->
+                match ty with
+                | None -> todo_tys
+                | Some ty -> Ast.substitute_ty subst ty :: todo_tys)
+              [] tys'
+          in
+          List.for_all (is_ground_type state') tys'' )
+
 let fresh_ty () =
   let a = Ast.TyParam.fresh None in
   Ast.TyParam a
@@ -71,14 +113,16 @@ let rec unfold_type_definitions state ty =
   | Ast.TyReference ty -> Ast.TyReference (unfold_type_definitions state ty)
   | Ast.TyBoxed ty -> Ast.TyBoxed (unfold_type_definitions state ty)
 
-let extend_variables state vars =
-  List.fold_left
-    (fun state (x, ty) ->
-      {
-        state with
-        variables_ty = Ast.VariableMap.add x ([], ty) state.variables_ty;
-      })
-    state vars
+let extend_variables state vars : state =
+  match state.variables_ty with
+  | [] -> assert false
+  | state_head :: states ->
+      let state_head' =
+        List.fold_left
+          (fun state (x, ty) -> Ast.VariableMap.add x ([], ty) state)
+          state_head vars
+      in
+      { state with variables_ty = state_head' :: states }
 
 let refreshing_subst params =
   List.fold_left
@@ -284,9 +328,30 @@ and check_pattern state subs ty_arg pattern :
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
 
+let infer_variable state x : Ast.ty_scheme =
+  match state.variables_ty with
+  | [] -> assert false
+  | head :: tail -> (
+      match Ast.VariableMap.find_opt x head with
+      | Some scheme -> scheme
+      | None ->
+          let rec find_movable state' =
+            match state' with
+            | [] -> assert false
+            | h :: t -> (
+                match Ast.VariableMap.find_opt x h with
+                | Some scheme -> scheme
+                | None -> find_movable t )
+          in
+          let params, ty = find_movable tail in
+          if is_ground_type state ty then (params, ty)
+          else
+            Error.typing "We expected movable type but got %t"
+              (Ast.print_ty (Ast.new_print_param ()) ty) )
+
 let rec infer_expression state subs = function
   | Ast.Var x ->
-      let params, ty = Ast.VariableMap.find x state.variables_ty in
+      let params, ty = infer_variable state x in
       let subst = refreshing_subst params in
       let ty' = Ast.substitute_ty subst ty in
       let ty'' = unfold_type_definitions state ty' in
@@ -331,7 +396,13 @@ let rec infer_expression state subs = function
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
   | Boxed e ->
-      let ty, subs' = infer_expression state subs e in
+      let state' =
+        {
+          state with
+          variables_ty = Ast.VariableMap.empty :: state.variables_ty;
+        }
+      in
+      let ty, subs' = infer_expression state' subs e in
       (Ast.TyBoxed ty, subs')
 
 and check_expression state subs annotation expr : (Ast.ty_param * Ast.ty) list =
@@ -598,52 +669,13 @@ let check_polymorphic_expression state (params, ty) expr =
 
   subs
 
-let rec is_ground_type state (ty : Ast.ty) : bool =
-  match ty with
-  | Ast.TyConst _ -> true
-  | Ast.TyApply (ty_name, tys) -> is_apply_semi_ground_type state ty_name tys
-  | Ast.TyParam _ -> false
-  | Ast.TyArrow _ -> false
-  | Ast.TyTuple tys -> List.for_all (is_ground_type state) tys
-  | Ast.TyPromise _ -> false
-  | Ast.TyReference _ -> false
-  | Ast.TyBoxed _ -> true
-
-and is_apply_semi_ground_type state ty_name tys =
-  match SemiGround.mem ty_name state.semi_ground_variants with
-  | true -> List.for_all (is_ground_type state) tys
-  | false -> (
-      let state' =
-        {
-          state with
-          semi_ground_variants =
-            SemiGround.add ty_name state.semi_ground_variants;
-        }
-      in
-      match Ast.TyNameMap.find ty_name state.type_definitions with
-      | params, Ast.TyInline ty_def ->
-          let subst =
-            List.combine params tys |> List.to_seq |> Ast.TyParamMap.of_seq
-          in
-          is_ground_type state (Ast.substitute_ty subst ty_def)
-      | params, Ast.TySum tys' ->
-          let subst =
-            List.combine params tys |> List.to_seq |> Ast.TyParamMap.of_seq
-          in
-          let tys'' =
-            List.fold_left
-              (fun todo_tys (_lbl, ty) ->
-                match ty with
-                | None -> todo_tys
-                | Some ty -> Ast.substitute_ty subst ty :: todo_tys)
-              [] tys'
-          in
-          List.for_all (is_ground_type state') tys'' )
-
 let add_external_function x ty_sch state =
   (* Format.printf "@[val %t : %t@]@." (Ast.Variable.print x)
      (Ast.print_ty_scheme ty_sch); *)
-  { state with variables_ty = Ast.VariableMap.add x ty_sch state.variables_ty }
+  match state.variables_ty with
+  | [] -> assert false
+  | head :: tail ->
+      { state with variables_ty = Ast.VariableMap.add x ty_sch head :: tail }
 
 let add_operation state op ty =
   let ty' = unfold_type_definitions state ty in
