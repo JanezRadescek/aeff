@@ -1,6 +1,6 @@
 type option-8
-operation call-0 : int-1 × int-1
-operation result-1 : int-1 × int-1
+operation call-0 : int × int
+operation result-1 : int × int
 ↑call-0 (3, 1), id=1
 ↑call-0 (2, 0), id=1
 ↑result-1 (240, 0), id=0
@@ -8,18 +8,19 @@ operation result-1 : int-1 × int-1
 The program has terminated in the configuration:
 Conf
   id = 0;
-  res = promise (call-0 (x-313, callNo-312) ↦
-                                let y-314 =
-                                   (fun x-315 ↦ let var-316 =
-                                                     let var-317 =
-                                                        (*)-8 (6, x-315) in
-                                                     (*)-8 (5, var-317) in
-                                                  (*)-8 (4, var-316))
-                                   x-313 in
-                                ↑result-1((y-314, callNo-312), return ());
-                                (rec loop-318 ...) ())
-                       as p-311 in
-                       return p-311
+Await
+res = promise (call-0 (x-289, callNo-288) ↦
+                     let y-290 =
+                        (fun x-291 ↦ let var-292 =
+                                          let var-293 = (*)-8 (6, x-291) in
+                                          (*)-8 (5, var-293) in
+                                       (*)-8 (4, var-292))
+                        x-289 in
+                     ↑result-1((y-290, callNo-288), return ());
+                     (rec loop-295 ...) ())
+            as p-287 in
+            return p-287
 Conf
   id = 1;
-  res = 187200
+Done
+res = 187200

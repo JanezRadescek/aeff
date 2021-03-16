@@ -1,7 +1,7 @@
 type option-8
-operation call-0 : int-1 × int-1
-operation result-1 : int-1 × int-1
-operation cancel-2 : int-1
+operation call-0 : int × int
+operation result-1 : int × int
+operation cancel-2 : int
 operation dummy-3 : empty-6
 ↑call-0 (3, 2), id=2
 ↑cancel-2 0, id=2
@@ -18,232 +18,197 @@ operation dummy-3 : empty-6
 The program has terminated in the configuration:
 Conf
   id = 0;
-  res = promise (dummy-3 empty-532 ↦
-                                return-205 ⟨empty-532⟩)
-                       as dummyPromise-500 in
-                       promise (dummy-3 empty-813 ↦
-                                return-205 ⟨empty-813⟩)
-                       as dummyPromise-781 in
-                       promise (cancel-2 callNo'-1101 ↦
-                                let var-1102 = (=)-0 (2, callNo'-1101) in
-                                match var-1102 with (true ↦ promise (
-                                                              dummy-3 empty-1135 ↦
-                                                              return-205
-                                                              ⟨empty-1135⟩)
-                                                              as dummyPromise-1103 in
-                                                              (rec loop-1126 ...)
-                                                              ();
-                                                              awaitValue-207
-                                                              dummyPromise-1103;
-                                                              let var-1104 =
-                                                                 (rec awaitCancel-1114 ...)
-                                                                 2 in
-                                                              var-1104
-                                                              (rec loop-1105 ...) | 
-                                                     false ↦ (rec var-1136 ...)
-                                                               ()))
-                       as var-1100 in
-                       promise (cancel-2 callNo'-1227 ↦
-                                let var-1228 = (=)-0 (1, callNo'-1227) in
-                                match var-1228 with (true ↦ promise (
-                                                              dummy-3 empty-1261 ↦
-                                                              return-205
-                                                              ⟨empty-1261⟩)
-                                                              as dummyPromise-1229 in
-                                                              (rec loop-1252 ...)
-                                                              ();
-                                                              awaitValue-207
-                                                              dummyPromise-1229;
-                                                              let var-1230 =
-                                                                 (rec awaitCancel-1240 ...)
-                                                                 1 in
-                                                              var-1230
-                                                              (rec loop-1231 ...) | 
-                                                     false ↦ (rec var-1262 ...)
-                                                               ()))
-                       as var-1226 in
-                       promise (call-0 (x-1176, callNo-1175) ↦
-                                let var-1181 = awaitCancel-225 callNo-1175 in
-                                var-1181 (rec loop-1299 ...);
-                                let y-1177 =
-                                   (fun x-1178 ↦ let var-1179 =
-                                                      let var-1180 =
-                                                         (*)-8 (6, x-1178) in
-                                                      (*)-8 (5, var-1180) in
-                                                   (*)-8 (4, var-1179))
-                                   x-1176 in
-                                ↑result-1((y-1177, callNo-1175), return ());
-                                (rec loop-1299 ...) ())
-                       as p-1174 in
-                       let var-778 =
-                          ↓call-0((2, 1),
-                                    ↓call-0((240, 2),
-                                              await dummyPromise-781 until
-                                                    ⟨value-209⟩ in
-                                              return-205 value-209));
-                          ↓call-0((2, 1),
-                                    ↓call-0((240, 2),
-                                              let var-782 =
-                                                 (rec awaitCancel-792 ...) 2 in
-                                              var-782 (rec loop-783 ...))) in
-                       ↓call-0((2, 1),
-                                 ↓call-0((240, 2),
-                                           ↓cancel-2(2,
-                                                       promise (call-0 (
-                                                                x-728, 
-                                                                callNo-727) ↦
-                                                                let var-733 =
-                                                                   awaitCancel-225
-                                                                   callNo-727 in
-                                                                var-733
-                                                                (rec loop-851 ...);
-                                                                let y-729 =
-                                                                   (fun x-730 ↦ 
-                                                                   let
-                                                                    var-731 =
-                                                                   let
-                                                                    var-732 =
-                                                                   (*)-8
-                                                                   (6, x-730) in
-                                                                   (*)-8
-                                                                   (5, 
-                                                                    var-732) in
-                                                                   (*)-8
-                                                                   (4, 
-                                                                    var-731))
-                                                                   x-728 in
-                                                                ↑result-1(
-                                                                (y-729, 
-                                                                 callNo-727),
-                                                                return ());
-                                                                (rec loop-851 ...)
-                                                                ())
-                                                       as p-726 in
-                                                       let var-497 =
-                                                          ↓call-0((
-                                                                    3, 2),
-                                                                    await 
-                                                                    dummyPromise-500 until
-                                                                    ⟨value-209⟩ in
-                                                                    return-205
-                                                                    value-209);
-                                                          ↓call-0((
-                                                                    3, 2),
-                                                                    let
-                                                                    
-                                                                    var-501 =
-                                                                    (rec awaitCancel-511 ...)
-                                                                    0 in
-                                                                    var-501
-                                                                    (rec loop-502 ...)) in
-                                                       ↓call-0((3, 2),
-                                                                 ↓cancel-2(
-                                                                 0,
-                                                                 promise (
-                                                                 cancel-2 callNo'-629 ↦
-                                                                 let
-                                                                    var-630 =
-                                                                    (=)-0
-                                                                    (
-                                                                    1, 
-                                                                    callNo'-629) in
-                                                                 match var-630 with (
-                                                                 true ↦ 
-                                                                 promise (
-                                                                 dummy-3 empty-663 ↦
-                                                                 return-205
-                                                                 ⟨empty-663⟩)
-                                                                 as dummyPromise-631 in
-                                                                 (rec loop-654 ...)
-                                                                 ();
-                                                                 awaitValue-207
-                                                                 dummyPromise-631;
-                                                                 let
-                                                                    var-632 =
-                                                                    (rec awaitCancel-642 ...)
-                                                                    1 in
-                                                                 var-632
-                                                                 (rec loop-633 ...) | 
-                                                                 false ↦ 
-                                                                 (rec var-664 ...)
-                                                                 ()))
-                                                                 as var-628 in
-                                                                 promise (
-                                                                 call-0 (
-                                                                 x-573, 
-                                                                 callNo-572) ↦
-                                                                 let
-                                                                    var-578 =
-                                                                    awaitCancel-225
-                                                                    callNo-572 in
-                                                                 var-578
-                                                                 (rec loop-701 ...);
-                                                                 let y-574 =
-                                                                    (fun x-575 ↦ 
-                                                                    let
-                                                                    
-                                                                    var-576 =
-                                                                    let
-                                                                    
-                                                                    var-577 =
-                                                                    (*)-8
-                                                                    (
-                                                                    6, x-575) in
-                                                                    (*)-8
-                                                                    (
-                                                                    5, 
-                                                                    var-577) in
-                                                                    (*)-8
-                                                                    (
-                                                                    4, 
-                                                                    var-576))
-                                                                    x-573 in
-                                                                 ↑result-1(
-                                                                 (y-574, 
-                                                                  callNo-572),
+Await
+res = promise (dummy-3 empty-443 ↦ return-205 ⟨empty-443⟩)
+            as dummyPromise-431 in
+            promise (dummy-3 empty-612 ↦ return-205 ⟨empty-612⟩)
+            as dummyPromise-600 in
+            promise (cancel-2 callNo'-885 k-884 ↦
+                     let var-886 = (=)-0 (2, callNo'-885) in
+                     match var-886 with (true ↦ promise (dummy-3 empty-899 ↦
+                                                           return-205
+                                                           ⟨empty-899⟩)
+                                                  as dummyPromise-887 in
+                                                  (rec loop-900 ...) ();
+                                                  awaitValue-207
+                                                  dummyPromise-887;
+                                                  let var-888 =
+                                                     (rec awaitCancel-889 ...)
+                                                     2 in
+                                                  var-888 (rec loop-900 ...) | 
+                                         false ↦ k-884 ()))
+            as p-883 in
+            promise (cancel-2 callNo'-932 k-931 ↦
+                     let var-933 = (=)-0 (1, callNo'-932) in
+                     match var-933 with (true ↦ promise (dummy-3 empty-946 ↦
+                                                           return-205
+                                                           ⟨empty-946⟩)
+                                                  as dummyPromise-934 in
+                                                  (rec loop-947 ...) ();
+                                                  awaitValue-207
+                                                  dummyPromise-934;
+                                                  let var-935 =
+                                                     (rec awaitCancel-936 ...)
+                                                     1 in
+                                                  var-935 (rec loop-947 ...) | 
+                                         false ↦ k-931 ()))
+            as p-930 in
+            promise (call-0 (x-912, callNo-911) ↦
+                     let var-917 = awaitCancel-224 callNo-911 in
+                     var-917 (rec loop-956 ...);
+                     let y-913 =
+                        (fun x-914 ↦ let var-915 =
+                                          let var-916 = (*)-8 (6, x-914) in
+                                          (*)-8 (5, var-916) in
+                                       (*)-8 (4, var-915))
+                        x-912 in
+                     ↑result-1((y-913, callNo-911), return ());
+                     (rec loop-956 ...) ())
+            as p-910 in
+            let p-596 =
+               ↓call-0((2, 1),
+                         ↓call-0((240, 2),
+                                   await dummyPromise-600 until
+                                         ⟨value-209⟩ in
+                                   return-205 value-209));
+               ↓call-0((2, 1),
+                         ↓call-0((240, 2),
+                                   let var-601 = (rec awaitCancel-602 ...) 2 in
+                                   var-601 (rec loop-613 ...))) in
+            ↓call-0((2, 1),
+                      ↓call-0((240, 2),
+                                ↓cancel-2(2,
+                                            promise (call-0 (x-578, 
+                                                             callNo-577) ↦
+                                                     let var-583 =
+                                                        awaitCancel-224
+                                                        callNo-577 in
+                                                     var-583
+                                                     (rec loop-622 ...);
+                                                     let y-579 =
+                                                        (fun x-580 ↦ 
+                                                        let var-581 =
+                                                           let var-582 =
+                                                              (*)-8
+                                                              (6, x-580) in
+                                                           (*)-8 (5, var-582) in
+                                                        (*)-8 (4, var-581))
+                                                        x-578 in
+                                                     ↑result-1((y-579, 
+                                                                  callNo-577),
                                                                  return ());
-                                                                 (rec loop-701 ...)
-                                                                 ())
-                                                                 as p-571 in
-                                                                 return p-571)))))
+                                                     (rec loop-622 ...) ())
+                                            as p-576 in
+                                            let p-427 =
+                                               ↓call-0((3, 2),
+                                                         await dummyPromise-431 until
+                                                               ⟨value-209⟩ in
+                                                         return-205 value-209);
+                                               ↓call-0((3, 2),
+                                                         let var-432 =
+                                                            (rec awaitCancel-433 ...)
+                                                            0 in
+                                                         var-432
+                                                         (rec loop-444 ...)) in
+                                            ↓call-0((3, 2),
+                                                      ↓cancel-2(0,
+                                                                  promise (
+                                                                  cancel-2 callNo'-482 k-481 ↦
+                                                                  let
+                                                                   var-483 =
+                                                                  (=)-0
+                                                                  (1, 
+                                                                   callNo'-482) in
+                                                                  match var-483 with (
+                                                                  true ↦ 
+                                                                  promise (
+                                                                  dummy-3 empty-496 ↦
+                                                                  return-205
+                                                                  ⟨empty-496⟩)
+                                                                  as dummyPromise-484 in
+                                                                  (rec loop-497 ...)
+                                                                  ();
+                                                                  awaitValue-207
+                                                                  dummyPromise-484;
+                                                                  let
+                                                                   var-485 =
+                                                                  (rec awaitCancel-486 ...)
+                                                                  1 in
+                                                                  var-485
+                                                                  (rec loop-497 ...) | 
+                                                                  false ↦ 
+                                                                  k-481 ()))
+                                                                  as p-480 in
+                                                                  promise (
+                                                                  call-0 (
+                                                                  x-456, 
+                                                                  callNo-455) ↦
+                                                                  let
+                                                                   var-461 =
+                                                                  awaitCancel-224
+                                                                  callNo-455 in
+                                                                  var-461
+                                                                  (rec loop-506 ...);
+                                                                  let
+                                                                   y-457 =
+                                                                  (fun x-458 ↦ 
+                                                                  let
+                                                                   var-459 =
+                                                                  let
+                                                                   var-460 =
+                                                                  (*)-8
+                                                                  (6, x-458) in
+                                                                  (*)-8
+                                                                  (5, var-460) in
+                                                                  (*)-8
+                                                                  (4, var-459))
+                                                                  x-456 in
+                                                                  ↑result-1(
+                                                                  (y-457, 
+                                                                   callNo-455),
+                                                                  return ());
+                                                                  (rec loop-506 ...)
+                                                                  ())
+                                                                  as p-454 in
+                                                                  return p-454)))))
 Conf
   id = 1;
-  res = promise (call-0 (x-1311, callNo-1310) ↦
-                                let var-1312 = (!)-13 { contents = [] } in
-                                (:=)-14
-                                ({ contents = [] }, 
-                                 (x-1311, callNo-1310)::var-1312);
-                                (rec reInvokerCall-1680 ...) ())
-                       as var-1309 in
-                       promise (result-1 (y-1810, callNo-1809) ↦
-                                let var-1811 =
-                                   let var-1812 =
-                                      filter-106
-                                      (fun (_, callNo'-1814) ↦ (<>)-5
-                                                                 (callNo-1809, 
-                                                                  callNo'-1814)) in
-                                   let var-1813 = (!)-13 { contents = [] } in
-                                   var-1812 var-1813 in
-                                (:=)-14 ({ contents = [] }, var-1811);
-                                (rec reInvokerResult-1853 ...) ())
-                       as var-1808 in
-                       promise (cancel-2 callNo-1025 ↦
-                                let var-1028 =
-                                   let var-1029 =
-                                      filter-106
-                                      (fun (_, callNo'-1031) ↦ (<>)-5
-                                                                 (callNo-1025, 
-                                                                  callNo'-1031)) in
-                                   let var-1030 = (!)-13 { contents = [] } in
-                                   var-1029 var-1030 in
-                                (:=)-14 ({ contents = [] }, var-1028);
-                                let var-1026 =
-                                   let var-1027 = (!)-13 { contents = [] } in
-                                   reverse-33 var-1027 in
-                                (rec reInvokerWrapper-1675 ...) var-1026;
-                                (rec reInvokerCancel-1660 ...) ())
-                       as var-1024 in
-                       return ⟨()⟩
+Await
+res = promise (call-0 (x-969, callNo-968) ↦
+                     let var-970 = (!)-13 { contents = [] } in
+                     (:=)-14
+                     ({ contents = [] }, (x-969, callNo-968)::var-970);
+                     (rec reInvokerCall-1348 ...) ())
+            as var-967 in
+            promise (result-1 (y-1480, callNo-1479) ↦
+                     let var-1481 =
+                        let var-1482 =
+                           filter-106
+                           (fun (_, callNo'-1484) ↦ (<>)-5
+                                                      (callNo-1479, 
+                                                       callNo'-1484)) in
+                        let var-1483 = (!)-13 { contents = [] } in
+                        var-1482 var-1483 in
+                     (:=)-14 ({ contents = [] }, var-1481);
+                     (rec reInvokerResult-1524 ...) ())
+            as var-1478 in
+            promise (cancel-2 callNo-797 ↦
+                     let var-800 =
+                        let var-801 =
+                           filter-106
+                           (fun (_, callNo'-803) ↦ (<>)-5
+                                                     (callNo-797, callNo'-803)) in
+                        let var-802 = (!)-13 { contents = [] } in
+                        var-801 var-802 in
+                     (:=)-14 ({ contents = [] }, var-800);
+                     let var-798 =
+                        let var-799 = (!)-13 { contents = [] } in
+                        reverse-33 var-799 in
+                     (rec reInvokerWrapper-1342 ...) var-798;
+                     (rec reInvokerCancel-1327 ...) ())
+            as var-796 in
+            return ⟨()⟩
 Conf
   id = 2;
-  res = 360
+Done
+res = 360

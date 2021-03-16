@@ -1,15 +1,18 @@
 type option-8
-operation op1-0 : int-1
-operation op2-1 : int-1
+operation op1-0 : int
+operation op2-1 : int
 ↑op2-1 2, id=1
 ↑op1-0 1, id=2
 The program has terminated in the configuration:
 Conf
   id = 0;
-  res = 625
+Done
+res = 625
 Conf
   id = 1;
-  res = ()
+Done
+res = ()
 Conf
   id = 2;
-  res = ()
+Done
+res = ()

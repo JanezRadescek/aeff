@@ -1,12 +1,14 @@
 type option-8
-operation listInterrupt-0 : int-1 list-5
-operation productSignal-1 : int-1
+operation listInterrupt-0 : int list-5
+operation productSignal-1 : int
 ↑listInterrupt-0 -3::-2::-1::0::1::2::3::[], id=0
 ↑productSignal-1 6, id=1
 The program has terminated in the configuration:
 Conf
   id = 0;
-  res = ()
+Done
+res = ()
 Conf
   id = 1;
-  res = ⟨6⟩
+Done
+res = ⟨6⟩
