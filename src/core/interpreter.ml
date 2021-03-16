@@ -268,6 +268,12 @@ let big_step state (conf : conf) : conf =
               | Ast.Fulfill e' ->
                   let comp' = substitution e' abs in
                   small_steps { cs with res = Ready comp' }
+              | _ -> assert false )
+          | Ast.Unbox (e, abs) -> (
+              match e with
+              | Ast.Boxed b ->
+                  let comp' = substitution b abs in
+                  small_steps { cs with res = Ready comp' }
               | _ -> assert false ) )
     else conf_small
   in

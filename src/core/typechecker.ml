@@ -69,6 +69,7 @@ let rec unfold_type_definitions state ty =
         (unfold_type_definitions state ty1, unfold_type_definitions state ty2)
   | Ast.TyPromise ty -> Ast.TyPromise (unfold_type_definitions state ty)
   | Ast.TyReference ty -> Ast.TyReference (unfold_type_definitions state ty)
+  | Ast.TyBoxed ty -> Ast.TyBoxed (unfold_type_definitions state ty)
 
 let extend_variables state vars =
   List.fold_left
@@ -140,6 +141,7 @@ let rec apply_subs subs poly_type =
   | Ast.TyTuple tys -> Ast.TyTuple (List.map map' tys)
   | Ast.TyPromise ty -> Ast.TyPromise (apply_subs subs ty)
   | Ast.TyReference ty -> Ast.TyReference (apply_subs subs ty)
+  | Ast.TyBoxed ty -> Ast.TyBoxed (apply_subs subs ty)
 
 let extend_subs (p, ty) subs =
   match List.assoc_opt p subs with
@@ -158,6 +160,7 @@ let unify state subs ty_1 ty_2 =
     | Ast.TyTuple tys -> List.exists (occurs a) tys
     | Ast.TyPromise ty -> occurs a ty
     | Ast.TyReference ty -> occurs a ty
+    | Ast.TyBoxed ty -> occurs a ty
   in
 
   let rec unify_rec state_rec subs_rec ty_1_rec ty_2_rec =
@@ -181,13 +184,15 @@ let unify state subs ty_1 ty_2 =
         unify_rec state_rec subs_rec p_1 p_2
     | Ast.TyReference r_1, Ast.TyReference r_2 ->
         unify_rec state_rec subs_rec r_1 r_2
+    | Ast.TyBoxed b_1, Ast.TyBoxed b_2 -> unify_rec state_rec subs_rec b_1 b_2
     | Ast.TyConst _, _
     | Ast.TyApply _, _
     | Ast.TyParam _, _
     | Ast.TyArrow _, _
     | Ast.TyTuple _, _
     | Ast.TyPromise _, _
-    | Ast.TyReference _, _ ->
+    | Ast.TyReference _, _
+    | Ast.TyBoxed _, _ ->
         let print_param = Ast.new_print_param () in
         Error.typing "We calculated type %t but annotation says %t"
           (Ast.print_ty print_param (apply_subs subs_rec ty_1_rec))
@@ -325,6 +330,9 @@ let rec infer_expression state subs = function
           (ty_out', subs')
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch" )
+  | Boxed e ->
+      let ty, subs' = infer_expression state subs e in
+      (Ast.TyBoxed ty, subs')
 
 and check_expression state subs annotation expr : (Ast.ty_param * Ast.ty) list =
   match (expr, unfold_type_definitions state (apply_subs subs annotation)) with
@@ -406,7 +414,7 @@ and infer_computation state subst = function
           let subs' = unify state subs_e ty ty_promise' in
           let ty_a, subs_a = infer_abstraction state subs' ty' abs in
           (ty_a, subs_a)
-      | _ -> Error.typing "Expected Await." )
+      | _ -> Error.typing "Expected Promise type." )
   | Ast.Match (_, []) ->
       Error.typing "Cannot infer the type of a match with no cases"
   | Ast.Match (e, case :: cases) ->
@@ -440,6 +448,19 @@ and infer_computation state subst = function
       (* (apply_subs subs_abs ty, subs_abs) *)
       let state'' = extend_variables state [ (p, apply_subs subs_k ty_abs) ] in
       infer_computation state'' subs_k comp
+  | Ast.Unbox (e, abs) -> (
+      let ty_boxed, subs_e = infer_expression state subst e in
+      match ty_boxed with
+      | Ast.TyBoxed ty1 ->
+          let ty_a, subs_a = infer_abstraction state subs_e ty1 abs in
+          (ty_a, subs_a)
+      | Ast.TyParam _p as ty ->
+          let ty' = fresh_ty () in
+          let ty_boxed' = Ast.TyBoxed ty' in
+          let subs' = unify state subs_e ty ty_boxed' in
+          let ty_a, subs_a = infer_abstraction state subs' ty' abs in
+          (ty_a, subs_a)
+      | _ -> Error.typing "Expected Boxed type." )
 
 and check_computation state subs annotation = function
   | Ast.Return expr -> check_expression state subs annotation expr
@@ -498,6 +519,17 @@ and check_computation state subs annotation = function
       let subs_k = check_abstraction state' subs (ty_op', ty_abs) abs in
       let state'' = extend_variables state [ (p, apply_subs subs_k ty_abs) ] in
       check_computation state'' subs_k annotation comp
+  | Ast.Unbox (e, abs) as c -> (
+      let ty_1, subs_1 = infer_expression state subs e in
+      match ty_1 with
+      | Ast.TyBoxed ty ->
+          let subs_2 = check_abstraction state subs_1 (ty, annotation) abs in
+          subs_2
+      | _ ->
+          let print_param = Ast.new_print_param () in
+          Error.typing "Expected Boxed, but got %t in %t"
+            (Ast.print_ty print_param ty_1)
+            (Ast.print_computation c) )
 
 and infer_abstraction state subs ty_argument (pat, comp) :
     Ast.ty * (Ast.ty_param * Ast.ty) list =
@@ -572,6 +604,7 @@ let rec is_ground_type state (ty : Ast.ty) : bool =
   | Ast.TyTuple tys -> List.for_all (is_ground_type state) tys
   | Ast.TyPromise _ -> false
   | Ast.TyReference _ -> false
+  | Ast.TyBoxed _ -> true
 
 and is_apply_semi_ground_type state ty_name tys =
   match SemiGround.mem ty_name state.semi_ground_variants with

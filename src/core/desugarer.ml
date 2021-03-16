@@ -74,6 +74,7 @@ and desugar_plain_ty ~loc state = function
   | S.TyConst c -> Ast.TyConst c
   | S.TyReference ty -> Ast.TyReference (desugar_ty state ty)
   | S.TyPromise ty -> Ast.TyPromise (desugar_ty state ty)
+  | S.TyBoxed ty -> Ast.TyBoxed (desugar_ty state ty)
 
 let rec free_params_in_ty { it = plain_ty; Location.at = _ } =
   let fold' sez ty = free_params_in_ty ty @ sez in
@@ -97,7 +98,7 @@ let rec free_params_in_ty { it = plain_ty; Location.at = _ } =
         let free_params = List.fold_left fold' [] tys in
         free_params
     | S.TyConst _c -> []
-    | S.TyReference ty | S.TyPromise ty -> free_params_in_ty ty
+    | S.TyReference ty | S.TyPromise ty | S.TyBoxed ty -> free_params_in_ty ty
   in
   remove_dup result
 
@@ -184,8 +185,11 @@ and desugar_plain_expression ~loc state = function
   | S.Fulfill term ->
       let binds, e = desugar_expression state term in
       (binds, Ast.Fulfill e)
+  | S.Boxed term ->
+      let binds, e = desugar_expression state term in
+      (binds, Ast.Boxed e)
   | ( S.Apply _ | S.Match _ | S.Let _ | S.LetRec _ | S.Conditional _
-    | S.Promise _ | S.Await _ | S.Send _ ) as term ->
+    | S.Promise _ | S.Await _ | S.Send _ | S.Unbox _ ) as term ->
       let x = Ast.Variable.fresh None in
       let comp = desugar_computation state (Location.add_loc ~loc term) in
       let hoist = (Ast.PVar x, comp) in
@@ -253,10 +257,14 @@ and desugar_plain_computation ~loc state =
       let op' = lookup_operation ~loc state op in
       let binds, e = desugar_expression state t in
       (binds, Ast.Out (op', e, Ast.Return (Ast.Tuple [])))
+  | S.Unbox (t, abs) ->
+      let binds, e = desugar_expression state t in
+      let abs' = desugar_abstraction state abs in
+      (binds, Ast.Unbox (e, abs'))
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changes. *)
   | ( S.Var _ | S.Const _ | S.Annotated _ | S.Tuple _ | S.Variant _ | S.Lambda _
-    | S.Function _ | S.Fulfill _ ) as term ->
+    | S.Function _ | S.Fulfill _ | S.Boxed _ ) as term ->
       let binds, expr = desugar_expression state { it = term; at = loc } in
       (binds, Ast.Return expr)
 
