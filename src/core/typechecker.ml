@@ -566,18 +566,24 @@ let check_polymorphic_expression state (params, ty) expr =
 let rec is_ground_type state (ty : Ast.ty) : bool =
   match ty with
   | Ast.TyConst _ -> true
-  | Ast.TyApply (ty_name, tys) ->
-      is_apply_semi_ground_type_apply state ty_name tys
+  | Ast.TyApply (ty_name, tys) -> is_apply_semi_ground_type state ty_name tys
   | Ast.TyParam _ -> false
   | Ast.TyArrow _ -> false
   | Ast.TyTuple tys -> List.for_all (is_ground_type state) tys
   | Ast.TyPromise _ -> false
   | Ast.TyReference _ -> false
 
-and is_apply_semi_ground_type_apply state ty_name tys =
+and is_apply_semi_ground_type state ty_name tys =
   match SemiGround.mem ty_name state.semi_ground_variants with
   | true -> List.for_all (is_ground_type state) tys
   | false -> (
+      let state' =
+        {
+          state with
+          semi_ground_variants =
+            SemiGround.add ty_name state.semi_ground_variants;
+        }
+      in
       match Ast.TyNameMap.find ty_name state.type_definitions with
       | params, Ast.TyInline ty_def ->
           let subst =
@@ -585,13 +591,6 @@ and is_apply_semi_ground_type_apply state ty_name tys =
           in
           is_ground_type state (Ast.substitute_ty subst ty_def)
       | params, Ast.TySum tys' ->
-          let state' =
-            {
-              state with
-              semi_ground_variants =
-                SemiGround.add ty_name state.semi_ground_variants;
-            }
-          in
           let subst =
             List.combine params tys |> List.to_seq |> Ast.TyParamMap.of_seq
           in
