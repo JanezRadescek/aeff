@@ -359,7 +359,7 @@ and check_expression state subs annotation expr : (Ast.ty_param * Ast.ty) list =
           let subs_v = unify state subs_e ty_out' anno in
           subs_v
       | None, Some _ | Some _, None ->
-          Error.typing "Variant optional argument mismatch" )
+          Error.typing "Variant optional argument mismatch." )
   | ((Ast.Var _ | Ast.Const _ | Ast.Annotated _) as e), anno ->
       let ty, subs_e = infer_expression state subs e in
       unify state subs_e ty anno
@@ -368,9 +368,12 @@ and check_expression state subs annotation expr : (Ast.ty_param * Ast.ty) list =
       unify state subs' ty anno
   | _, _ ->
       let print_param = Ast.new_print_param () in
-      Error.typing "Expresion %t is not of type %t"
+      let ty, subs_e = infer_expression state subs expr in
+      let ty' = apply_subs subs_e ty in
+      Error.typing "Expresion %t is not of type %t, infer says its of type %t."
         (Ast.print_expression expr)
         (Ast.print_ty print_param annotation)
+        (Ast.print_ty print_param ty')
 
 and infer_computation state subst = function
   | Ast.Return e -> infer_expression state subst e
