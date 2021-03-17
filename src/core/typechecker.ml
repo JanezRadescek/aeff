@@ -445,7 +445,14 @@ and check_expression state subs annotation expr : (Ast.ty_param * Ast.ty) list =
           subs_v
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch." )
-  | Ast.Boxed e, Ast.TyBoxed anno -> check_expression state subs anno e
+  | Ast.Boxed e, Ast.TyBoxed anno ->
+      let state' =
+        {
+          state with
+          variables_ty = Ast.VariableMap.empty :: state.variables_ty;
+        }
+      in
+      check_expression state' subs anno e
   | ((Ast.Var _ | Ast.Const _ | Ast.Annotated _) as e), anno ->
       let ty, subs_e = infer_expression state subs e in
       unify state subs_e ty anno
