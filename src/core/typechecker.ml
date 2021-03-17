@@ -44,7 +44,10 @@ let initial_state =
                        Ast.TyApply (Ast.list_ty_name, [ Ast.TyParam a ]);
                      ]) );
             ] ) );
-    semi_mobile_variants = SemiMobile.empty;
+    semi_mobile_variants =
+      SemiMobile.empty
+      |> SemiMobile.add Ast.empty_ty_name
+      |> SemiMobile.add Ast.list_ty_name;
     semi_mobile_candidate = SemiMobile.empty;
   }
 
@@ -52,8 +55,7 @@ let rec is_mobile state (ty : Ast.ty) : bool =
   match ty with
   | Ast.TyConst _ -> true
   | Ast.TyApply (ty_name, tys) ->
-      ( SemiMobile.mem ty_name state.semi_mobile_variants
-      || is_apply_semi_mobile state ty_name tys )
+      SemiMobile.mem ty_name state.semi_mobile_variants
       && List.for_all (is_mobile state) tys
   | Ast.TyParam _ -> false
   | Ast.TyArrow _ -> false
@@ -62,7 +64,7 @@ let rec is_mobile state (ty : Ast.ty) : bool =
   | Ast.TyReference _ -> false
   | Ast.TyBoxed _ -> true
 
-and is_semi_mobile state ty : bool =
+let rec is_semi_mobile state ty : bool =
   match ty with
   | Ast.TyConst _ -> true
   | Ast.TyApply (ty_name, tys) ->
