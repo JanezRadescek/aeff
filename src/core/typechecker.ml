@@ -1,11 +1,12 @@
 open Utils
-module SemiGround = Set.Make (Ast.TyName)
+module SemiMobile = Set.Make (Ast.TyName)
 
 type state = {
   variables_ty : Ast.ty_scheme Ast.VariableMap.t list;
   operations : Ast.ty Ast.OperationMap.t;
   type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
-  semi_ground_variants : SemiGround.t;
+  semi_mobile_variants : SemiMobile.t;
+  semi_mobile_candidate : SemiMobile.t;
       (**This Variant are ground if all params are ground *)
 }
 
@@ -43,50 +44,62 @@ let initial_state =
                        Ast.TyApply (Ast.list_ty_name, [ Ast.TyParam a ]);
                      ]) );
             ] ) );
-    semi_ground_variants = SemiGround.empty;
+    semi_mobile_variants = SemiMobile.empty;
+    semi_mobile_candidate = SemiMobile.empty;
   }
 
-let rec is_ground_type state (ty : Ast.ty) : bool =
+let rec is_mobile state (ty : Ast.ty) : bool =
   match ty with
   | Ast.TyConst _ -> true
-  | Ast.TyApply (ty_name, tys) -> is_apply_semi_ground_type state ty_name tys
+  | Ast.TyApply (ty_name, tys) ->
+      ( SemiMobile.mem ty_name state.semi_mobile_variants
+      || is_apply_semi_mobile state ty_name tys )
+      && List.for_all (is_mobile state) tys
   | Ast.TyParam _ -> false
   | Ast.TyArrow _ -> false
-  | Ast.TyTuple tys -> List.for_all (is_ground_type state) tys
+  | Ast.TyTuple tys -> List.for_all (is_mobile state) tys
   | Ast.TyPromise _ -> false
   | Ast.TyReference _ -> false
   | Ast.TyBoxed _ -> true
 
-and is_apply_semi_ground_type state ty_name tys =
-  match SemiGround.mem ty_name state.semi_ground_variants with
-  | true -> List.for_all (is_ground_type state) tys
-  | false -> (
+and is_semi_mobile state ty : bool =
+  match ty with
+  | Ast.TyConst _ -> true
+  | Ast.TyApply (ty_name, tys) ->
+      is_apply_semi_mobile state ty_name tys
+      && List.for_all (is_semi_mobile state) tys
+  | Ast.TyParam _ -> true
+  | Ast.TyArrow _ -> false
+  | Ast.TyTuple tys -> List.for_all (is_semi_mobile state) tys
+  | Ast.TyPromise _ -> false
+  | Ast.TyReference _ -> false
+  | Ast.TyBoxed _ -> true
+
+and is_apply_semi_mobile state ty_name tys =
+  match SemiMobile.mem ty_name state.semi_mobile_candidate with
+  | true -> List.for_all (is_semi_mobile state) tys
+  | false ->
       let state' =
         {
           state with
-          semi_ground_variants =
-            SemiGround.add ty_name state.semi_ground_variants;
+          semi_mobile_candidate =
+            SemiMobile.add ty_name state.semi_mobile_candidate;
         }
       in
-      match Ast.TyNameMap.find ty_name state.type_definitions with
-      | params, Ast.TyInline ty_def ->
-          let subst =
-            List.combine params tys |> List.to_seq |> Ast.TyParamMap.of_seq
-          in
-          is_ground_type state (Ast.substitute_ty subst ty_def)
-      | params, Ast.TySum tys' ->
-          let subst =
-            List.combine params tys |> List.to_seq |> Ast.TyParamMap.of_seq
-          in
-          let tys'' =
-            List.fold_left
-              (fun todo_tys (_lbl, ty) ->
-                match ty with
-                | None -> todo_tys
-                | Some ty -> Ast.substitute_ty subst ty :: todo_tys)
-              [] tys'
-          in
-          List.for_all (is_ground_type state') tys'' )
+      let _params, ty_def = Ast.TyNameMap.find ty_name state.type_definitions in
+      is_ty_def_semi_mobile state' ty_def
+
+and is_ty_def_semi_mobile state (ty_def : Ast.ty_def) : bool =
+  match ty_def with
+  | Ast.TyInline ty -> is_semi_mobile state ty
+  | Ast.TySum tys' ->
+      let tys'' =
+        List.fold_left
+          (fun todo_tys (_lbl, ty) ->
+            match ty with None -> todo_tys | Some ty -> ty :: todo_tys)
+          [] tys'
+      in
+      List.for_all (is_semi_mobile state) tys''
 
 let fresh_ty () =
   let a = Ast.TyParam.fresh None in
@@ -344,7 +357,7 @@ let infer_variable state x : Ast.ty_scheme =
                 | None -> find_movable t )
           in
           let params, ty = find_movable tail in
-          if is_ground_type state ty then (params, ty)
+          if is_mobile state ty then (params, ty)
           else
             Error.typing "We expected movable type but got %t for %t"
               (Ast.print_ty (Ast.new_print_param ()) ty)
@@ -683,7 +696,7 @@ let add_operation state op ty =
   let ty' = unfold_type_definitions state ty in
   Format.printf "@[operation %t : %t@]@." (Ast.Operation.print op)
     (Ast.print_ty_scheme ([], ty'));
-  if is_ground_type state ty' then
+  if is_mobile state ty' then
     { state with operations = Ast.OperationMap.add op ty state.operations }
   else Error.typing "Payload of an operation must be of a ground type"
 
@@ -697,11 +710,20 @@ let add_type_definitions state ty_defs =
   List.fold_left
     (fun state (params, ty_name, ty_def) ->
       Format.printf "@[type %t@]@." (Ast.TyName.print ty_name);
-      {
-        state with
-        type_definitions =
-          Ast.TyNameMap.add ty_name (params, ty_def) state.type_definitions;
-      })
+      let state' =
+        {
+          state with
+          type_definitions =
+            Ast.TyNameMap.add ty_name (params, ty_def) state.type_definitions;
+        }
+      in
+      if is_ty_def_semi_mobile state ty_def then
+        {
+          state' with
+          semi_mobile_variants =
+            SemiMobile.add ty_name state.semi_mobile_variants;
+        }
+      else state')
     state ty_defs
 
 let check_payload state op expr =

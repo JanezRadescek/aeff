@@ -412,7 +412,7 @@ and print_expression ?max_level e ppf =
   | RecLambda (f, _a) -> print ~at_level:2 "rec %t ..." (Variable.print f)
   | Fulfill expr -> print "⟨%t⟩" (print_expression expr)
   | Reference r -> print "{ contents = %t }" (print_expression !r)
-  | Boxed expr -> print "@[%t@]" (print_expression expr)
+  | Boxed expr -> print "[%t]" (print_expression expr)
 
 and print_computation ?max_level c ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
