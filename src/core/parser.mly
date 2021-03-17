@@ -427,6 +427,8 @@ plain_simple_ty:
     { TyApply (t, []) }
   | LPROMISE t = ty RPROMISE
     { TyPromise t }
+  | LBOXED t = ty RBOXED
+    { TyBoxed t }
   | t = PARAM
     { TyParam t }
   | LPAREN t = ty RPAREN
