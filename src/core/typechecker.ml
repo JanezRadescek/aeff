@@ -346,8 +346,9 @@ let infer_variable state x : Ast.ty_scheme =
           let params, ty = find_movable tail in
           if is_ground_type state ty then (params, ty)
           else
-            Error.typing "We expected movable type but got %t"
-              (Ast.print_ty (Ast.new_print_param ()) ty) )
+            Error.typing "We expected movable type but got %t for %t"
+              (Ast.print_ty (Ast.new_print_param ()) ty)
+              (Ast.Variable.print x) )
 
 let rec infer_expression state subs = function
   | Ast.Var x ->
@@ -431,6 +432,7 @@ and check_expression state subs annotation expr : (Ast.ty_param * Ast.ty) list =
           subs_v
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch." )
+  | Ast.Boxed e, Ast.TyBoxed anno -> check_expression state subs anno e
   | ((Ast.Var _ | Ast.Const _ | Ast.Annotated _) as e), anno ->
       let ty, subs_e = infer_expression state subs e in
       unify state subs_e ty anno
