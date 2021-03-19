@@ -22,63 +22,52 @@ let (allocHeap : (int * 'b) list -> 'b -> ((int * 'b) list * int)) heap v =
   let l = length heap in
   (l, v) :: heap, l
 
-let (heapRunner : unit -> 'a) () =
+let (heapRunner : unit -> unit) () =
     let heap = ref empty in
-    let rec awaitLookup () =
-        promise (lookupReq (l, callId) |->
-            let v = lookupHeap !heap l in
-            send lookupRes (v, callId);
-            awaitLookup ()
-        ) as p in return p
-    in
-    let rec awaitUpdate () =
-        promise (updateReq (l, v, callId) |->
-            let heap' = updateHeap !heap l v in
-            send updateRes callId;
-            heap := heap';
-            awaitUpdate ()
-        ) as p in return p
-    in
-    let rec awaitAlloc () =
-        promise (allocReq (v, callId) |->
-            let heap', l = allocHeap !heap v in
-            send allocRes (l, callId);
-            heap := heap';
-            awaitAlloc ()
-        ) as p in return p
-    in
-    awaitLookup ();
-    awaitUpdate ();
-    awaitAlloc ()
+ 
+    promise (lookupReq (l, callId) k |->
+        let v = lookupHeap !heap l in
+        send lookupRes (v, callId);
+        k ()
+    ) as _ in
+
+    promise (updateReq (l, v, callId) k |->
+        let heap' = updateHeap !heap l v in
+        send updateRes callId;
+        heap := heap';
+        k ()
+    ) as _ in
+
+    promise (allocReq (v, callId) k |->
+        let heap', l = allocHeap !heap v in
+        send allocRes (l, callId);
+        heap := heap';
+        k ()
+    ) as _ in
+    ()
 
 let (lookup : int ref -> int -> int) callCounter l =
     let callNo = !callCounter in
     send lookupReq (l, callNo);
     callCounter := callNo + 1;
-    promise (lookupRes (v, callNo') k |->
-        if callNo = callNo' then
-            return <<v>>
-        else k ()
+    promise (lookupRes (v, callNo') when callNo = callNo' |->
+        return <<v>>
     ) as p in awaitValue p
 
 let (update  : int ref -> int -> int -> unit) callCounter l v =
     let callNo = !callCounter in
     send updateReq (l, v, callNo);
     callCounter := callNo + 1;
-    promise (updateRes (callNo') k |->
-        if callNo = callNo' then
-            return <<()>>
-        else k ()
+    promise (updateRes (callNo') when callNo = callNo' |->
+        return <<()>>
     ) as p in awaitValue p
 
 let (alloc : int ref -> int -> int) callCounter v =
     let callNo = !callCounter in
     send allocReq (v, callNo);
     callCounter := callNo + 1;
-    promise (allocRes (l, callNo') k |->
-        if callNo = callNo' then
-            return <<l>>
-        else k ()
+    promise (allocRes (l, callNo') when callNo = callNo' |->
+        return <<l>>
     ) as p in awaitValue p
 
 run

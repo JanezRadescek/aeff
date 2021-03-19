@@ -6,7 +6,7 @@ operation batchSizeRequest : unit
 operation batchSizeResponse : int
 
 
-let (client : unit -> 'a) () =
+let (client : unit -> unit) () =
     let cachedData = ref [] in
     let requestInProgress = ref false in
     let currentItem = ref 0 in
@@ -25,44 +25,34 @@ let (client : unit -> 'a) () =
         return ()
     in
 
-    let rec clientLoop batchSize =
-        promise (nextItem () |->
-            let cachedSize = length !cachedData in
-            (if (!currentItem > cachedSize - batchSize / 2) && (not !requestInProgress) then
-                 requestNewData (cachedSize + 1)
-             else
-                 return ());
-            (if (!currentItem) < cachedSize then
-                 send display (toString (nth !cachedData !currentItem));
-                 currentItem := !currentItem + 1
-             else  
-                 send display "please wait a bit and try again");
-            clientLoop batchSize)
-        as p in
-        return p
-    in
-
     await batchSizePromise until <<batchSize>> in
-    clientLoop batchSize
+    promise (nextItem () k |->
+        let cachedSize = length !cachedData in
+        (if (!currentItem > cachedSize - batchSize / 2) && (not !requestInProgress) then
+                requestNewData (cachedSize + 1)
+            else
+                return ());
+        (if (!currentItem) < cachedSize then
+                send display (toString (nth !cachedData !currentItem));
+                currentItem := !currentItem + 1
+            else  
+                send display "please wait a bit and try again");
+        k ())
+    as _ in
+    ()
 
-let (server : int -> 'c) batchSize =
-    let rec waitForBatchSize () =
-        promise (batchSizeRequest () |->
+let (server : int -> unit) batchSize =
+    promise (batchSizeRequest () k |->
             send batchSizeResponse batchSize;
-            waitForBatchSize ())
-        as p in
-        return p
-    in
-    let rec waitForRequest () =
-        promise (request offset |->
+            k ())
+    as _ in
+
+    promise (request offset k |->
             let payload = map (fun x |-> 10 * x) (range offset (offset + batchSize - 1)) in
             send response payload;
-            waitForRequest ())
-        as p in
-        return p
-    in
-    waitForBatchSize ();
-    waitForRequest ()
+            k ())
+    as _ in
+    ()
 
 
 let rec (user : unit -> 'd) () =

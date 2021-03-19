@@ -1,19 +1,15 @@
 operation stop : int
 operation go : int
 
-let (waitForStop : int -> 'a) threadID =
-  promise (stop threadID' k1 |->
-    if threadID = threadID' then
-      promise (go threadID' k2 |->
-        if threadID = threadID' then
-          <<()>>
-        else k2 ()
-      ) as p in
-      await p until <<_>> in
-      k1 ()
-    else k1 ()
-  ) as p in
-  p
+let (waitForStop : int -> unit) threadID =
+    promise (stop threadID' k when threadID = threadID' |->
+        promise (go threadID' when threadID = threadID' |->
+            <<()>>
+        ) as p in
+        await p until <<_>> in
+        k ()
+    ) as _ in
+    ()
 
 run
   waitForStop 1; 1 + 1 + 1 + 1 + 1

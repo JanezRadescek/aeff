@@ -11,23 +11,20 @@ let (callWith : int ref -> int -> unit -> int) callCounter =
         let callNo = !callCounter in
         send call (x, callNo);
         callCounter := callNo + 1;
-        promise (result (y, callNo') k |->
-            if callNo = callNo' then
-                return <<y>>
-            else k ()
+        promise (result (y, callNo') when callNo = callNo' |->
+            return <<y>>
         ) as p in
         let valueThunk () = awaitValue p in
         return valueThunk
 
-let (remote : (int -> int) -> 'a) f =
-    let rec loop () =
-        promise (call (x, callNo) |->
-            let y = f x in
-            send result (y, callNo);
-            loop ()
-        ) as p in return p
-    in
-    loop ()
+let (remote : (int -> int) -> unit) f =
+    promise (call (x, callNo) k |->
+        let y = f x in
+        send result (y, callNo);
+        k ()
+    ) as _ in 
+    ()
+    
 
 run
     let callCounter = ref 0 in
