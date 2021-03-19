@@ -1,0 +1,28 @@
+operation task :   'a * ['a -> 'b]
+operation result : 'a * 'b
+
+let (boxed_func : [[int -> int]]) a = a * a
+
+let rec (send_tasks : [['a -> 'b]] -> 'a list -> <<'b>> list) f l = 
+    match l with
+    | [] |-> []
+    | head :: tail |->  
+        promise (result (h,r) when h = head |->
+            <<r>>
+        ) as result in
+        spawn(
+            unbox f as [f'] in
+            send result (f' x);
+        );
+        result :: (send_tasks f tail)
+
+let rec (await_list : <<'b>> list -> 'b list) l =
+    match l with
+    | [] |-> []
+    | head :: tail |-> awaitValue
+
+let (parallel_map : [['a -> 'b]] -> 'a list -> 'b list) f l = 
+    map awaitValue (send_tasks f l)
+
+
+run parallel_map boxed_func [1;2;3;4;5]
