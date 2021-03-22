@@ -27,7 +27,9 @@ let initial_state =
 
 (* This are proces local variables *)
 
-type unique_ID = int list
+type unique_ID = int
+
+let id_ref = ref 0
 
 type conf = {
   counter : int;
@@ -38,7 +40,7 @@ type conf = {
 }
 
 let print_conf conf =
-  Format.printf "Conf\n  id = [TODO];@.";
+  Format.printf "Conf\n  id = %i;@." conf.id;
   Format.printf
     ( match conf.res with
     | Done _ -> "Done"
@@ -317,9 +319,9 @@ let resolve_operations (confs : conf list) : conf list * bool =
     with Failure _ -> () );
 
   List.iter
-    (fun (o, e, _id) ->
-      Format.printf "↑%t %t, id=TODO@." (Ast.Operation.print o)
-        (Ast.print_expression e))
+    (fun (o, e, id) ->
+      Format.printf "↑%t %t, id=%i@." (Ast.Operation.print o)
+        (Ast.print_expression e) id)
     ops;
 
   let is_done conf = match conf.res with Ready _ -> false | _ -> true
@@ -341,15 +343,11 @@ let spawn_processes confs : conf list =
   List.fold_left
     (fun confs' conf ->
       let new_confs =
-        List.mapi
-          (fun i comp ->
-            {
-              counter = 0;
-              id = i :: conf.id;
-              ops = [];
-              spawns = [];
-              res = Ready comp;
-            })
+        List.map
+          (fun comp ->
+            let id = !id_ref in
+            id_ref := !id_ref + 1;
+            { counter = 0; id; ops = []; spawns = []; res = Ready comp })
           conf.spawns
       in
       let conf' = { conf with spawns = [] } in
@@ -382,9 +380,11 @@ let rec run_rec state (confs : conf list) : conf list =
 let run (state : state) (comps : Ast.computation list) : conf list =
   (* print "run"; *)
   let configurations =
-    List.mapi
-      (fun i c ->
-        { counter = 0; id = [ i ]; ops = []; spawns = []; res = Ready c })
+    List.map
+      (fun c ->
+        let id = !id_ref in
+        id_ref := !id_ref + 1;
+        { counter = 0; id; ops = []; spawns = []; res = Ready c })
       comps
   in
   run_rec state configurations
