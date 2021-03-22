@@ -711,7 +711,7 @@ let add_operation state op ty =
   let ty' = unfold_type_definitions state ty in
   Format.printf "@[operation %t : %t@]@." (Ast.Operation.print op)
     (Ast.print_ty_scheme ([], ty'));
-  if is_mobile state ty' then
+  if is_semi_mobile state ty' then
     { state with operations = Ast.OperationMap.add op ty state.operations }
   else Error.typing "Payload of an operation must be of a ground type"
 

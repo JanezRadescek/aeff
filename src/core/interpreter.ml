@@ -26,16 +26,19 @@ let initial_state =
   { toplet = Ast.VariableMap.empty; builtin_functions = Ast.VariableMap.empty }
 
 (* This are proces local variables *)
+
+type unique_ID = int list
+
 type conf = {
   counter : int;
-  id : int;
-  ops : (Ast.operation * Ast.expression * int) list;
+  id : unique_ID;
+  ops : (Ast.operation * Ast.expression * unique_ID) list;
   spawns : Ast.computation list;
   res : result;
 }
 
 let print_conf conf =
-  Format.printf "Conf\n  id = %d;@." conf.id;
+  Format.printf "Conf\n  id = [TODO];@.";
   Format.printf
     ( match conf.res with
     | Done _ -> "Done"
@@ -302,9 +305,9 @@ let resolve_operations (confs : conf list) : conf list * bool =
   if debugg then (
     List.iter print_conf confs';
     List.iter
-      (fun (o, e, id) ->
-        Format.printf "op=%t, e=%t, id=%i@." (Ast.Operation.print o)
-          (Ast.print_expression e) id)
+      (fun (o, e, _id) ->
+        Format.printf "op=%t, e=%t, id=TODO@." (Ast.Operation.print o)
+          (Ast.print_expression e))
       ops;
     print "press enter to do INSERT";
 
@@ -314,9 +317,9 @@ let resolve_operations (confs : conf list) : conf list * bool =
     with Failure _ -> () );
 
   List.iter
-    (fun (o, e, id) ->
-      Format.printf "↑%t %t, id=%i@." (Ast.Operation.print o)
-        (Ast.print_expression e) id)
+    (fun (o, e, _id) ->
+      Format.printf "↑%t %t, id=TODO@." (Ast.Operation.print o)
+        (Ast.print_expression e))
     ops;
 
   let is_done conf = match conf.res with Ready _ -> false | _ -> true
@@ -338,11 +341,11 @@ let spawn_processes confs : conf list =
   List.fold_left
     (fun confs' conf ->
       let new_confs =
-        List.map
-          (fun comp ->
+        List.mapi
+          (fun i comp ->
             {
               counter = 0;
-              id = conf.id;
+              id = i :: conf.id;
               ops = [];
               spawns = [];
               res = Ready comp;
@@ -380,7 +383,8 @@ let run (state : state) (comps : Ast.computation list) : conf list =
   (* print "run"; *)
   let configurations =
     List.mapi
-      (fun id c -> { counter = 0; id; ops = []; spawns = []; res = Ready c })
+      (fun i c ->
+        { counter = 0; id = [ i ]; ops = []; spawns = []; res = Ready c })
       comps
   in
   run_rec state configurations
