@@ -1,0 +1,9 @@
+operation task : int
+
+let rec (parallel_map : 'a list -> unit) l = 
+    match l with
+        | [] |-> ()
+        | head :: tail |-> spawn (return head); parallel_map tail
+
+
+run parallel_map [1;2;3;4;5]

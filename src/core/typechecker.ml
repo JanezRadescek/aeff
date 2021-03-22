@@ -559,6 +559,9 @@ and infer_computation state subst = function
           let ty_a, subs_a = infer_abstraction state subs' ty' abs in
           (ty_a, subs_a)
       | _ -> Error.typing "Expected Boxed type." )
+  | Ast.Spawn (comp1, comp2) ->
+      let _ty1, _subs1 = infer_computation state subst comp1 in
+      infer_computation state subst comp2
 
 and check_computation state subs annotation = function
   | Ast.Return expr -> check_expression state subs annotation expr
@@ -628,6 +631,9 @@ and check_computation state subs annotation = function
           Error.typing "Expected Boxed, but got %t in %t"
             (Ast.print_ty print_param ty_1)
             (Ast.print_computation c) )
+  | Ast.Spawn (comp1, comp2) ->
+      let _ty1, _subs1 = infer_computation state subs comp1 in
+      check_computation state subs annotation comp2
 
 and infer_abstraction state subs ty_argument (pat, comp) :
     Ast.ty * (Ast.ty_param * Ast.ty) list =

@@ -16,6 +16,7 @@ let print_result = function
   | Ready c -> Format.printf "Ready comp = %t@." (Ast.print_computation c)
   | Await c -> Format.printf "Await comp = %t@." (Ast.print_computation c)
 
+(* This are global variables *)
 type state = {
   toplet : Ast.expression Ast.VariableMap.t;
   builtin_functions : (Ast.expression -> Ast.computation) Ast.VariableMap.t;
@@ -24,10 +25,12 @@ type state = {
 let initial_state =
   { toplet = Ast.VariableMap.empty; builtin_functions = Ast.VariableMap.empty }
 
+(* This are proces local variables *)
 type conf = {
   counter : int;
   id : int;
   ops : (Ast.operation * Ast.expression * int) list;
+  spawns : Ast.computation list;
   res : result;
 }
 
@@ -274,7 +277,9 @@ let big_step state (conf : conf) : conf =
               | Ast.Boxed b ->
                   let comp' = substitution b abs in
                   small_steps { cs with res = Ready comp' }
-              | _ -> assert false ) )
+              | _ -> assert false )
+          | Ast.Spawn (c1, c2) ->
+              small_steps { cs with spawns = c1 :: cs.spawns; res = Ready c2 } )
     else conf_small
   in
 
@@ -329,6 +334,25 @@ let resolve_operations (confs : conf list) : conf list * bool =
   let done' = List.length ops = 0 && List.for_all is_done confs' in
   (confs'', done')
 
+let spawn_processes confs : conf list =
+  List.fold_left
+    (fun confs' conf ->
+      let new_confs =
+        List.map
+          (fun comp ->
+            {
+              counter = 0;
+              id = conf.id;
+              ops = [];
+              spawns = [];
+              res = Ready comp;
+            })
+          conf.spawns
+      in
+      let conf' = { conf with spawns = [] } in
+      (conf' :: new_confs) @ confs')
+    [] confs
+
 let reset_counters confs : conf list =
   List.map (fun conf -> { conf with counter = 0 }) confs
 
@@ -346,15 +370,18 @@ let rec run_rec state (confs : conf list) : conf list =
   let confs' = List.map (big_step state) confs in
 
   (* Here we could remove done configurations and safe them into sam reference *)
-  let confs'', done' = resolve_operations confs' in
+  let confs'' = spawn_processes confs' in
+  let confs''', done' = resolve_operations confs'' in
   match done' with
-  | true -> confs''
-  | false -> run_rec state (reset_counters confs'')
+  | true -> confs'''
+  | false -> run_rec state (reset_counters confs''')
 
 let run (state : state) (comps : Ast.computation list) : conf list =
   (* print "run"; *)
   let configurations =
-    List.mapi (fun id c -> { counter = 0; id; ops = []; res = Ready c }) comps
+    List.mapi
+      (fun id c -> { counter = 0; id; ops = []; spawns = []; res = Ready c })
+      comps
   in
   run_rec state configurations
 

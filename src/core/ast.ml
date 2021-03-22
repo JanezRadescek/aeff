@@ -205,6 +205,7 @@ and computation =
       variable option * operation * abstraction * variable * computation
   | Await of expression * abstraction
   | Unbox of expression * abstraction
+  | Spawn of computation * computation
 
 and abstraction = pattern * computation
 
@@ -292,6 +293,8 @@ and refresh_computation vars = function
       Await (refresh_expression vars expr, refresh_abstraction vars abs)
   | Unbox (expr, abs) ->
       Unbox (refresh_expression vars expr, refresh_abstraction vars abs)
+  | Spawn (comp1, comp2) ->
+      Spawn (refresh_computation vars comp1, refresh_computation vars comp2)
 
 and refresh_abstraction vars (pat, comp) =
   let pat', vars' = refresh_pattern pat in
@@ -340,6 +343,9 @@ and substitute_computation subst = function
       Await (substitute_expression subst expr, substitute_abstraction subst abs)
   | Unbox (expr, abs) ->
       Unbox (substitute_expression subst expr, substitute_abstraction subst abs)
+  | Spawn (comp1, comp2) ->
+      Spawn
+        (substitute_computation subst comp1, substitute_computation subst comp2)
 
 and substitute_abstraction subst (pat, comp) =
   let subst' = remove_pattern_bound_variables subst pat in
@@ -450,6 +456,8 @@ and print_computation ?max_level c ppf =
   | Unbox (e, (p, c)) ->
       print "%t as @[%t@] in %t" (print_expression e) (print_pattern p)
         (print_computation c)
+  | Spawn (comp1, comp2) ->
+      print "Spawn %t; %t" (print_computation comp1) (print_computation comp2)
 
 and print_abstraction (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p) (print_computation c)

@@ -18,7 +18,7 @@
 %token TYPE ARROW OF
 %token MATCH WITH FUNCTION WHEN
 %token AWAIT UNTIL PROMISE MAPSTO SEND UNBOX LBOXED RBOXED
-%token RUN LET REC AND IN OPERATION
+%token RUN LET REC AND IN OPERATION SPAWN
 %token FUN BAR BARBAR
 %token IF THEN ELSE
 %token PLUS STAR MINUS MINUSDOT
@@ -91,6 +91,8 @@ plain_term:
     { Promise (k, op, (p1, g, t1), (p2, t2)) }
   | AWAIT t1 = term UNTIL LPROMISE p = pattern RPROMISE IN t2 = term
     { Await (t1, (p, t2)) }
+  | SPAWN t1 = term SEMI t2 = term
+    { Spawn (t1, t2) }
   | t1 = term SEMI t2 = term
     { Let ({it= PNonbinding; at= t1.at}, t1, t2) }
   | IF t_cond = comma_term THEN t_true = term ELSE t_false = term
