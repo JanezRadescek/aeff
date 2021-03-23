@@ -1,14 +1,16 @@
 open Utils
 
 type state = {
-  variables : (Ast.ty_param list * Ast.ty) Ast.VariableMap.t;
+  global_var : (Ast.ty_param list * Ast.ty) Ast.VariableMap.t;
+  local_var : (Ast.ty_param list * Ast.ty) Ast.VariableMap.t;
   operations : Ast.ty Ast.OperationMap.t;
   type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
 }
 
 let initial_state =
   {
-    variables = Ast.VariableMap.empty;
+    global_var = Ast.VariableMap.empty;
+    local_var = Ast.VariableMap.empty;
     operations = Ast.OperationMap.empty;
     type_definitions =
       ( Ast.TyNameMap.empty
@@ -21,6 +23,9 @@ let initial_state =
            ([], Ast.TyInline (Ast.TyConst Const.StringTy))
       |> Ast.TyNameMap.add Ast.float_ty_name
            ([], Ast.TyInline (Ast.TyConst Const.FloatTy))
+      |> (let a = Ast.TyParam.fresh "ref" in
+          Ast.TyNameMap.add Ast.ref_ty_name
+            ([ a ], Ast.TyInline (Ast.TyReference (Ast.TyParam a))))
       |> Ast.TyNameMap.add Ast.empty_ty_name ([], Ast.TySum [])
       |>
       let a = Ast.TyParam.fresh "list" in
@@ -46,7 +51,7 @@ let fresh_ty () =
 let extend_variables state vars =
   List.fold_left
     (fun state (x, ty) ->
-      { state with variables = Ast.VariableMap.add x ([], ty) state.variables })
+      { state with local_var = Ast.VariableMap.add x ([], ty) state.local_var })
     state vars
 
 let refreshing_subst params =
@@ -106,7 +111,7 @@ let rec infer_pattern state = function
 
 let rec infer_expression state = function
   | Ast.Var x ->
-      let params, ty = Ast.VariableMap.find x state.variables in
+      let params, ty = Ast.VariableMap.find x state.local_var in
       let subst = refreshing_subst params in
       (Ast.substitute_ty subst ty, [])
   | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [])
@@ -271,7 +276,7 @@ let infer state e =
 let add_external_function x ty_sch state =
   Format.printf "@[val %t : %t@]@." (Ast.Variable.print x)
     (Ast.print_ty_scheme ty_sch);
-  { state with variables = Ast.VariableMap.add x ty_sch state.variables }
+  { state with global_var = Ast.VariableMap.add x ty_sch state.global_var }
 
 let add_operation state op ty =
   Format.printf "@[operation %t : %t@]@." (Ast.Operation.print op)
