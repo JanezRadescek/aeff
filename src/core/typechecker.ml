@@ -2,7 +2,8 @@ open Utils
 module SemiMobile = Set.Make (Ast.TyName)
 
 type state = {
-  variables_ty : Ast.ty_scheme Ast.VariableMap.t list;
+  global_var : Ast.ty_scheme Ast.VariableMap.t;
+  local_var : Ast.ty_scheme Ast.VariableMap.t list;
   operations : Ast.ty Ast.OperationMap.t;
   type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
   semi_mobile_variants : SemiMobile.t;
@@ -12,7 +13,8 @@ type state = {
 
 let initial_state =
   {
-    variables_ty = [ Ast.VariableMap.empty ];
+    global_var = Ast.VariableMap.empty;
+    local_var = [ Ast.VariableMap.empty ];
     operations = Ast.OperationMap.empty;
     type_definitions =
       ( Ast.TyNameMap.empty
@@ -129,7 +131,7 @@ let rec unfold_type_definitions state ty =
   | Ast.TyBoxed ty -> Ast.TyBoxed (unfold_type_definitions state ty)
 
 let extend_variables state vars : state =
-  match state.variables_ty with
+  match state.local_var with
   | [] -> assert false
   | state_head :: states ->
       let state_head' =
@@ -137,7 +139,7 @@ let extend_variables state vars : state =
           (fun state (x, ty) -> Ast.VariableMap.add x ([], ty) state)
           state_head vars
       in
-      { state with variables_ty = state_head' :: states }
+      { state with local_var = state_head' :: states }
 
 let refreshing_subst params =
   List.fold_left
@@ -344,26 +346,29 @@ and check_pattern state subs ty_arg pattern :
           Error.typing "Variant optional argument mismatch" )
 
 let infer_variable state x : Ast.ty_scheme =
-  match state.variables_ty with
-  | [] -> assert false
-  | head :: tail -> (
-      match Ast.VariableMap.find_opt x head with
-      | Some scheme -> scheme
-      | None ->
-          let rec find_movable state' =
-            match state' with
-            | [] -> assert false
-            | h :: t -> (
-                match Ast.VariableMap.find_opt x h with
-                | Some scheme -> scheme
-                | None -> find_movable t )
-          in
-          let params, ty = find_movable tail in
-          if is_mobile state ty then (params, ty)
-          else
-            Error.typing "We expected movable type but got %t for %t"
-              (Ast.print_ty (Ast.new_print_param ()) ty)
-              (Ast.Variable.print x) )
+  match Ast.VariableMap.find_opt x state.global_var with
+  | Some scheme -> scheme
+  | None -> (
+      match state.local_var with
+      | [] -> assert false
+      | head :: tail -> (
+          match Ast.VariableMap.find_opt x head with
+          | Some scheme -> scheme
+          | None ->
+              let rec find_movable local_var =
+                match local_var with
+                | [] -> assert false
+                | h :: t -> (
+                    match Ast.VariableMap.find_opt x h with
+                    | Some scheme -> scheme
+                    | None -> find_movable t )
+              in
+              let params, ty = find_movable tail in
+              if is_mobile state ty then (params, ty)
+              else
+                Error.typing "We expected movable type but got %t for %t"
+                  (Ast.print_ty (Ast.new_print_param ()) ty)
+                  (Ast.Variable.print x) ) )
 
 let rec infer_expression state subs = function
   | Ast.Var x ->
@@ -413,10 +418,7 @@ let rec infer_expression state subs = function
           Error.typing "Variant optional argument mismatch" )
   | Boxed e ->
       let state' =
-        {
-          state with
-          variables_ty = Ast.VariableMap.empty :: state.variables_ty;
-        }
+        { state with local_var = Ast.VariableMap.empty :: state.local_var }
       in
       let ty, subs' = infer_expression state' subs e in
       (Ast.TyBoxed ty, subs')
@@ -449,10 +451,7 @@ and check_expression state subs annotation expr : (Ast.ty_param * Ast.ty) list =
           Error.typing "Variant optional argument mismatch." )
   | Ast.Boxed e, Ast.TyBoxed anno ->
       let state' =
-        {
-          state with
-          variables_ty = Ast.VariableMap.empty :: state.variables_ty;
-        }
+        { state with local_var = Ast.VariableMap.empty :: state.local_var }
       in
       check_expression state' subs anno e
   | ((Ast.Var _ | Ast.Const _ | Ast.Annotated _) as e), anno ->
@@ -702,10 +701,7 @@ let check_polymorphic_expression state (params, ty) expr =
 let add_external_function x ty_sch state =
   (* Format.printf "@[val %t : %t@]@." (Ast.Variable.print x)
      (Ast.print_ty_scheme ty_sch); *)
-  match state.variables_ty with
-  | [] -> assert false
-  | head :: tail ->
-      { state with variables_ty = Ast.VariableMap.add x ty_sch head :: tail }
+  { state with global_var = Ast.VariableMap.add x ty_sch state.global_var }
 
 let add_operation state op ty =
   let ty' = unfold_type_definitions state ty in
