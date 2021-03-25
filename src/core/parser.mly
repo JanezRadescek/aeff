@@ -155,7 +155,7 @@ plain_prefix_term:
     }
   | SPAWN t = term
     {
-      Send (op, t)
+      Spawn t
     }
   | t = plain_simple_term
     { t }
