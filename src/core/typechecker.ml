@@ -102,10 +102,12 @@ let extend_variables state vars =
   match state.local_var with
   | [] -> assert false
   | head :: tail ->
-      List.fold_left
-        (fun state (x, ty) ->
-          { state with local_var = Ast.VariableMap.add x ([], ty) head :: tail })
-        state vars
+      let head' =
+        List.fold_left
+          (fun state (x, ty) -> Ast.VariableMap.add x ([], ty) state)
+          head vars
+      in
+      { state with local_var = head' :: tail }
 
 let refreshing_subst params =
   List.fold_left
