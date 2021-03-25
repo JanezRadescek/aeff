@@ -400,7 +400,8 @@ and print_computation ?max_level c ppf =
       print "%t as @[%t@] in %t" (print_expression e) (print_pattern p)
         (print_computation c)
   | Spawn (comp1, comp2) ->
-      print "Spawn %t; %t" (print_computation comp1) (print_computation comp2)
+      print "Spawn (%t);%t\n" (print_computation comp1)
+        (print_computation comp2)
 
 and print_abstraction (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p) (print_computation c)

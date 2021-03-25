@@ -99,10 +99,8 @@ plain_term:
     { t }
   | UNBOX t1 = term AS LBOXED p = pattern RBOXED IN t2 = term
     { Unbox (t1, (p, t2)) }
-  | SPAWN t = term
-  {
-    Spawn t
-  }
+  | SPAWN LPAREN t = term RPAREN
+    { Spawn t }
 
 comma_term: mark_position(plain_comma_term) { $1 }
 plain_comma_term:

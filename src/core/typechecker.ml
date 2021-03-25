@@ -398,8 +398,8 @@ and infer_abstraction state (pat, comp) =
   let ty', constr = infer_computation state' comp in
   (ty, ty', add_eqs constr eqs)
 
-let infer state e =
-  let t, constr = infer_computation state e in
+let infer state comp =
+  let t, constr = infer_computation state comp in
   let sbst = unify state constr.equations in
   let t' = Ast.substitute_ty sbst t in
   check_mobile state sbst constr.mobile_types;

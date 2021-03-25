@@ -37,6 +37,7 @@ type computation_reduction =
 
 type process_redex =
   | RunOut
+  | RunSpawn
   | ParallelOut1
   | ParallelOut2
   | InRun
@@ -236,7 +237,9 @@ let rec step_process state = function
       match comp with
       | Ast.Out (op, expr, comp') ->
           (ProcessRedex RunOut, Ast.OutProc (op, expr, Ast.Run comp')) :: comps'
-      | Ast.Spawn (_comp1, _comp2) -> failwith "TODO"
+      | Ast.Spawn (comp1, comp2) ->
+          (ProcessRedex RunSpawn, Ast.Parallel (Ast.Run comp1, Ast.Run comp2))
+          :: comps'
       | _ -> comps' )
   | Ast.Parallel (proc1, proc2) ->
       let proc1_first =
