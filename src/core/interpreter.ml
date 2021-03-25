@@ -25,6 +25,8 @@ type computation_redex =
   | DoOut
   | DoPromise
   | AwaitFulfill
+  | Unbox
+  | Spawn
 
 type computation_reduction =
   | PromiseCtx of computation_reduction
@@ -220,8 +222,10 @@ let rec step_computation state = function
           let subst = match_pattern_with_expression state pat expr in
           [ (ComputationRedex AwaitFulfill, substitute subst comp) ]
       | _ -> [] )
-  | Ast.Unbox (_e, _abs) -> failwith "TODO inter Unbox"
-  | Ast.Spawn (_comp1, _comp2) -> failwith "TODO inter spawn "
+  | Ast.Unbox (expr, (pat, comp)) ->
+      let subst = match_pattern_with_expression state pat expr in
+      [ (ComputationRedex Unbox, substitute subst comp) ]
+  | Ast.Spawn (_comp1, _comp2) -> []
 
 let rec step_process state = function
   | Ast.Run comp -> (
@@ -232,6 +236,7 @@ let rec step_process state = function
       match comp with
       | Ast.Out (op, expr, comp') ->
           (ProcessRedex RunOut, Ast.OutProc (op, expr, Ast.Run comp')) :: comps'
+      | Ast.Spawn (_comp1, _comp2) -> failwith "TODO"
       | _ -> comps' )
   | Ast.Parallel (proc1, proc2) ->
       let proc1_first =

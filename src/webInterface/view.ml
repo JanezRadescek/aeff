@@ -48,6 +48,8 @@ let view_computation_redex = function
   | Interpreter.DoOut -> "doOut"
   | Interpreter.DoPromise -> "doPromise"
   | Interpreter.AwaitFulfill -> "awaitFulfill"
+  | Interpreter.Unbox -> "unbox"
+  | Interpreter.Spawn -> "spawn"
 
 let rec view_computation_reduction = function
   | Interpreter.PromiseCtx red -> view_computation_reduction red
@@ -77,8 +79,8 @@ let step_action (red, step) =
   elt "li" [ button (view_process_reduction red) (Model.Step step) ]
 
 (* let view_actions (model : Model.model) code =
-  let _step_actions = List.map step_action (Model.steps code) in
-  let random_action =
+   let _step_actions = List.map step_action (Model.steps code) in
+   let random_action =
       valid_button
           ~input_placeholder:"Number of random steps to make"
           ~input_value:model.unparsed_step_size
@@ -86,11 +88,11 @@ let step_action (red, step) =
           ~submit_msg:(fun _ -> Model.RandomStep)
           ~submit_value:"Step randomly"
           model.random_step_size
-  and _back_action =
+   and _back_action =
       match code.history with
       | [] -> disabled_button "back"
       | _ -> button "back" Model.Back
-  and _interrupt_action =
+   and _interrupt_action =
       valid_button
           ~input_placeholder:"Interrupt, eg. \"op 10\""
           ~input_value:model.unparsed_interrupt
@@ -98,7 +100,7 @@ let step_action (red, step) =
           ~submit_msg:(fun _ -> Model.Interrupt)
           ~submit_value:"interrupt"
           model.parsed_interrupt
-  in
+   in
     elt "nav" ~a:[class_ "level"] [
       div ~a:[class_ "level-left"] [
         div ~a:[class_ "level-item"] [
@@ -289,8 +291,8 @@ let view_editor (model : Model.model) =
     ]
 
 (* let _view (model : Model.model) =
-  match model.loaded_code with
-  | Ok code ->
+   match model.loaded_code with
+   | Ok code ->
       div
         [
           input ~a:[type_ "range"; int_attr "min" 0; int_attr "max" 10; int_attr "step" 2; onmousedown (fun event -> Model.ParseInterrupt (string_of_int event.x))] [];
@@ -300,7 +302,7 @@ let view_editor (model : Model.model) =
           view_operations code.snapshot.operations;
           view_process code.snapshot.process;
         ]
-  | Error msg -> div [ editor model; text msg ] *)
+   | Error msg -> div [ editor model; text msg ] *)
 
 let view_compiler (model : Model.model) =
   let use_stdlib =
