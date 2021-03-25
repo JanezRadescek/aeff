@@ -16,41 +16,41 @@ let initial_state =
     operations = Ast.OperationMap.empty;
     type_definitions =
       ( Ast.TyNameMap.empty
-        |> Ast.TyNameMap.add Ast.bool_ty_name
-          ([], Ast.TyInline (Ast.TyConst Const.BooleanTy))
-        |> Ast.TyNameMap.add Ast.int_ty_name
-          ([], Ast.TyInline (Ast.TyConst Const.IntegerTy))
-        |> Ast.TyNameMap.add Ast.unit_ty_name ([], Ast.TyInline (Ast.TyTuple []))
-        |> Ast.TyNameMap.add Ast.string_ty_name
-          ([], Ast.TyInline (Ast.TyConst Const.StringTy))
-        |> Ast.TyNameMap.add Ast.float_ty_name
-          ([], Ast.TyInline (Ast.TyConst Const.FloatTy))
-        |> (let a = Ast.TyParam.fresh "ref" in
-            Ast.TyNameMap.add Ast.ref_ty_name
-              ([ a ], Ast.TyInline (Ast.TyReference (Ast.TyParam a))))
-        |> Ast.TyNameMap.add Ast.empty_ty_name ([], Ast.TySum [])
-        |>
-        let a = Ast.TyParam.fresh "list" in
-        Ast.TyNameMap.add Ast.list_ty_name
-          ( [ a ],
-            Ast.TySum
-              [
-                (Ast.nil_label, None);
-                ( Ast.cons_label,
-                  Some
-                    (Ast.TyTuple
-                       [
-                         Ast.TyParam a;
-                         Ast.TyApply (Ast.list_ty_name, [ Ast.TyParam a ]);
-                       ]) );
-              ] ) );
+      |> Ast.TyNameMap.add Ast.bool_ty_name
+           ([], Ast.TyInline (Ast.TyConst Const.BooleanTy))
+      |> Ast.TyNameMap.add Ast.int_ty_name
+           ([], Ast.TyInline (Ast.TyConst Const.IntegerTy))
+      |> Ast.TyNameMap.add Ast.unit_ty_name ([], Ast.TyInline (Ast.TyTuple []))
+      |> Ast.TyNameMap.add Ast.string_ty_name
+           ([], Ast.TyInline (Ast.TyConst Const.StringTy))
+      |> Ast.TyNameMap.add Ast.float_ty_name
+           ([], Ast.TyInline (Ast.TyConst Const.FloatTy))
+      |> (let a = Ast.TyParam.fresh "ref" in
+          Ast.TyNameMap.add Ast.ref_ty_name
+            ([ a ], Ast.TyInline (Ast.TyReference (Ast.TyParam a))))
+      |> Ast.TyNameMap.add Ast.empty_ty_name ([], Ast.TySum [])
+      |>
+      let a = Ast.TyParam.fresh "list" in
+      Ast.TyNameMap.add Ast.list_ty_name
+        ( [ a ],
+          Ast.TySum
+            [
+              (Ast.nil_label, None);
+              ( Ast.cons_label,
+                Some
+                  (Ast.TyTuple
+                     [
+                       Ast.TyParam a;
+                       Ast.TyApply (Ast.list_ty_name, [ Ast.TyParam a ]);
+                     ]) );
+            ] ) );
   }
 
 let rec is_mobile state (ty : Ast.ty) : bool =
   match ty with
   | Ast.TyConst _ -> true
   | Ast.TyApply (ty_name, tys) ->
-    List.for_all (is_mobile state) tys && is_apply_preserving state [] ty_name
+      List.for_all (is_mobile state) tys && is_apply_preserving state [] ty_name
   | Ast.TyParam _ -> false
   | Ast.TyArrow _ -> false
   | Ast.TyTuple tys -> List.for_all (is_mobile state) tys
@@ -62,8 +62,8 @@ and is_preserving state (candidates : Ast.ty_name list) ty : bool =
   match ty with
   | Ast.TyConst _ -> true
   | Ast.TyApply (ty_name, tys) ->
-    List.for_all (is_preserving state candidates) tys
-    && is_apply_preserving state candidates ty_name
+      List.for_all (is_preserving state candidates) tys
+      && is_apply_preserving state candidates ty_name
   | Ast.TyParam _ -> true
   | Ast.TyArrow _ -> false
   | Ast.TyTuple tys -> List.for_all (is_preserving state candidates) tys
@@ -77,22 +77,22 @@ and is_apply_preserving state (candidates : Ast.ty_name list)
   | true -> true
   (* 'a foo = 'a * <<'a>> foo  wee need to check that tys are still semi_mobile *)
   | false ->
-    let candidates' = ty_name :: candidates in
-    let _params, ty_def = Ast.TyNameMap.find ty_name state.type_definitions in
-    is_ty_def_preserving state candidates' ty_def
+      let candidates' = ty_name :: candidates in
+      let _params, ty_def = Ast.TyNameMap.find ty_name state.type_definitions in
+      is_ty_def_preserving state candidates' ty_def
 
 and is_ty_def_preserving state (candidates : Ast.ty_name list)
     (ty_def : Ast.ty_def) : bool =
   match ty_def with
   | Ast.TyInline ty -> is_preserving state candidates ty
   | Ast.TySum tys' ->
-    let tys'' =
-      List.fold_left
-        (fun todo_tys (_lbl, ty) ->
-           match ty with None -> todo_tys | Some ty -> ty :: todo_tys)
-        [] tys'
-    in
-    List.for_all (is_preserving state candidates) tys''
+      let tys'' =
+        List.fold_left
+          (fun todo_tys (_lbl, ty) ->
+            match ty with None -> todo_tys | Some ty -> ty :: todo_tys)
+          [] tys'
+      in
+      List.for_all (is_preserving state candidates) tys''
 
 let fresh_ty () =
   let a = Ast.TyParam.fresh "ty" in
@@ -102,16 +102,16 @@ let extend_variables state vars =
   match state.local_var with
   | [] -> assert false
   | head :: tail ->
-    List.fold_left
-      (fun state (x, ty) ->
-         { state with local_var = Ast.VariableMap.add x ([], ty) head :: tail })
-      state vars
+      List.fold_left
+        (fun state (x, ty) ->
+          { state with local_var = Ast.VariableMap.add x ([], ty) head :: tail })
+        state vars
 
 let refreshing_subst params =
   List.fold_left
     (fun subst param ->
-       let ty = fresh_ty () in
-       Ast.TyParamMap.add param ty subst)
+      let ty = fresh_ty () in
+      Ast.TyParamMap.add param ty subst)
     Ast.TyParamMap.empty params
 
 let infer_variant state lbl =
@@ -133,34 +133,34 @@ let infer_variant state lbl =
 
 let rec infer_pattern state = function
   | Ast.PVar x ->
-    let ty = fresh_ty () in
-    (ty, [ (x, ty) ], [])
+      let ty = fresh_ty () in
+      (ty, [ (x, ty) ], [])
   | Ast.PAs (pat, x) ->
-    let ty, vars, eqs = infer_pattern state pat in
-    (ty, (x, ty) :: vars, eqs)
+      let ty, vars, eqs = infer_pattern state pat in
+      (ty, (x, ty) :: vars, eqs)
   | Ast.PAnnotated (pat, ty) ->
-    let ty', vars, eqs = infer_pattern state pat in
-    (ty, vars, (ty, ty') :: eqs)
+      let ty', vars, eqs = infer_pattern state pat in
+      (ty, vars, (ty, ty') :: eqs)
   | Ast.PConst c -> (Ast.TyConst (Const.infer_ty c), [], [])
   | Ast.PNonbinding ->
-    let ty = fresh_ty () in
-    (ty, [], [])
+      let ty = fresh_ty () in
+      (ty, [], [])
   | Ast.PTuple pats ->
-    let fold pat (tys, vars, eqs) =
-      let ty', vars', eqs' = infer_pattern state pat in
-      (ty' :: tys, vars' @ vars, eqs' @ eqs)
-    in
-    let tys, vars, eqs = List.fold_right fold pats ([], [], []) in
-    (Ast.TyTuple tys, vars, eqs)
+      let fold pat (tys, vars, eqs) =
+        let ty', vars', eqs' = infer_pattern state pat in
+        (ty' :: tys, vars' @ vars, eqs' @ eqs)
+      in
+      let tys, vars, eqs = List.fold_right fold pats ([], [], []) in
+      (Ast.TyTuple tys, vars, eqs)
   | Ast.PVariant (lbl, pat) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, pat) with
       | None, None -> (ty_out, [], [])
       | Some ty_in, Some pat ->
-        let ty, vars, eqs = infer_pattern state pat in
-        (ty_out, vars, (ty_in, ty) :: eqs)
+          let ty, vars, eqs = infer_pattern state pat in
+          (ty_out, vars, (ty_in, ty) :: eqs)
       | None, Some _ | Some _, None ->
-        Error.typing "Variant optional argument mismatch" )
+          Error.typing "Variant optional argument mismatch" )
 
 let infer_variable state x : ty_scheme =
   match Ast.VariableMap.find_opt x state.global_var with
@@ -172,126 +172,126 @@ let infer_variable state x : ty_scheme =
           match Ast.VariableMap.find_opt x head with
           | Some scheme -> scheme
           | None ->
-            let rec find_movable local_var =
-              match local_var with
-              | [] -> assert false
-              | h :: t -> (
-                  match Ast.VariableMap.find_opt x h with
-                  | Some scheme -> scheme
-                  | None -> find_movable t )
-            in
-            let params, ty = find_movable tail in
-            if is_mobile state ty then (params, ty)
-            else
-              Error.typing "We expected movable type but got %t for %t"
-                (Ast.print_ty (Ast.new_print_param ()) ty)
-                (Ast.Variable.print x) ) )
+              let rec find_movable local_var =
+                match local_var with
+                | [] -> assert false
+                | h :: t -> (
+                    match Ast.VariableMap.find_opt x h with
+                    | Some scheme -> scheme
+                    | None -> find_movable t )
+              in
+              let params, ty = find_movable tail in
+              if is_mobile state ty then (params, ty)
+              else
+                Error.typing "We expected movable type but got %t for %t"
+                  (Ast.print_ty (Ast.new_print_param ()) ty)
+                  (Ast.Variable.print x) ) )
 
 let rec infer_expression state = function
   | Ast.Var x ->
-    let params, ty = infer_variable state x in
-    let subst = refreshing_subst params in
-    (Ast.substitute_ty subst ty, [])
+      let params, ty = infer_variable state x in
+      let subst = refreshing_subst params in
+      (Ast.substitute_ty subst ty, [])
   | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [])
   | Ast.Annotated (expr, ty) ->
-    let ty', eqs = infer_expression state expr in
-    (ty, (ty, ty') :: eqs)
+      let ty', eqs = infer_expression state expr in
+      (ty, (ty, ty') :: eqs)
   | Ast.Tuple exprs ->
-    let fold expr (tys, eqs) =
-      let ty', eqs' = infer_expression state expr in
-      (ty' :: tys, eqs' @ eqs)
-    in
-    let tys, eqs = List.fold_right fold exprs ([], []) in
-    (Ast.TyTuple tys, eqs)
+      let fold expr (tys, eqs) =
+        let ty', eqs' = infer_expression state expr in
+        (ty' :: tys, eqs' @ eqs)
+      in
+      let tys, eqs = List.fold_right fold exprs ([], []) in
+      (Ast.TyTuple tys, eqs)
   | Ast.Lambda abs ->
-    let ty, ty', eqs = infer_abstraction state abs in
-    (Ast.TyArrow (ty, ty'), eqs)
+      let ty, ty', eqs = infer_abstraction state abs in
+      (Ast.TyArrow (ty, ty'), eqs)
   | Ast.RecLambda (f, abs) ->
-    let f_ty = fresh_ty () in
-    let state' = extend_variables state [ (f, f_ty) ] in
-    let ty, ty', eqs = infer_abstraction state' abs in
-    let out_ty = Ast.TyArrow (ty, ty') in
-    (out_ty, (f_ty, out_ty) :: eqs)
+      let f_ty = fresh_ty () in
+      let state' = extend_variables state [ (f, f_ty) ] in
+      let ty, ty', eqs = infer_abstraction state' abs in
+      let out_ty = Ast.TyArrow (ty, ty') in
+      (out_ty, (f_ty, out_ty) :: eqs)
   | Ast.Fulfill expr ->
-    let ty, eqs = infer_expression state expr in
-    (Ast.TyPromise ty, eqs)
+      let ty, eqs = infer_expression state expr in
+      (Ast.TyPromise ty, eqs)
   | Ast.Reference expr_ref ->
-    let ty, eqs = infer_expression state !expr_ref in
-    (Ast.TyReference ty, eqs)
+      let ty, eqs = infer_expression state !expr_ref in
+      (Ast.TyReference ty, eqs)
   | Ast.Variant (lbl, expr) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, expr) with
       | None, None -> (ty_out, [])
       | Some ty_in, Some expr ->
-        let ty, eqs = infer_expression state expr in
-        (ty_out, (ty_in, ty) :: eqs)
+          let ty, eqs = infer_expression state expr in
+          (ty_out, (ty_in, ty) :: eqs)
       | None, Some _ | Some _, None ->
-        Error.typing "Variant optional argument mismatch" )
+          Error.typing "Variant optional argument mismatch" )
   | Ast.Boxed expr ->
-    let state' =
-      { state with local_var = Ast.VariableMap.empty :: state.local_var }
-    in
-    let ty, eqs = infer_expression state' expr in
-    (Ast.TyBoxed ty, eqs)
+      let state' =
+        { state with local_var = Ast.VariableMap.empty :: state.local_var }
+      in
+      let ty, eqs = infer_expression state' expr in
+      (Ast.TyBoxed ty, eqs)
 
 and infer_computation state = function
   | Ast.Return expr ->
-    let ty, eqs = infer_expression state expr in
-    (ty, eqs)
+      let ty, eqs = infer_expression state expr in
+      (ty, eqs)
   | Ast.Do (comp1, comp2) ->
-    let ty1, eqs1 = infer_computation state comp1 in
-    let ty1', ty2, eqs2 = infer_abstraction state comp2 in
-    (ty2, ((ty1, ty1') :: eqs1) @ eqs2)
+      let ty1, eqs1 = infer_computation state comp1 in
+      let ty1', ty2, eqs2 = infer_abstraction state comp2 in
+      (ty2, ((ty1, ty1') :: eqs1) @ eqs2)
   | Ast.Apply (e1, e2) ->
-    let t1, eqs1 = infer_expression state e1
-    and t2, eqs2 = infer_expression state e2
-    and a = fresh_ty () in
-    (a, ((t1, Ast.TyArrow (t2, a)) :: eqs1) @ eqs2)
+      let t1, eqs1 = infer_expression state e1
+      and t2, eqs2 = infer_expression state e2
+      and a = fresh_ty () in
+      (a, ((t1, Ast.TyArrow (t2, a)) :: eqs1) @ eqs2)
   | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
-    let ty1 = Ast.OperationMap.find op state.operations
-    and ty2, eqs1 = infer_expression state expr
-    and ty3, eqs2 = infer_computation state comp in
-    (ty3, ((ty1, ty2) :: eqs1) @ eqs2)
+      let ty1 = Ast.OperationMap.find op state.operations
+      and ty2, eqs1 = infer_expression state expr
+      and ty3, eqs2 = infer_computation state comp in
+      (ty3, ((ty1, ty2) :: eqs1) @ eqs2)
   | Ast.Await (e, abs) ->
-    let pty1, eqs1 = infer_expression state e
-    and ty1, ty2, eqs2 = infer_abstraction state abs in
-    (ty2, ((pty1, Ast.TyPromise ty1) :: eqs1) @ eqs2)
+      let pty1, eqs1 = infer_expression state e
+      and ty1, ty2, eqs2 = infer_abstraction state abs in
+      (ty2, ((pty1, Ast.TyPromise ty1) :: eqs1) @ eqs2)
   | Ast.Match (e, cases) ->
-    let ty1, eqs = infer_expression state e and ty2 = fresh_ty () in
-    let fold eqs abs =
-      let ty1', ty2', eqs' = infer_abstraction state abs in
-      ((ty1, ty1') :: (ty2, ty2') :: eqs') @ eqs
-    in
-    (ty2, List.fold_left fold eqs cases)
+      let ty1, eqs = infer_expression state e and ty2 = fresh_ty () in
+      let fold eqs abs =
+        let ty1', ty2', eqs' = infer_abstraction state abs in
+        ((ty1, ty1') :: (ty2, ty2') :: eqs') @ eqs
+      in
+      (ty2, List.fold_left fold eqs cases)
   | Ast.Promise (k, op, abs, p, comp) ->
-    let ty_k = fresh_ty () and ty_p = Ast.TyPromise (fresh_ty ()) in
-    let ty1 = Ast.OperationMap.find op state.operations in
+      let ty_k = fresh_ty () and ty_p = Ast.TyPromise (fresh_ty ()) in
+      let ty1 = Ast.OperationMap.find op state.operations in
 
-    let state' =
-      match k with
-      | None -> state
-      | Some k' -> extend_variables state [ (k', ty_k) ]
-    in
-    let ty1', ty2, eqs1 = infer_abstraction state' abs in
+      let state' =
+        match k with
+        | None -> state
+        | Some k' -> extend_variables state [ (k', ty_k) ]
+      in
+      let ty1', ty2, eqs1 = infer_abstraction state' abs in
 
-    let state'' = extend_variables state [ (p, ty_p) ] in
-    let ty, eqs2 = infer_computation state'' comp in
-    ( ty,
-      (ty_k, Ast.TyArrow (Ast.TyTuple [], ty2))
-      :: (ty1, ty1') :: (ty2, ty_p) :: eqs1
-      @ eqs2 )
+      let state'' = extend_variables state [ (p, ty_p) ] in
+      let ty, eqs2 = infer_computation state'' comp in
+      ( ty,
+        (ty_k, Ast.TyArrow (Ast.TyTuple [], ty2))
+        :: (ty1, ty1') :: (ty2, ty_p) :: eqs1
+        @ eqs2 )
   | Ast.Unbox (expr, abs) ->
-    let ty, eqs1 = infer_expression state expr in
-    let ty' = fresh_ty () in
-    let ty_boxed' = Ast.TyBoxed ty' in
-    let ty1, ty2, eqs2 = infer_abstraction state abs in
-    (ty2, ((ty, ty_boxed') :: (ty', ty1) :: eqs1) @ eqs2)
+      let ty, eqs1 = infer_expression state expr in
+      let ty' = fresh_ty () in
+      let ty_boxed' = Ast.TyBoxed ty' in
+      let ty1, ty2, eqs2 = infer_abstraction state abs in
+      (ty2, ((ty, ty_boxed') :: (ty', ty1) :: eqs1) @ eqs2)
   | Ast.Spawn (comp1, comp2) ->
-    let state' =
-      { state with local_var = Ast.VariableMap.empty :: state.local_var }
-    in
-    let _ = infer_computation state' comp1 in
-    infer_computation state comp2
+      let state' =
+        { state with local_var = Ast.VariableMap.empty :: state.local_var }
+      in
+      let _ = infer_computation state' comp1 in
+      infer_computation state comp2
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in
@@ -326,44 +326,44 @@ let unfold state ty_name args =
   match Ast.TyNameMap.find ty_name state.type_definitions with
   | _, Ast.TySum _ -> assert false
   | params, Ast.TyInline ty ->
-    let subst =
-      List.combine params args |> List.to_seq |> Ast.TyParamMap.of_seq
-    in
-    Ast.substitute_ty subst ty
+      let subst =
+        List.combine params args |> List.to_seq |> Ast.TyParamMap.of_seq
+      in
+      Ast.substitute_ty subst ty
 
 let rec unify state = function
   | [] -> Ast.TyParamMap.empty
   | (t1, t2) :: eqs when t1 = t2 -> unify state eqs
   | (Ast.TyApply (ty_name1, args1), Ast.TyApply (ty_name2, args2)) :: eqs
     when ty_name1 = ty_name2 ->
-    unify state (List.combine args1 args2 @ eqs)
+      unify state (List.combine args1 args2 @ eqs)
   | (Ast.TyApply (ty_name, args), ty) :: eqs
     when is_transparent_type state ty_name ->
-    unify state ((unfold state ty_name args, ty) :: eqs)
+      unify state ((unfold state ty_name args, ty) :: eqs)
   | (ty, Ast.TyApply (ty_name, args)) :: eqs
     when is_transparent_type state ty_name ->
-    unify state ((ty, unfold state ty_name args) :: eqs)
+      unify state ((ty, unfold state ty_name args) :: eqs)
   | (Ast.TyTuple tys1, Ast.TyTuple tys2) :: eqs
     when List.length tys1 = List.length tys2 ->
-    unify state (List.combine tys1 tys2 @ eqs)
+      unify state (List.combine tys1 tys2 @ eqs)
   | (Ast.TyArrow (t1, t1'), Ast.TyArrow (t2, t2')) :: eqs ->
-    unify state ((t1, t2) :: (t1', t2') :: eqs)
+      unify state ((t1, t2) :: (t1', t2') :: eqs)
   | (Ast.TyPromise ty1, Ast.TyPromise ty2) :: eqs ->
-    unify state ((ty1, ty2) :: eqs)
+      unify state ((ty1, ty2) :: eqs)
   | (Ast.TyReference ty1, Ast.TyReference ty2) :: eqs ->
-    unify state ((ty1, ty2) :: eqs)
+      unify state ((ty1, ty2) :: eqs)
   | (Ast.TyBoxed ty1, Ast.TyBoxed ty2) :: eqs -> unify state ((ty1, ty2) :: eqs)
   | (Ast.TyParam a, t) :: eqs when not (occurs a t) ->
-    add_subst a t
-      (unify state (subst_equations (Ast.TyParamMap.singleton a t) eqs))
+      add_subst a t
+        (unify state (subst_equations (Ast.TyParamMap.singleton a t) eqs))
   | (t, Ast.TyParam a) :: eqs when not (occurs a t) ->
-    add_subst a t
-      (unify state (subst_equations (Ast.TyParamMap.singleton a t) eqs))
+      add_subst a t
+        (unify state (subst_equations (Ast.TyParamMap.singleton a t) eqs))
   | (t1, t2) :: _ ->
-    let print_param = Ast.new_print_param () in
-    Error.typing "Cannot unify %t = %t"
-      (Ast.print_ty print_param t1)
-      (Ast.print_ty print_param t2)
+      let print_param = Ast.new_print_param () in
+      Error.typing "Cannot unify %t = %t"
+        (Ast.print_ty print_param t1)
+        (Ast.print_ty print_param t2)
 
 let infer state e =
   let t, eqs = infer_computation state e in
@@ -394,12 +394,12 @@ let add_top_definition state x expr =
 let add_type_definitions state ty_defs =
   List.fold_left
     (fun state (params, ty_name, ty_def) ->
-       Format.printf "@[type %t@]@." (Ast.TyName.print ty_name);
-       {
-         state with
-         type_definitions =
-           Ast.TyNameMap.add ty_name (params, ty_def) state.type_definitions;
-       })
+      Format.printf "@[type %t@]@." (Ast.TyName.print ty_name);
+      {
+        state with
+        type_definitions =
+          Ast.TyNameMap.add ty_name (params, ty_def) state.type_definitions;
+      })
     state ty_defs
 
 let check_payload state op expr =
