@@ -1,10 +1,10 @@
-operation question : unit -> int
+operation question : [[unit -> int]]
 operation answer : int
 
 let get_answer f =
   promise (answer x |-> <<x>>)
   as result in
-  send question f;
+  send question [[f]];
   result
 
 run
@@ -17,7 +17,8 @@ run
 
 run
   promise (question f |->
-    let y = f () in
+    unbox f as [[f']] in
+    let y = f' () in
     send answer y;
     return <<()>>
   ) as p in
