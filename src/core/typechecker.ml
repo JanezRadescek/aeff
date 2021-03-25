@@ -6,9 +6,6 @@ type state = {
   local_var : Ast.ty_scheme Ast.VariableMap.t list;
   operations : Ast.ty Ast.OperationMap.t;
   type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
-  semi_mobile_variants : SemiMobile.t;
-  semi_mobile_candidate : SemiMobile.t;
-      (**This Variant are ground if all params are ground *)
 }
 
 let initial_state =
@@ -46,19 +43,13 @@ let initial_state =
                        Ast.TyApply (Ast.list_ty_name, [ Ast.TyParam a ]);
                      ]) );
             ] ) );
-    semi_mobile_variants =
-      SemiMobile.empty
-      |> SemiMobile.add Ast.empty_ty_name
-      |> SemiMobile.add Ast.list_ty_name;
-    semi_mobile_candidate = SemiMobile.empty;
   }
 
 let rec is_mobile state (ty : Ast.ty) : bool =
   match ty with
   | Ast.TyConst _ -> true
   | Ast.TyApply (ty_name, tys) ->
-      SemiMobile.mem ty_name state.semi_mobile_variants
-      && List.for_all (is_mobile state) tys
+      List.for_all (is_mobile state) tys && is_apply_preserving state [] ty_name
   | Ast.TyParam _ -> false
   | Ast.TyArrow _ -> false
   | Ast.TyTuple tys -> List.for_all (is_mobile state) tys
@@ -66,36 +57,33 @@ let rec is_mobile state (ty : Ast.ty) : bool =
   | Ast.TyReference _ -> false
   | Ast.TyBoxed _ -> true
 
-let rec is_semi_mobile state ty : bool =
+and is_preserving state (candidates : SemiMobile.elt list) ty : bool =
   match ty with
   | Ast.TyConst _ -> true
   | Ast.TyApply (ty_name, tys) ->
-      is_apply_semi_mobile state ty_name tys
-      && List.for_all (is_semi_mobile state) tys
+      List.for_all (is_preserving state candidates) tys
+      && is_apply_preserving state candidates ty_name
   | Ast.TyParam _ -> true
   | Ast.TyArrow _ -> false
-  | Ast.TyTuple tys -> List.for_all (is_semi_mobile state) tys
+  | Ast.TyTuple tys -> List.for_all (is_preserving state candidates) tys
   | Ast.TyPromise _ -> false
   | Ast.TyReference _ -> false
   | Ast.TyBoxed _ -> true
 
-and is_apply_semi_mobile state ty_name tys =
-  match SemiMobile.mem ty_name state.semi_mobile_candidate with
-  | true -> List.for_all (is_semi_mobile state) tys
+and is_apply_preserving state (candidates : SemiMobile.elt list)
+    (ty_name : Ast.ty_name) =
+  match List.mem ty_name candidates with
+  | true -> true
+  (* 'a foo = 'a * <<'a>> foo  wee need to check that tys are still semi_mobile *)
   | false ->
-      let state' =
-        {
-          state with
-          semi_mobile_candidate =
-            SemiMobile.add ty_name state.semi_mobile_candidate;
-        }
-      in
+      let candidates' = ty_name :: candidates in
       let _params, ty_def = Ast.TyNameMap.find ty_name state.type_definitions in
-      is_ty_def_semi_mobile state' ty_def
+      is_ty_def_preserving state candidates' ty_def
 
-and is_ty_def_semi_mobile state (ty_def : Ast.ty_def) : bool =
+and is_ty_def_preserving state (candidates : SemiMobile.elt list)
+    (ty_def : Ast.ty_def) : bool =
   match ty_def with
-  | Ast.TyInline ty -> is_semi_mobile state ty
+  | Ast.TyInline ty -> is_preserving state candidates ty
   | Ast.TySum tys' ->
       let tys'' =
         List.fold_left
@@ -103,7 +91,7 @@ and is_ty_def_semi_mobile state (ty_def : Ast.ty_def) : bool =
             match ty with None -> todo_tys | Some ty -> ty :: todo_tys)
           [] tys'
       in
-      List.for_all (is_semi_mobile state) tys''
+      List.for_all (is_preserving state candidates) tys''
 
 let fresh_ty () =
   let a = Ast.TyParam.fresh None in
@@ -707,7 +695,7 @@ let add_operation state op ty =
   let ty' = unfold_type_definitions state ty in
   Format.printf "@[operation %t : %t@]@." (Ast.Operation.print op)
     (Ast.print_ty_scheme ([], ty'));
-  if is_semi_mobile state ty' then
+  if is_preserving state [] ty' then
     { state with operations = Ast.OperationMap.add op ty state.operations }
   else Error.typing "Payload of an operation must be of a ground type"
 
@@ -728,13 +716,7 @@ let add_type_definitions state ty_defs =
             Ast.TyNameMap.add ty_name (params, ty_def) state.type_definitions;
         }
       in
-      if is_ty_def_semi_mobile state ty_def then
-        {
-          state' with
-          semi_mobile_variants =
-            SemiMobile.add ty_name state.semi_mobile_variants;
-        }
-      else state')
+      state')
     state ty_defs
 
 let check_payload state op expr =
