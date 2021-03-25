@@ -57,7 +57,7 @@ let rec is_mobile state (ty : Ast.ty) : bool =
   | Ast.TyReference _ -> false
   | Ast.TyBoxed _ -> true
 
-and is_preserving state (candidates : SemiMobile.elt list) ty : bool =
+and is_preserving state (candidates : Ast.ty_name list) ty : bool =
   match ty with
   | Ast.TyConst _ -> true
   | Ast.TyApply (ty_name, tys) ->
@@ -70,8 +70,8 @@ and is_preserving state (candidates : SemiMobile.elt list) ty : bool =
   | Ast.TyReference _ -> false
   | Ast.TyBoxed _ -> true
 
-and is_apply_preserving state (candidates : SemiMobile.elt list)
-    (ty_name : Ast.ty_name) =
+and is_apply_preserving state (candidates : Ast.ty_name list)
+    (ty_name : SemiMobile.elt) =
   match List.mem ty_name candidates with
   | true -> true
   (* 'a foo = 'a * <<'a>> foo  wee need to check that tys are still semi_mobile *)
@@ -80,7 +80,7 @@ and is_apply_preserving state (candidates : SemiMobile.elt list)
       let _params, ty_def = Ast.TyNameMap.find ty_name state.type_definitions in
       is_ty_def_preserving state candidates' ty_def
 
-and is_ty_def_preserving state (candidates : SemiMobile.elt list)
+and is_ty_def_preserving state (candidates : Ast.ty_name list)
     (ty_def : Ast.ty_def) : bool =
   match ty_def with
   | Ast.TyInline ty -> is_preserving state candidates ty
