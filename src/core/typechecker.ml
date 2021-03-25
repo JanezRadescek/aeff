@@ -386,10 +386,21 @@ let rec unify state = function
         (Ast.print_ty print_param t1)
         (Ast.print_ty print_param t2)
 
+let rec check_mobile state subst = function
+  | [] -> ()
+  | ty :: tys ->
+      let ty' = Ast.substitute_ty subst ty in
+      if is_mobile state ty' then check_mobile state subst tys
+      else
+        let pp = Ast.new_print_param () in
+        Error.typing "Expected %t (originaly %t) to be mobile."
+          (Ast.print_ty pp ty') (Ast.print_ty pp ty)
+
 let infer state e =
   let t, constr = infer_computation state e in
   let sbst = unify state constr.equations in
   let t' = Ast.substitute_ty sbst t in
+  check_mobile state sbst constr.mobile_types;
   t'
 
 let add_external_function x ty_sch state =
@@ -408,6 +419,7 @@ let add_top_definition state x expr =
   let ty, constr = infer_expression state expr in
   let subst = unify state constr.equations in
   let ty' = Ast.substitute_ty subst ty in
+  check_mobile state subst constr.mobile_types;
   let free_vars = Ast.free_vars ty' |> Ast.TyParamSet.elements in
   let ty_sch = (free_vars, ty') in
   add_external_function x ty_sch state
@@ -426,4 +438,6 @@ let add_type_definitions state ty_defs =
 let check_payload state op expr =
   let ty1 = Ast.OperationMap.find op state.operations
   and ty2, constr = infer_expression state expr in
-  unify state (add_eqs constr [ (ty1, ty2) ]).equations
+  let subst = unify state (add_eqs constr [ (ty1, ty2) ]).equations in
+  check_mobile state subst constr.mobile_types;
+  subst

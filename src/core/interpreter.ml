@@ -220,8 +220,8 @@ let rec step_computation state = function
           let subst = match_pattern_with_expression state pat expr in
           [ (ComputationRedex AwaitFulfill, substitute subst comp) ]
       | _ -> [] )
-  | Ast.Unbox (_e, _abs) -> failwith "TODO"
-  | Ast.Spawn (_comp1, _comp2) -> failwith "TODO"
+  | Ast.Unbox (_e, _abs) -> failwith "TODO inter Unbox"
+  | Ast.Spawn (_comp1, _comp2) -> failwith "TODO inter spawn "
 
 let rec step_process state = function
   | Ast.Run comp -> (
