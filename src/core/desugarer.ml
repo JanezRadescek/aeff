@@ -212,7 +212,7 @@ and desugar_plain_computation ~loc state =
       let p'', cont'' = desugar_promise_abstraction ~loc state abs in
 
       match guard with
-      | None -> ([], Ast.Promise (k', op', (p', c'), p'', cont''))
+      | None -> ([], Ast.Out (Promise (k', op', (p', c'), p''), cont''))
       | Some g ->
           let binds, g' = desugar_expression state'' g in
 
@@ -225,7 +225,7 @@ and desugar_plain_computation ~loc state =
           let c''' =
             List.fold_right (fun (p, c1) c2 -> Ast.Do (c1, (p, c2))) binds c''
           in
-          ([], Ast.Promise (Some k'', op', (p', c'''), p'', cont'')) )
+          ([], Ast.Out (Promise (Some k'', op', (p', c'''), p''), cont'')) )
   | S.Await (t, abs) ->
       let binds, e = desugar_expression state t in
       let abs' = desugar_abstraction state abs in
@@ -233,7 +233,7 @@ and desugar_plain_computation ~loc state =
   | S.Send (op, t) ->
       let op' = lookup_operation ~loc state op in
       let binds, e = desugar_expression state t in
-      (binds, Ast.Out (op', e, Ast.Return (Ast.Tuple [])))
+      (binds, Ast.Out (Ast.Signal (op', e), Ast.Return (Ast.Tuple [])))
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changes. *)
   | ( S.Var _ | S.Const _ | S.Annotated _ | S.Tuple _ | S.Variant _ | S.Lambda _

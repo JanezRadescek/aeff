@@ -23,11 +23,9 @@ type computation_redex =
   | ApplyFun
   | DoReturn
   | DoOut
-  | DoPromise
   | AwaitFulfill
 
 type computation_reduction =
-  | PromiseCtx of computation_reduction
   | InCtx of computation_reduction
   | OutCtx of computation_reduction
   | DoCtx of computation_reduction
@@ -122,24 +120,25 @@ let step_in_context step state redCtx ctx term =
 
 let rec step_computation state = function
   | Ast.Return _ -> []
-  | Ast.Out (op, expr, comp) ->
-      step_in_context step_computation state
-        (fun red -> OutCtx red)
-        (fun comp' -> Ast.Out (op, expr, comp'))
-        comp
-  | Ast.Promise (k, op, op_comp, p, comp) -> (
+  | Ast.Out ((Ast.Promise (k, op, op_comp, p) as out), comp) -> (
       let comps' =
         step_in_context step_computation state
-          (fun red -> PromiseCtx red)
-          (fun comp' -> Ast.Promise (k, op, op_comp, p, comp'))
+          (fun red -> OutCtx red)
+          (fun comp' -> Ast.Out (out, comp'))
           comp
       in
       match comp with
-      | Ast.Out (op', expr', cont') ->
+      | Ast.Out (Ast.Promise _, _) -> comps'
+      | Ast.Out (out, cont') ->
           ( ComputationRedex PromiseOut,
-            Ast.Out (op', expr', Ast.Promise (k, op, op_comp, p, cont')) )
+            Ast.Out (out, Ast.Out (Ast.Promise (k, op, op_comp, p), cont')) )
           :: comps'
       | _ -> comps' )
+  | Ast.Out (out, comp) ->
+      step_in_context step_computation state
+        (fun red -> OutCtx red)
+        (fun comp' -> Ast.Out (out, comp'))
+        comp
   | Ast.In (op, expr, comp) -> (
       let comps' =
         step_in_context step_computation state
@@ -150,37 +149,8 @@ let rec step_computation state = function
       match comp with
       | Ast.Return expr ->
           (ComputationRedex InReturn, Ast.Return expr) :: comps'
-      | Ast.Out (op', expr', cont') ->
-          ( ComputationRedex InOut,
-            Ast.Out (op', expr', Ast.In (op, expr, cont')) )
-          :: comps'
-      | Ast.Promise (k, op', (arg_pat, op_comp), p, comp) when op = op' ->
-          let subst = match_pattern_with_expression state arg_pat expr in
-          let comp' = substitute subst op_comp in
-
-          let p' = Ast.Variable.fresh "p'" in
-
-          let comp'' =
-            match k with
-            | None -> comp'
-            | Some k' ->
-                let f =
-                  Ast.Lambda
-                    ( Ast.PTuple [],
-                      Ast.Promise
-                        (k, op', (arg_pat, op_comp), p', Ast.Return (Ast.Var p'))
-                    )
-                in
-                substitute
-                  (match_pattern_with_expression state (Ast.PVar k') f)
-                  comp'
-          in
-          let comp' = Ast.Do (comp'', (Ast.PVar p, Ast.In (op, expr, comp))) in
-          (ComputationRedex InPromise, comp') :: comps'
-      | Ast.Promise (k, op', op_comp, p, comp) ->
-          ( ComputationRedex InPromise',
-            Ast.Promise (k, op', op_comp, p, Ast.In (op, expr, comp)) )
-          :: comps'
+      | Ast.Out (out, comp) ->
+          (ComputationRedex InOut, step_in_out state op expr comp out) :: comps'
       | _ -> comps' )
   | Ast.Match (expr, cases) ->
       let rec find_case = function
@@ -206,12 +176,8 @@ let rec step_computation state = function
           let pat, comp2' = comp2 in
           let subst = match_pattern_with_expression state pat expr in
           (ComputationRedex DoReturn, substitute subst comp2') :: comps1'
-      | Ast.Out (op, expr, comp1) ->
-          (ComputationRedex DoOut, Ast.Out (op, expr, Ast.Do (comp1, comp2)))
-          :: comps1'
-      | Ast.Promise (k, op, op_comp, pat, comp1) ->
-          ( ComputationRedex DoPromise,
-            Ast.Promise (k, op, op_comp, pat, Ast.Do (comp1, comp2)) )
+      | Ast.Out (out, comp1') ->
+          (ComputationRedex DoOut, Ast.Out (out, Ast.Do (comp1', comp2)))
           :: comps1'
       | _ -> comps1' )
   | Ast.Await (expr, (pat, comp)) -> (
@@ -221,6 +187,34 @@ let rec step_computation state = function
           [ (ComputationRedex AwaitFulfill, substitute subst comp) ]
       | _ -> [] )
 
+and step_in_out state op expr cont = function
+  | Ast.Signal (op', expr') ->
+      Ast.Out (Ast.Signal (op', expr'), Ast.In (op, expr, cont))
+  | Ast.Promise (k, op', (arg_pat, op_comp), p) when op = op' ->
+      let subst = match_pattern_with_expression state arg_pat expr in
+      let comp' = substitute subst op_comp in
+
+      let p' = Ast.Variable.fresh "p'" in
+
+      let comp'' =
+        match k with
+        | None -> comp'
+        | Some k' ->
+            let f =
+              Ast.Lambda
+                ( Ast.PTuple [],
+                  Ast.Out
+                    ( Ast.Promise (k, op', (arg_pat, op_comp), p'),
+                      Ast.Return (Ast.Var p') ) )
+            in
+            substitute
+              (match_pattern_with_expression state (Ast.PVar k') f)
+              comp'
+      in
+      Ast.Do (comp'', (Ast.PVar p, Ast.In (op, expr, cont)))
+  | Ast.Promise (k, op', op_comp, p) ->
+      Ast.Out (Ast.Promise (k, op', op_comp, p), Ast.In (op, expr, cont))
+
 let rec step_process state = function
   | Ast.Run comp -> (
       let comps' =
@@ -228,7 +222,7 @@ let rec step_process state = function
         |> List.map (fun (red, comp') -> (RunCtx red, Ast.Run comp'))
       in
       match comp with
-      | Ast.Out (op, expr, comp') ->
+      | Ast.Out (Ast.Signal (op, expr), comp') ->
           (ProcessRedex RunOut, Ast.OutProc (op, expr, Ast.Run comp')) :: comps'
       | _ -> comps' )
   | Ast.Parallel (proc1, proc2) ->

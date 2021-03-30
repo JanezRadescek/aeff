@@ -9,8 +9,7 @@ let print_mark ppf = Format.pp_print_as ppf 0 tag_marker
 let print_computation_redex ?max_level red c ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
   match (red, c) with
-  | ( (Interpreter.DoReturn | Interpreter.DoOut | Interpreter.DoPromise),
-      Ast.Do (c1, (pat, c2)) ) ->
+  | (Interpreter.DoReturn | Interpreter.DoOut), Ast.Do (c1, (pat, c2)) ->
       print "@[<hov>%tlet@[<hov>@ %t =@ %t@]%t in@ %t@]" print_mark
         (Ast.print_pattern pat) (Ast.print_computation c1) print_mark
         (Ast.print_computation c2)
@@ -34,16 +33,18 @@ let rec print_computation_reduction ?max_level red c ppf =
       print "↓%t(@[<hv>%t,@ %t@])" (Ast.Operation.print op)
         (Ast.print_expression e)
         (print_computation_reduction red c)
-  | Interpreter.OutCtx red, Ast.Out (op, e, c) ->
+  | Interpreter.OutCtx red, Ast.Out (Ast.Signal (op, e), c) ->
       print "↑%t(@[<hv>%t,@ %t@])" (Ast.Operation.print op)
         (Ast.print_expression e)
         (print_computation_reduction red c)
-  | Interpreter.PromiseCtx red, Ast.Promise (None, op, (p1, c1), p2, c2) ->
+  | Interpreter.OutCtx red, Ast.Out (Ast.Promise (None, op, (p1, c1), p2), c2)
+    ->
       print "@[<hv>promise (@[<hov>%t %t ↦@ %t@])@ as %t in@ %t@]"
         (Ast.Operation.print op) (Ast.print_pattern p1)
         (Ast.print_computation c1) (Ast.Variable.print p2)
         (print_computation_reduction red c2)
-  | Interpreter.PromiseCtx red, Ast.Promise (Some k, op, (p1, c1), p2, c2) ->
+  | Interpreter.OutCtx red, Ast.Out (Ast.Promise (Some k, op, (p1, c1), p2), c2)
+    ->
       print "@[<hv>promise (@[<hov>%t %t %t ↦@ %t@])@ as %t in@ %t@]"
         (Ast.Operation.print op) (Ast.print_pattern p1) (Ast.Variable.print k)
         (Ast.print_computation c1) (Ast.Variable.print p2)

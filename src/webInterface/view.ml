@@ -46,11 +46,9 @@ let view_computation_redex = function
   | Interpreter.ApplyFun -> "applyFun"
   | Interpreter.DoReturn -> "doReturn"
   | Interpreter.DoOut -> "doOut"
-  | Interpreter.DoPromise -> "doPromise"
   | Interpreter.AwaitFulfill -> "awaitFulfill"
 
 let rec view_computation_reduction = function
-  | Interpreter.PromiseCtx red -> view_computation_reduction red
   | Interpreter.InCtx red -> view_computation_reduction red
   | Interpreter.OutCtx red -> view_computation_reduction red
   | Interpreter.DoCtx red -> view_computation_reduction red
