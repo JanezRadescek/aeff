@@ -387,10 +387,8 @@ and infer_computation state = function
         { state with local_var = Ast.VariableMap.empty :: state.local_var }
       in
       let _ty1, constraints1 = infer_computation state' comp1 in
-      let subst = unify state' constraints1.equations in
-      check_mobile state' subst constraints1.mobile_types;
-      (* We need to do something. Probably same as with any other process? *)
-      infer_computation state comp2
+      let ty2, constraints2 = infer_computation state comp2 in
+      (ty2, combine constraints1 constraints2)
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in

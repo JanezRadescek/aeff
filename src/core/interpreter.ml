@@ -223,9 +223,12 @@ let rec step_computation state = function
           let subst = match_pattern_with_expression state pat expr in
           [ (ComputationRedex AwaitFulfill, substitute subst comp) ]
       | _ -> [] )
-  | Ast.Unbox (expr, (pat, comp)) ->
-      let subst = match_pattern_with_expression state pat expr in
-      [ (ComputationRedex Unbox, substitute subst comp) ]
+  | Ast.Unbox (expr, (pat, comp)) -> (
+      match expr with
+      | Ast.Boxed expr ->
+          let subst = match_pattern_with_expression state pat expr in
+          [ (ComputationRedex Unbox, substitute subst comp) ]
+      | _ -> [] )
   | Ast.Spawn (_comp1, _comp2) -> []
 
 let rec step_process state = function
