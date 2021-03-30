@@ -195,7 +195,6 @@ let rec step_computation state = function
           let subst = match_pattern_with_expression state pat expr in
           [ (ComputationRedex Unbox, substitute subst comp) ]
       | _ -> [] )
-  | Ast.Spawn (_comp1, _comp2) -> []
 
 and step_in_out state op expr cont = function
   | Ast.Signal (op', expr') ->
@@ -224,6 +223,7 @@ and step_in_out state op expr cont = function
       Ast.Do (comp'', (Ast.PVar p, Ast.In (op, expr, cont)))
   | Ast.Promise (k, op', op_comp, p) ->
       Ast.Out (Ast.Promise (k, op', op_comp, p), Ast.In (op, expr, cont))
+  | Ast.Spawn comp -> Ast.Out (Ast.Spawn comp, Ast.In (op, expr, cont))
 
 let rec step_process state = function
   | Ast.Run comp -> (
@@ -234,8 +234,9 @@ let rec step_process state = function
       match comp with
       | Ast.Out (Ast.Signal (op, expr), comp') ->
           (ProcessRedex RunOut, Ast.OutProc (op, expr, Ast.Run comp')) :: comps'
-      | Ast.Spawn (comp1, comp2) ->
+      | Ast.Out (Ast.Spawn comp1, comp2) ->
           (ProcessRedex RunSpawn, Ast.Parallel (Ast.Run comp1, Ast.Run comp2))
+          :: (ProcessRedex RunSpawn, Ast.Parallel (Ast.Run comp2, Ast.Run comp1))
           :: comps'
       | _ -> comps' )
   | Ast.Parallel (proc1, proc2) ->

@@ -382,7 +382,7 @@ and infer_computation state = function
       let ty_boxed' = Ast.TyBoxed ty' in
       let ty1, ty2, constr2 = infer_abstraction state abs in
       (ty2, combine (add_eqs constr1 [ (ty, ty_boxed'); (ty', ty1) ]) constr2)
-  | Ast.Spawn (comp1, comp2) ->
+  | Ast.Out (Ast.Spawn comp1, comp2) ->
       let state' =
         { state with local_var = Ast.VariableMap.empty :: state.local_var }
       in

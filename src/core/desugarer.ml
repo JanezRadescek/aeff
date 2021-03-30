@@ -244,7 +244,7 @@ and desugar_plain_computation ~loc state =
       (binds, Ast.Unbox (e, abs'))
   | S.Spawn term1 ->
       let c1 = desugar_computation state term1 in
-      ([], Ast.Spawn (c1, Ast.Return (Ast.Tuple [])))
+      ([], Ast.Out (Ast.Spawn c1, Ast.Return (Ast.Tuple [])))
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changes. *)
   | ( S.Var _ | S.Const _ | S.Annotated _ | S.Tuple _ | S.Variant _ | S.Lambda _
