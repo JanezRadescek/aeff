@@ -105,8 +105,8 @@ rule token = parse
   | ')'                 { RPAREN }
   | '['                 { LBRACK }
   | ']'                 { RBRACK }
-  | "[["                { LBOXED }
-  | "]]"                { RBOXED }
+  | "[|"                { LBOXED }
+  | "|]"                { RBOXED }
   | "<<"                { LPROMISE }
   | ">>"                { RPROMISE }
   | "::"                { CONS }
@@ -116,7 +116,6 @@ rule token = parse
   | "||"                { BARBAR }
   | ';'                 { SEMI }
   | "->"                { ARROW }
-  | "|->"               { MAPSTO }
   | '='                 { EQUAL }
   | '*'                 { STAR }
   | '+'                 { PLUS }
