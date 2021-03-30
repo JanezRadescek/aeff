@@ -338,7 +338,7 @@ and infer_computation state = function
       and t2, constr2 = infer_expression state e2
       and a = fresh_ty () in
       (a, combine (add_eqs constr1 [ (t1, Ast.TyArrow (t2, a)) ]) constr2)
-  | Ast.Out (op, expr, comp) | Ast.In (op, expr, comp) ->
+  | Ast.Out (Ast.Signal (op, expr), comp) | Ast.In (op, expr, comp) ->
       let ty1 = Ast.OperationMap.find op state.operations
       and ty2, constr1 = infer_expression state expr
       and ty3, constr2 = infer_computation state comp in
@@ -354,7 +354,7 @@ and infer_computation state = function
         combine (add_eqs constr' [ (ty1, ty1'); (ty2, ty2') ]) constr
       in
       (ty2, List.fold_left fold constr cases)
-  | Ast.Promise (k, op, abs, p, comp) ->
+  | Ast.Out (Promise (k, op, abs, p), comp) ->
       let ty_k = fresh_ty () and ty_p = Ast.TyPromise (fresh_ty ()) in
       let ty1 = Ast.OperationMap.find op state.operations in
 

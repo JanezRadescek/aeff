@@ -159,13 +159,15 @@ and computation =
   | Do of computation * abstraction
   | Match of expression * abstraction list
   | Apply of expression * expression
-  | Out of operation * expression * computation
+  | Out of outgoing * computation
   | In of operation * expression * computation
-  | Promise of
-      variable option * operation * abstraction * variable * computation
   | Await of expression * abstraction
   | Unbox of expression * abstraction
   | Spawn of computation * computation
+
+and outgoing =
+  | Signal of operation * expression
+  | Promise of variable option * operation * abstraction * variable
 
 and abstraction = pattern * computation
 
@@ -230,11 +232,11 @@ and refresh_computation vars = function
         (refresh_expression vars expr, List.map (refresh_abstraction vars) cases)
   | Apply (expr1, expr2) ->
       Apply (refresh_expression vars expr1, refresh_expression vars expr2)
-  | Out (op, expr, comp) ->
-      Out (op, refresh_expression vars expr, refresh_computation vars comp)
-  | In (op, expr, comp) ->
-      In (op, refresh_expression vars expr, refresh_computation vars comp)
-  | Promise (k, op, abs, p, comp) ->
+  | Out (Signal (op, expr), comp) ->
+      Out
+        ( Signal (op, refresh_expression vars expr),
+          refresh_computation vars comp )
+  | Out (Promise (k, op, abs, p), comp) ->
       let p' = Variable.refresh p in
       let k', vars' =
         match k with
@@ -243,12 +245,11 @@ and refresh_computation vars = function
             let k''' = Variable.refresh k'' in
             (Some k''', (k'', k''') :: vars)
       in
-      Promise
-        ( k',
-          op,
-          refresh_abstraction vars' abs,
-          p',
+      Out
+        ( Promise (k', op, refresh_abstraction vars' abs, p'),
           refresh_computation ((p, p') :: vars) comp )
+  | In (op, expr, comp) ->
+      In (op, refresh_expression vars expr, refresh_computation vars comp)
   | Await (expr, abs) ->
       Await (refresh_expression vars expr, refresh_abstraction vars abs)
   | Unbox (expr, abs) ->
@@ -285,20 +286,18 @@ and substitute_computation subst = function
   | Apply (expr1, expr2) ->
       Apply
         (substitute_expression subst expr1, substitute_expression subst expr2)
-  | Out (op, expr, comp) ->
+  | Out (Signal (op, expr), comp) ->
       Out
-        (op, substitute_expression subst expr, substitute_computation subst comp)
+        ( Signal (op, substitute_expression subst expr),
+          substitute_computation subst comp )
+  | Out (Promise (k, op, abs, p), comp) ->
+      let subst' = remove_pattern_bound_variables subst (PVar p) in
+      Out
+        ( Promise (k, op, substitute_abstraction subst abs, p),
+          substitute_computation subst' comp )
   | In (op, expr, comp) ->
       In
         (op, substitute_expression subst expr, substitute_computation subst comp)
-  | Promise (k, op, abs, p, comp) ->
-      let subst' = remove_pattern_bound_variables subst (PVar p) in
-      Promise
-        ( k,
-          op,
-          substitute_abstraction subst abs,
-          p,
-          substitute_computation subst' comp )
   | Await (expr, abs) ->
       Await (substitute_expression subst expr, substitute_abstraction subst abs)
   | Unbox (expr, abs) ->
@@ -382,14 +381,14 @@ and print_computation ?max_level c ppf =
   | In (op, e, c) ->
       print "↓%t(@[<hv>%t,@ %t@])" (Operation.print op) (print_expression e)
         (print_computation c)
-  | Out (op, e, c) ->
+  | Out (Signal (op, e), c) ->
       print "↑%t(@[<hv>%t,@ %t@])" (Operation.print op) (print_expression e)
         (print_computation c)
-  | Promise (None, op, (p1, c1), p2, c2) ->
+  | Out (Promise (None, op, (p1, c1), p2), c2) ->
       print "@[<hv>promise (@[<hov>%t %t ↦@ %t@])@ as %t in@ %t@]"
         (Operation.print op) (print_pattern p1) (print_computation c1)
         (Variable.print p2) (print_computation c2)
-  | Promise (Some k, op, (p1, c1), p2, c2) ->
+  | Out (Promise (Some k, op, (p1, c1), p2), c2) ->
       print "@[<hv>promise (@[<hov>%t %t %t ↦@ %t@])@ as %t in@ %t@]"
         (Operation.print op) (print_pattern p1) (Variable.print k)
         (print_computation c1) (Variable.print p2) (print_computation c2)
