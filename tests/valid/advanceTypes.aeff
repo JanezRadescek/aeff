@@ -1,0 +1,15 @@
+type ('a, 'b) foo  = [|'a|] * 'b
+operation bar1 : (<<int>>, int) foo
+(*operation bar2 : (int, <<int>>) foo  this one fails*)
+
+type 'm mobile_list = 
+  | Empty 
+  | Something of [|'m|] * 'm mobile_list
+operation tasks : (unit -> int) mobile_list
+
+(*
+type 'm immobile_list = 
+  | Empty 
+  | Something of [|'m|] * 'm list
+operation tasks : (unit -> int) immobile_list this one fails too
+*)

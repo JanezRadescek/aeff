@@ -51,7 +51,10 @@ let initial_state =
             ] ) );
   }
 
-(* Previous versions would fail this type
+(* Previous versions would fail those two cases
+   type foo 'a 'b = ['a] * 'b
+   operation bar1 : <int> int foo = [<int>] * int // this one is  mobile, even though previous implementation would say no
+   operation bar2 : int <int> foo = [int] * <int> // ok this one should fail. And it does :)
 
    type mobile_list 'm = | empty | something of ['m] * 'm list
    operation tasks : (unit -> int) mobile_list
@@ -71,6 +74,7 @@ let rec is_mobile state candidates (ty : Ast.ty) : bool =
 and is_apply_mobile state (candidates : (Ast.ty_name * bool list list) list)
     ty_name tys : bool =
   let are_tys_mobile = List.map (is_mobile state candidates) tys in
+  (* int list is same as bool list. It doesnt matter which type exactly params becomes. only if its replaced by mobile or immobile type)  *)
   let seen_before_and_ok =
     match List.assoc_opt ty_name candidates with
     | Some options ->
@@ -88,7 +92,7 @@ and is_apply_mobile state (candidates : (Ast.ty_name * bool list list) list)
         check options
     (* kinda like induction??? When we had fist met type we had to explore it.
        But now we can use IP and just check that it is exactly as in IP ??? *)
-    (* We should eventually finish since there is limited combination of types we can get *)
+    (* We should eventually finish since there is limited combinations mobile/immobile types *)
     | None -> false
   in
   if seen_before_and_ok then true
@@ -114,42 +118,6 @@ and is_apply_mobile state (candidates : (Ast.ty_name * bool list list) list)
             [] tys'
         in
         List.for_all (is_mobile state candidates') (List.map subst tys'')
-
-let rec is_preserving state (candidates : Ast.ty_name list) ty : bool =
-  match ty with
-  | Ast.TyConst _ -> true
-  | Ast.TyApply (ty_name, tys) ->
-      List.for_all (is_preserving state candidates) tys
-      && is_apply_preserving state candidates ty_name
-  | Ast.TyParam _ -> true
-  | Ast.TyArrow _ -> false
-  | Ast.TyTuple tys -> List.for_all (is_preserving state candidates) tys
-  | Ast.TyPromise _ -> false
-  | Ast.TyReference _ -> false
-  | Ast.TyBoxed _ -> true
-
-and is_apply_preserving state (candidates : Ast.ty_name list)
-    (ty_name : Ast.ty_name) =
-  match List.mem ty_name candidates with
-  | true -> true
-  (* 'a foo = 'a * <<'a>> foo  wee need to check that tys are still semi_mobile *)
-  | false ->
-      let candidates' = ty_name :: candidates in
-      let _params, ty_def = Ast.TyNameMap.find ty_name state.type_definitions in
-      is_ty_def_preserving state candidates' ty_def
-
-and is_ty_def_preserving state (candidates : Ast.ty_name list)
-    (ty_def : Ast.ty_def) : bool =
-  match ty_def with
-  | Ast.TyInline ty -> is_preserving state candidates ty
-  | Ast.TySum tys' ->
-      let tys'' =
-        List.fold_left
-          (fun todo_tys (_lbl, ty) ->
-            match ty with None -> todo_tys | Some ty -> ty :: todo_tys)
-          [] tys'
-      in
-      List.for_all (is_preserving state candidates) tys''
 
 let fresh_ty () =
   let a = Ast.TyParam.fresh "ty" in
@@ -465,9 +433,9 @@ let add_operation state op ty =
     (Ast.print_ty_scheme ([], ty));
   (* If operation is not even preserving than it has no chance of ever being mobile.
      So in case its not user can get better error msg. *)
-  if is_preserving state [] ty then
+  if is_mobile state [] ty then
     { state with operations = Ast.OperationMap.add op ty state.operations }
-  else Error.typing "Payload of an operation must be of a ground type"
+  else Error.typing "Payload of an operation must be of a mobile type"
 
 let add_top_definition state x expr =
   let ty, constr = infer_expression state expr in
