@@ -1,7 +1,7 @@
-operation task :   'a * [|'a -> int * int|]
-operation result : int * (int * int) 
+operation task :   int * [|int -> int|]
+operation result : int * int
 
-let boxed_func = [|fun a -> (a, a)|]
+let boxed_func = [|fun a -> a+a|]
 
 let parallel_map f seznam = 
     map awaitValue (
