@@ -52,10 +52,6 @@ let initial_state =
   }
 
 (* Previous versions would fail this type
-   type foo 'a 'b = [|'a|] * b
-   type bar = foo <<int>> bool
-
-   or more real world and ??important??
 
    type mobile_list 'm = | empty | something of ['m] * 'm list
    operation tasks : (unit -> int) mobile_list
@@ -64,8 +60,7 @@ let initial_state =
 let rec is_mobile state candidates (ty : Ast.ty) : bool =
   match ty with
   | Ast.TyConst _ -> true
-  | Ast.TyApply (ty_name, tys) ->
-      is_mobile_ty_apply state candidates ty_name tys
+  | Ast.TyApply (ty_name, tys) -> is_apply_mobile state candidates ty_name tys
   | Ast.TyParam _ -> false
   | Ast.TyArrow _ -> false
   | Ast.TyTuple tys -> List.for_all (is_mobile state candidates) tys
@@ -73,7 +68,7 @@ let rec is_mobile state candidates (ty : Ast.ty) : bool =
   | Ast.TyReference _ -> false
   | Ast.TyBoxed _ -> true
 
-and is_mobile_ty_apply state (candidates : (Ast.ty_name * bool list list) list)
+and is_apply_mobile state (candidates : (Ast.ty_name * bool list list) list)
     ty_name tys : bool =
   let are_tys_mobile = List.map (is_mobile state candidates) tys in
   let seen_before_and_ok =
