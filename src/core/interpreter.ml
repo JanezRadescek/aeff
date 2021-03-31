@@ -194,7 +194,12 @@ let rec step_computation state = function
       | Ast.Boxed expr ->
           let subst = match_pattern_with_expression state pat expr in
           [ (ComputationRedex Unbox, substitute subst comp) ]
-      | _ -> [] )
+      | Ast.Var x ->
+          let expr' = Ast.VariableMap.find x state.variables in
+          [ (ComputationRedex Unbox, Ast.Unbox (expr', (pat, comp))) ]
+      | _ ->
+          Error.runtime "Expected boxed expresion but got %t instead."
+            (Ast.print_expression expr) )
 
 and step_in_out state op expr cont = function
   | Ast.Signal (op', expr') ->
