@@ -401,7 +401,7 @@ and print_computation ?max_level c ppf =
       print "@[<hov>await @[<hov>%t until@ ⟨%t⟩@] in@ %t@]"
         (print_expression e) (print_pattern p) (print_computation c)
   | Unbox (e, (p, c)) ->
-      print "%t as @[%t@] in %t" (print_expression e) (print_pattern p)
+      print "Unbox %t as [%t] in %t" (print_expression e) (print_pattern p)
         (print_computation c)
 
 and print_abstraction (p, c) ppf =
