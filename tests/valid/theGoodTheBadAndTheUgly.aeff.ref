@@ -53,9 +53,12 @@ val fst : α × β → α
 val snd : α × β → β
 val return : α → α
 val awaitValue : ⟨α⟩ → α
+type mobile_list
+operation the_good : (unit → int) mobile_list
+type left1
+type right1
+operation and_the_ugly : int left1
 type foo
 operation bar1 : (⟨int⟩, int) foo
-type mobile_list
-operation tasks : (unit → int) mobile_list
 The process has terminated in the configuration:
 run (return ())
