@@ -151,3 +151,20 @@
    (action
     (diff "select.aeff.ref" "select.aeff.out")))
 
+(rule
+ (deps
+  ../../src/aeff/aeff.exe
+  (source_tree .))
+   (target "theGoodTheBadAndTheUgly.aeff.out")
+    (action
+     (with-outputs-to "%{target}"
+      (with-accepted-exit-codes
+       0
+       (run ../../src/aeff/aeff.exe --fixed-random-seed "./theGoodTheBadAndTheUgly.aeff")))))
+
+(rule
+ (deps "theGoodTheBadAndTheUgly.aeff.out")
+  (alias runtest)
+   (action
+    (diff "theGoodTheBadAndTheUgly.aeff.ref" "theGoodTheBadAndTheUgly.aeff.out")))
+
