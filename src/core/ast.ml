@@ -37,6 +37,7 @@ type ty =
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
   | TyPromise of ty  (** [<<ty>>] *)
   | TyReference of ty  (** [ty ref] *)
+  | TyBoxed of ty  (** [[[ty]]] *)
 
 let rec print_ty ?max_level print_param p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
@@ -63,6 +64,8 @@ let rec print_ty ?max_level print_param p ppf =
   | TyPromise ty -> print "⟨%t⟩" (print_ty print_param ty)
   | TyReference ty ->
       print ~at_level:1 "%t ref" (print_ty ~max_level:1 print_param ty)
+  | TyBoxed ty ->
+      print ~at_level:1 "[%t]" (print_ty ~max_level:1 print_param ty)
 
 let new_print_param () =
   let names = ref TyParamMap.empty in
@@ -96,6 +99,7 @@ let rec substitute_ty subst = function
       TyArrow (substitute_ty subst ty1, substitute_ty subst ty2)
   | TyPromise ty -> TyPromise (substitute_ty subst ty)
   | TyReference ty -> TyReference (substitute_ty subst ty)
+  | TyBoxed ty -> TyBoxed (substitute_ty subst ty)
 
 let rec free_vars = function
   | TyConst _ -> TyParamSet.empty
@@ -111,6 +115,7 @@ let rec free_vars = function
   | TyArrow (ty1, ty2) -> TyParamSet.union (free_vars ty1) (free_vars ty2)
   | TyPromise ty -> free_vars ty
   | TyReference ty -> free_vars ty
+  | TyBoxed ty -> free_vars ty
 
 module Variable = Symbol.Make ()
 
@@ -147,17 +152,21 @@ type expression =
   | RecLambda of variable * abstraction
   | Fulfill of expression
   | Reference of expression ref
+  | Boxed of expression
 
 and computation =
   | Return of expression
   | Do of computation * abstraction
   | Match of expression * abstraction list
   | Apply of expression * expression
-  | Out of operation * expression * computation
+  | Out of outgoing * computation
   | In of operation * expression * computation
-  | Promise of
-      variable option * operation * abstraction * variable * computation
   | Await of expression * abstraction
+  | Unbox of expression * abstraction
+
+and outgoing =
+  | Signal of operation * expression
+  | Promise of variable option * operation * abstraction * variable
 
 and abstraction = pattern * computation
 
@@ -211,6 +220,7 @@ let rec refresh_expression vars = function
       RecLambda (x', refresh_abstraction ((x, x') :: vars) abs)
   | Fulfill expr -> Fulfill (refresh_expression vars expr)
   | Reference ref -> Reference ref
+  | Boxed expr -> Boxed (refresh_expression vars expr)
 
 and refresh_computation vars = function
   | Return expr -> Return (refresh_expression vars expr)
@@ -221,11 +231,11 @@ and refresh_computation vars = function
         (refresh_expression vars expr, List.map (refresh_abstraction vars) cases)
   | Apply (expr1, expr2) ->
       Apply (refresh_expression vars expr1, refresh_expression vars expr2)
-  | Out (op, expr, comp) ->
-      Out (op, refresh_expression vars expr, refresh_computation vars comp)
-  | In (op, expr, comp) ->
-      In (op, refresh_expression vars expr, refresh_computation vars comp)
-  | Promise (k, op, abs, p, comp) ->
+  | Out (Signal (op, expr), comp) ->
+      Out
+        ( Signal (op, refresh_expression vars expr),
+          refresh_computation vars comp )
+  | Out (Promise (k, op, abs, p), comp) ->
       let p' = Variable.refresh p in
       let k', vars' =
         match k with
@@ -234,14 +244,15 @@ and refresh_computation vars = function
             let k''' = Variable.refresh k'' in
             (Some k''', (k'', k''') :: vars)
       in
-      Promise
-        ( k',
-          op,
-          refresh_abstraction vars' abs,
-          p',
+      Out
+        ( Promise (k', op, refresh_abstraction vars' abs, p'),
           refresh_computation ((p, p') :: vars) comp )
+  | In (op, expr, comp) ->
+      In (op, refresh_expression vars expr, refresh_computation vars comp)
   | Await (expr, abs) ->
       Await (refresh_expression vars expr, refresh_abstraction vars abs)
+  | Unbox (expr, abs) ->
+      Unbox (refresh_expression vars expr, refresh_abstraction vars abs)
 
 and refresh_abstraction vars (pat, comp) =
   let pat', vars' = refresh_pattern pat in
@@ -259,6 +270,7 @@ let rec substitute_expression subst = function
   | RecLambda (x, abs) -> RecLambda (x, substitute_abstraction subst abs)
   | Fulfill expr -> Fulfill (substitute_expression subst expr)
   | Reference ref -> Reference ref
+  | Boxed expr -> Boxed (substitute_expression subst expr)
 
 and substitute_computation subst = function
   | Return expr -> Return (substitute_expression subst expr)
@@ -271,22 +283,22 @@ and substitute_computation subst = function
   | Apply (expr1, expr2) ->
       Apply
         (substitute_expression subst expr1, substitute_expression subst expr2)
-  | Out (op, expr, comp) ->
+  | Out (Signal (op, expr), comp) ->
       Out
-        (op, substitute_expression subst expr, substitute_computation subst comp)
+        ( Signal (op, substitute_expression subst expr),
+          substitute_computation subst comp )
+  | Out (Promise (k, op, abs, p), comp) ->
+      let subst' = remove_pattern_bound_variables subst (PVar p) in
+      Out
+        ( Promise (k, op, substitute_abstraction subst abs, p),
+          substitute_computation subst' comp )
   | In (op, expr, comp) ->
       In
         (op, substitute_expression subst expr, substitute_computation subst comp)
-  | Promise (k, op, abs, p, comp) ->
-      let subst' = remove_pattern_bound_variables subst (PVar p) in
-      Promise
-        ( k,
-          op,
-          substitute_abstraction subst abs,
-          p,
-          substitute_computation subst' comp )
   | Await (expr, abs) ->
       Await (substitute_expression subst expr, substitute_abstraction subst abs)
+  | Unbox (expr, abs) ->
+      Unbox (substitute_expression subst expr, substitute_abstraction subst abs)
 
 and substitute_abstraction subst (pat, comp) =
   let subst' = remove_pattern_bound_variables subst pat in
@@ -342,6 +354,7 @@ let rec print_expression ?max_level e ppf =
   | RecLambda (f, _ty) -> print ~at_level:2 "rec %t ..." (Variable.print f)
   | Fulfill expr -> print "⟨%t⟩" (print_expression expr)
   | Reference r -> print "{ contents = %t }" (print_expression !r)
+  | Boxed expr -> print "[%t]" (print_expression expr)
 
 and print_computation ?max_level c ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
@@ -362,20 +375,23 @@ and print_computation ?max_level c ppf =
   | In (op, e, c) ->
       print "↓%t(@[<hv>%t,@ %t@])" (Operation.print op) (print_expression e)
         (print_computation c)
-  | Out (op, e, c) ->
+  | Out (Signal (op, e), c) ->
       print "↑%t(@[<hv>%t,@ %t@])" (Operation.print op) (print_expression e)
         (print_computation c)
-  | Promise (None, op, (p1, c1), p2, c2) ->
+  | Out (Promise (None, op, (p1, c1), p2), c2) ->
       print "@[<hv>promise (@[<hov>%t %t ↦@ %t@])@ as %t in@ %t@]"
         (Operation.print op) (print_pattern p1) (print_computation c1)
         (Variable.print p2) (print_computation c2)
-  | Promise (Some k, op, (p1, c1), p2, c2) ->
+  | Out (Promise (Some k, op, (p1, c1), p2), c2) ->
       print "@[<hv>promise (@[<hov>%t %t %t ↦@ %t@])@ as %t in@ %t@]"
         (Operation.print op) (print_pattern p1) (Variable.print k)
         (print_computation c1) (Variable.print p2) (print_computation c2)
   | Await (e, (p, c)) ->
       print "@[<hov>await @[<hov>%t until@ ⟨%t⟩@] in@ %t@]"
         (print_expression e) (print_pattern p) (print_computation c)
+  | Unbox (e, (p, c)) ->
+      print "Unbox %t as [%t] in %t" (print_expression e) (print_pattern p)
+        (print_computation c)
 
 and print_abstraction (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p) (print_computation c)
