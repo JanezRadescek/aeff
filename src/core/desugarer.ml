@@ -150,7 +150,7 @@ and desugar_plain_expression ~loc state = function
       let binds, e = desugar_expression state term in
       (binds, Ast.Boxed e)
   | ( S.Apply _ | S.Match _ | S.Let _ | S.LetRec _ | S.Conditional _
-    | S.Promise _ | S.Await _ | S.Send _ | S.Unbox _ ) as term ->
+    | S.Promise _ | S.Await _ | S.Send _ | S.Unbox _ | Spawn _ ) as term ->
       let x = Ast.Variable.fresh "b" in
       let comp = desugar_computation state (Location.add_loc ~loc term) in
       let hoist = (Ast.PVar x, comp) in
@@ -242,6 +242,9 @@ and desugar_plain_computation ~loc state =
       let binds, e = desugar_expression state t in
       let abs' = desugar_abstraction state abs in
       (binds, Ast.Unbox (e, abs'))
+  | S.Spawn term1 ->
+      let c1 = desugar_computation state term1 in
+      ([], Ast.Out (Ast.Spawn c1, Ast.Return (Ast.Tuple [])))
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changes. *)
   | ( S.Var _ | S.Const _ | S.Annotated _ | S.Tuple _ | S.Variant _ | S.Lambda _

@@ -25,6 +25,7 @@ type computation_redex =
   | DoOut
   | AwaitFulfill
   | Unbox
+  | Spawn
 
 type computation_reduction =
   | InCtx of computation_reduction
@@ -34,6 +35,7 @@ type computation_reduction =
 
 type process_redex =
   | RunOut
+  | RunSpawn
   | ParallelOut1
   | ParallelOut2
   | InRun
@@ -226,6 +228,7 @@ and step_in_out state op expr cont = function
       Ast.Do (comp'', (Ast.PVar p, Ast.In (op, expr, cont)))
   | Ast.Promise (k, op', op_comp, p) ->
       Ast.Out (Ast.Promise (k, op', op_comp, p), Ast.In (op, expr, cont))
+  | Ast.Spawn comp -> Ast.Out (Ast.Spawn comp, Ast.In (op, expr, cont))
 
 let rec step_process state = function
   | Ast.Run comp -> (
@@ -236,6 +239,10 @@ let rec step_process state = function
       match comp with
       | Ast.Out (Ast.Signal (op, expr), comp') ->
           (ProcessRedex RunOut, Ast.OutProc (op, expr, Ast.Run comp')) :: comps'
+      | Ast.Out (Ast.Spawn comp1, comp2) ->
+          (ProcessRedex RunSpawn, Ast.Parallel (Ast.Run comp1, Ast.Run comp2))
+          :: (ProcessRedex RunSpawn, Ast.Parallel (Ast.Run comp2, Ast.Run comp1))
+          :: comps'
       | _ -> comps' )
   | Ast.Parallel (proc1, proc2) ->
       let proc1_first =

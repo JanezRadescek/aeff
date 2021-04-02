@@ -48,6 +48,7 @@ let view_computation_redex = function
   | Interpreter.DoOut -> "doOut"
   | Interpreter.AwaitFulfill -> "awaitFulfill"
   | Interpreter.Unbox -> "unbox"
+  | Interpreter.Spawn -> "spawn"
 
 let rec view_computation_reduction = function
   | Interpreter.InCtx red -> view_computation_reduction red
@@ -57,6 +58,7 @@ let rec view_computation_reduction = function
 
 let view_process_redex = function
   | Interpreter.RunOut -> "runOut"
+  | Interpreter.RunSpawn -> "runSpawn"
   | Interpreter.ParallelOut1 -> "parallelOut1"
   | Interpreter.ParallelOut2 -> "parallelOut2"
   | Interpreter.InRun -> "inRun"

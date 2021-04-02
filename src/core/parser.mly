@@ -18,7 +18,7 @@
 %token TYPE ARROW OF
 %token MATCH WITH FUNCTION WHEN
 %token AWAIT UNTIL PROMISE SEND UNBOX LBOXED RBOXED
-%token RUN LET REC AND IN OPERATION
+%token RUN LET REC AND IN OPERATION SPAWN
 %token FUN BAR BARBAR
 %token IF THEN ELSE
 %token PLUS STAR MINUS MINUSDOT
@@ -99,6 +99,8 @@ plain_term:
     { t }
   | UNBOX t1 = term AS LBOXED p = pattern RBOXED IN t2 = term
     { Unbox (t1, (p, t2)) }
+  | SPAWN LPAREN t = term RPAREN
+    { Spawn t }
 
 comma_term: mark_position(plain_comma_term) { $1 }
 plain_comma_term:
