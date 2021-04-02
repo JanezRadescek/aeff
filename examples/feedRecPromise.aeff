@@ -45,24 +45,19 @@ let (client : unit -> 'a) () =
     await batchSizePromise until <<batchSize>> in
     clientLoop batchSize
 
-let (server : int -> 'c) batchSize =
-    let rec waitForBatchSize () =
-        promise (batchSizeRequest () |->
-            send batchSizeResponse batchSize;
-            waitForBatchSize ())
-        as p in
-        return p
-    in
-    let rec waitForRequest () =
-        promise (request offset |->
-            let payload = map (fun x |-> 10 * x) (range offset (offset + batchSize - 1)) in
-            send response payload;
-            waitForRequest ())
-        as p in
-        return p
-    in
-    waitForBatchSize ();
-    waitForRequest ()
+let (server : int -> unit) batchSize =
+    promise (batchSizeRequest () k |->
+        send batchSizeResponse batchSize;
+        k ())
+    as p in
+    ();
+
+    promise (request offset k |->
+        let payload = map (fun x |-> 10 * x) (range offset (offset + batchSize - 1)) in
+        send response payload;
+        k ())
+    as p in
+    ()
 
 
 let rec (user : unit -> 'd) () =

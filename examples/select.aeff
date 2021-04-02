@@ -1,7 +1,7 @@
 operation op1 : int
 operation op2 : int
 
-let select f g k =
+let (select: (int -> <<'a>>) -> (int -> <<'a>>) -> (<<'a>> -> 'b) -> 'b ) f g k =
   let i = ref 0 in
   let v1 = ref None in
   let v2 = ref None in

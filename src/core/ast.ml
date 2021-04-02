@@ -6,21 +6,21 @@ type ty_name = TyName.t
 
 module TyNameMap = Map.Make (TyName)
 
-let bool_ty_name = TyName.fresh "bool"
+let bool_ty_name = TyName.fresh (Some "bool")
 
-let int_ty_name = TyName.fresh "int"
+let int_ty_name = TyName.fresh (Some "int")
 
-let unit_ty_name = TyName.fresh "unit"
+let unit_ty_name = TyName.fresh (Some "unit")
 
-let string_ty_name = TyName.fresh "string"
+let string_ty_name = TyName.fresh (Some "string")
 
-let float_ty_name = TyName.fresh "float"
+let float_ty_name = TyName.fresh (Some "float")
 
-let list_ty_name = TyName.fresh "list"
+let list_ty_name = TyName.fresh (Some "list")
 
-let empty_ty_name = TyName.fresh "empty"
+let empty_ty_name = TyName.fresh (Some "empty")
 
-let ref_ty_name = TyName.fresh "ref"
+let reference_ty_name = TyName.fresh (Some "ref")
 
 module TyParam = Symbol.Make ()
 
@@ -37,6 +37,8 @@ type ty =
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
   | TyPromise of ty  (** [<<ty>>] *)
   | TyReference of ty  (** [ty ref] *)
+
+type ty_scheme = ty_param list * ty
 
 let rec print_ty ?max_level print_param p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
@@ -64,24 +66,61 @@ let rec print_ty ?max_level print_param p ppf =
   | TyReference ty ->
       print ~at_level:1 "%t ref" (print_ty ~max_level:1 print_param ty)
 
+let true_print_param ?max_level param ppf =
+  let print ?at_level = Print.print ?max_level ?at_level ppf in
+  print "%t" (TyParam.print param)
+
+let rec true_print_ty ?max_level p ppf =
+  let print ?at_level = Print.print ?max_level ?at_level ppf in
+  match p with
+  | TyConst c -> print "%t" (Const.print_ty c)
+  | TyApply (ty_name, []) -> print "%t" (TyName.print ty_name)
+  | TyApply (ty_name, [ ty ]) ->
+      print ~at_level:1 "%t %t"
+        (print_ty ~max_level:1 TyParam.print ty)
+        (TyName.print ty_name)
+  | TyApply (ty_name, tys) ->
+      print ~at_level:1 "%t %t"
+        (Print.print_tuple true_print_ty tys)
+        (TyName.print ty_name)
+  | TyParam a -> print "%t" (TyParam.print a)
+  | TyArrow (ty1, ty2) ->
+      print ~at_level:3 "%t → %t"
+        (true_print_ty ~max_level:2 ty1)
+        (true_print_ty ~max_level:3 ty2)
+  | TyTuple [] -> print "unit"
+  | TyTuple tys ->
+      print ~at_level:2 "%t"
+        (Print.print_sequence " × " (true_print_ty ~max_level:1) tys)
+  | TyPromise ty -> print "⟨%t⟩" (true_print_ty ty)
+  | TyReference ty -> print ~at_level:1 "%t ref" (true_print_ty ~max_level:1 ty)
+
 let new_print_param () =
   let names = ref TyParamMap.empty in
   let counter = ref 0 in
-  let print_param param ppf =
+  let print_param (param : ty_param) ppf =
     let symbol =
-      match TyParamMap.find_opt param !names with
-      | Some symbol -> symbol
-      | None ->
-          let symbol = Symbol.type_symbol !counter in
-          incr counter;
-          names := TyParamMap.add param symbol !names;
-          symbol
+      match TyParam.split param with
+      | _, Some s -> s
+      | _ -> (
+          match TyParamMap.find_opt param !names with
+          | Some symbol -> symbol
+          | None ->
+              let symbol = Symbol.type_symbol !counter in
+              incr counter;
+              names := TyParamMap.add param symbol !names;
+              symbol )
     in
+
     Print.print ppf "%s" symbol
   in
   print_param
 
 let print_ty_scheme (_params, ty) ppf =
+  let print_param = new_print_param () in
+  Print.print ppf "@[%t@]" (print_ty print_param ty)
+
+let pretty_print_ty ty ppf =
   let print_param = new_print_param () in
   Print.print ppf "@[%t@]" (print_ty print_param ty)
 
@@ -124,9 +163,9 @@ type label = Label.t
 
 type operation = Operation.t
 
-let nil_label = Label.fresh Syntax.nil_label
+let nil_label = Label.fresh (Some Syntax.nil_label)
 
-let cons_label = Label.fresh Syntax.cons_label
+let cons_label = Label.fresh (Some Syntax.cons_label)
 
 type pattern =
   | PVar of variable
@@ -225,19 +264,21 @@ and refresh_computation vars = function
       Out (op, refresh_expression vars expr, refresh_computation vars comp)
   | In (op, expr, comp) ->
       In (op, refresh_expression vars expr, refresh_computation vars comp)
-  | Promise (k, op, abs, p, comp) ->
+  | Promise (None, op, abs, p, comp) ->
       let p' = Variable.refresh p in
-      let k', vars' =
-        match k with
-        | None -> (None, vars)
-        | Some k'' ->
-            let k''' = Variable.refresh k'' in
-            (Some k''', (k'', k''') :: vars)
-      in
       Promise
-        ( k',
+        ( None,
           op,
-          refresh_abstraction vars' abs,
+          refresh_abstraction vars abs,
+          p',
+          refresh_computation ((p, p') :: vars) comp )
+  | Promise (Some k, op, abs, p, comp) ->
+      let p' = Variable.refresh p in
+      let k' = Variable.refresh k in
+      Promise
+        ( Some k',
+          op,
+          refresh_abstraction ((k, k') :: vars) abs,
           p',
           refresh_computation ((p, p') :: vars) comp )
   | Await (expr, abs) ->
@@ -277,10 +318,18 @@ and substitute_computation subst = function
   | In (op, expr, comp) ->
       In
         (op, substitute_expression subst expr, substitute_computation subst comp)
-  | Promise (k, op, abs, p, comp) ->
+  | Promise (None, op, abs, p, comp) ->
       let subst' = remove_pattern_bound_variables subst (PVar p) in
       Promise
-        ( k,
+        ( None,
+          op,
+          substitute_abstraction subst abs,
+          p,
+          substitute_computation subst' comp )
+  | Promise (Some k, op, abs, p, comp) ->
+      let subst' = remove_pattern_bound_variables subst (PVar p) in
+      Promise
+        ( Some k,
           op,
           substitute_abstraction subst abs,
           p,
@@ -294,16 +343,21 @@ and substitute_abstraction subst (pat, comp) =
 
 type process =
   | Run of computation
-  | Parallel of process * process
-  | OutProc of operation * expression * process
   | InProc of operation * expression * process
+  | OutProc of operation * expression * process
+
+type condition = Done | Ready | Waiting
+
+type id = int
+
+type thread = computation * id * condition
 
 type ty_def = TySum of (label * ty option) list | TyInline of ty
 
 type command =
   | TyDef of (ty_param list * ty_name * ty_def) list
   | Operation of operation * ty
-  | TopLet of variable * expression
+  | TopLet of variable * ty_scheme * expression
   | TopDo of computation
 
 let rec print_pattern ?max_level p ppf =
@@ -311,7 +365,9 @@ let rec print_pattern ?max_level p ppf =
   match p with
   | PVar x -> print "%t" (Variable.print x)
   | PAs (p, x) -> print "%t as %t" (print_pattern p) (Variable.print x)
-  | PAnnotated (p, _ty) -> print_pattern ?max_level p ppf
+  | PAnnotated (p, ty) ->
+      let print_param = new_print_param () in
+      print "%t : %t" (print_pattern ?max_level p) (print_ty print_param ty)
   | PConst c -> Const.print c ppf
   | PTuple lst -> Print.print_tuple print_pattern lst ppf
   | PVariant (lbl, None) when lbl = nil_label -> print "[]"
@@ -322,12 +378,22 @@ let rec print_pattern ?max_level p ppf =
       print ~at_level:1 "%t @[<hov>%t@]" (Label.print lbl) (print_pattern p)
   | PNonbinding -> print "_"
 
-let rec print_expression ?max_level e ppf =
+let rec print_command ?max_level c ppf =
+  let print ?at_level = Print.print ?max_level ?at_level ppf in
+  match c with
+  | TyDef _ -> print "TyDef"
+  | Operation _ -> print "Operation"
+  | TopLet (_, _, e) -> Format.printf "%t" (print_expression e)
+  | TopDo c -> Format.printf "%t" (print_computation c)
+
+and print_expression ?max_level e ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
   match e with
   | Var x -> print "%t" (Variable.print x)
   | Const c -> print "%t" (Const.print c)
-  | Annotated (t, _ty) -> print_expression ?max_level t ppf
+  | Annotated (t, ty) ->
+      let print_param = new_print_param () in
+      print "%t : %t" (print_expression ?max_level t) (print_ty print_param ty)
   | Tuple lst -> Print.print_tuple print_expression lst ppf
   | Variant (lbl, None) when lbl = nil_label -> print "[]"
   | Variant (lbl, None) -> print "%t" (Label.print lbl)
@@ -339,7 +405,7 @@ let rec print_expression ?max_level e ppf =
       print ~at_level:1 "%t @[<hov>%t@]" (Label.print lbl)
         (print_expression ~max_level:0 e)
   | Lambda a -> print ~at_level:2 "fun %t" (print_abstraction a)
-  | RecLambda (f, _ty) -> print ~at_level:2 "rec %t ..." (Variable.print f)
+  | RecLambda (f, _a) -> print ~at_level:2 "rec %t ..." (Variable.print f)
   | Fulfill expr -> print "⟨%t⟩" (print_expression expr)
   | Reference r -> print "{ contents = %t }" (print_expression !r)
 
@@ -389,14 +455,18 @@ let rec print_process ?max_level proc ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
   match proc with
   | Run comp -> print ~at_level:1 "run %t" (print_computation ~max_level:0 comp)
-  | Parallel (proc1, proc2) ->
-      print "@[<hv>%t@ || @ %t@]" (print_process proc1) (print_process proc2)
   | InProc (op, expr, proc) ->
       print "↓%t(@[<hv>%t,@ %t@])" (Operation.print op)
         (print_expression expr) (print_process proc)
   | OutProc (op, expr, proc) ->
       print "↑%t(@[<hv>%t,@ %t@])" (Operation.print op)
         (print_expression expr) (print_process proc)
+
+(* let rec print_threads : thread list -> unit = function
+   | [] -> ()
+   | (c, id, _) :: ts ->
+      Format.printf "thread id=%i %t@." id (print_computation c);
+      print_threads ts *)
 
 let string_of_operation op =
   Operation.print op Format.str_formatter;

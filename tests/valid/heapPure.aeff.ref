@@ -1,123 +1,64 @@
-val (=) : α × α → bool
-val (<) : α × α → bool
-val (>) : α × α → bool
-val (<=) : α × α → bool
-val (>=) : α × α → bool
-val (<>) : α × α → bool
-val (~-) : int → int
-val (+) : int × int → int
-val (*) : int × int → int
-val (-) : int × int → int
-val (mod) : int × int → int
-val (/) : int × int → int
-val ref : α → α ref
-val (!) : α ref → α
-val (:=) : α ref × α → unit
-val toString : α → string
-val absurd : α → β
-val not : bool → bool
-type option
-val assoc : α → (α × β) list → β option
-val range : int → int → int list
-val reverse : α list → α list
-val map : (α → β) → α list → β list
-val hd : α list → α
-val tl : α list → α list
-val take : (int → α) → int → α list
-val fold_left : (α → β → α) → α → β list → α
-val fold_right : (α → β → β) → α list → β → β
-val iter : (α → β) → α list → unit
-val forall : (α → bool) → α list → bool
-val exists : (α → bool) → α list → bool
-val mem : α → α list → bool
-val filter : (α → bool) → α list → α list
-val complement : α list → α list → α list
-val intersection : α list → α list → α list
-val zip : α list → β list → (α × β) list
-val unzip : (α × β) list → α list × β list
-val (@) : α list × α list → α list
-val length : α list → int
-val nth : α list → int → α
-val abs : int → int
-val min : α → α → α
-val max : α → α → α
-val gcd : int → int → int
-val lcm : int → int → int
-val odd : int → bool
-val even : int → bool
-val id : α → α
-val compose : (α → β) → (γ → α) → γ → β
-val (|>) : α → (α → β) → β
-val ignore : α → unit
-val fst : α × β → α
-val snd : α × β → β
-val return : α → α
-val awaitValue : ⟨α⟩ → α
-type loc
-type val
-type payloadRec
-type payloadRes
-operation opReq : payloadRec × int
-operation opRes : payloadRes × int
-val empty : α list
-val lookupHeap : (α × β) list → α → β
-val updateHeap : (α × β) list → α → β → (α × β) list
-val allocHeap : (int × α) list → α → (int × α) list × int
-val heapRunner : (int × int) list → ⟨α⟩
-val callWith : int ref → payloadRec → payloadRes
-val lookup : int ref → int → int
-val update : int ref → int → int → unit
-val alloc : int ref → int → int
-↑ opReq (AllocReq 0, 0)
-↑ opRes (AllocRes 0, 0)
-↑ opReq (AllocReq 10, 1)
-↑ opRes (AllocRes 1, 1)
-↑ opReq (UpdateReq (0, 10), 2)
-↑ opRes (UpdateRes (), 2)
-↑ opReq (LookupReq 0, 3)
-↑ opRes (LookupRes 10, 3)
-↑ opReq (UpdateReq (1, 14), 4)
-↑ opRes (UpdateRes (), 4)
-↑ opReq (LookupReq 0, 5)
-↑ opRes (LookupRes 10, 5)
-↑ opReq (LookupReq 1, 6)
-↑ opRes (LookupRes 14, 6)
-The process has terminated in the configuration:
-run promise (opReq (reqPayload, callNo) ↦
-             let (heap', resPayload) =
-                match reqPayload with (LookupReq l ↦ let v =
-                                                          let b =
-                                                             lookupHeap
-                                                             ((1, 14)::(
-                                                             0, 10)::[]) in
-                                                          b l in
-                                                       return
-                                                       ((1, 14)::(0, 10)::[], 
-                                                        LookupRes v) | 
-                                       UpdateReq (l, v) ↦ let heap' =
-                                                               let b =
-                                                                  let
-                                                                   b =
-                                                                  updateHeap
-                                                                  ((1, 14)::(
-                                                                  0, 10)::[]) in
-                                                                  b l in 
-                                                               b v in
-                                                            return
-                                                            (heap', 
-                                                             UpdateRes 
-                                                             ()) | 
-                                       AllocReq v ↦ let (heap', l) =
-                                                         let b =
-                                                            allocHeap
+type option-8
+type loc-9
+type val-10
+type payloadRec-11
+type payloadRes-12
+operation opReq-0 : payloadRec-11 × int-1
+operation opRes-1 : payloadRes-12 × int-1
+↑opReq-0 (AllocReq-6 0, 0), id=1
+↑opRes-1 (AllocRes-9 0, 0), id=0
+↑opReq-0 (AllocReq-6 10, 1), id=1
+↑opRes-1 (AllocRes-9 1, 1), id=0
+↑opReq-0 (UpdateReq-5 (0, 10), 2), id=1
+↑opRes-1 (UpdateRes-8 (), 2), id=0
+↑opReq-0 (LookupReq-4 0, 3), id=1
+↑opRes-1 (LookupRes-7 10, 3), id=0
+↑opReq-0 (UpdateReq-5 (1, 14), 4), id=1
+↑opRes-1 (UpdateRes-8 (), 4), id=0
+↑opReq-0 (LookupReq-4 0, 5), id=1
+↑opRes-1 (LookupRes-7 10, 5), id=0
+↑opReq-0 (LookupReq-4 1, 6), id=1
+↑opRes-1 (LookupRes-7 14, 6), id=0
+The program has terminated in the configuration:
+Conf
+  id = 0;
+Await
+res = promise (opReq-0 (reqPayload-827, callNo-826) ↦
+                     let (heap'-829, resPayload-828) =
+                        match reqPayload-827 with (LookupReq-4 l-830 ↦ 
+                                                   let v-831 =
+                                                      let var-832 =
+                                                         lookupHeap-211
+                                                         ((1, 14)::(0, 10)::[]) in
+                                                      var-832 l-830 in
+                                                   return-205
+                                                   ((1, 14)::(0, 10)::[], 
+                                                    LookupRes-7 v-831) | 
+                                                   UpdateReq-5 (l-834, v-833) ↦ 
+                                                   let heap'-835 =
+                                                      let var-836 =
+                                                         let var-837 =
+                                                            updateHeap-218
                                                             ((1, 14)::(
                                                             0, 10)::[]) in
-                                                         b v in
-                                                      return
-                                                      (heap', AllocRes l)) in
-             ↑opRes((resPayload, callNo), return ());
-             (rec heapRunner ...) heap')
-    as p in
-    return p
-|| 
-run (return (10, 14))
+                                                         var-837 l-834 in
+                                                      var-836 v-833 in
+                                                   return-205
+                                                   (heap'-835, UpdateRes-8 ()) | 
+                                                   AllocReq-6 v-838 ↦ 
+                                                   let (heap'-840, l-839) =
+                                                      let var-841 =
+                                                         allocHeap-228
+                                                         ((1, 14)::(0, 10)::[]) in
+                                                      var-841 v-838 in
+                                                   return-205
+                                                   (heap'-840, 
+                                                    AllocRes-9 l-839)) in
+                     ↑opRes-1((resPayload-828, callNo-826), return ());
+                     (rec heapRunner-914 ...) heap'-829)
+            as p-825 in
+            return p-825
+Conf
+  id = 1;
+Done
+res = (10, 14)

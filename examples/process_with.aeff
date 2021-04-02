@@ -1,7 +1,7 @@
 operation listInterrupt : int list
 operation productSignal : int
 
-let process_with p comp cont =
+let (process_with : <<'a>> -> ('a -> 'b) -> (<<'b>> -> 'c) -> 'c) p comp cont =
   promise (listInterrupt _ |->
     await p until <<x>> in
     let y = comp x in
@@ -18,3 +18,4 @@ run
 
 run
   send listInterrupt [-3;-2;-1;0;1;2;3]
+

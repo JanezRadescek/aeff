@@ -1,74 +1,26 @@
-val (=) : α × α → bool
-val (<) : α × α → bool
-val (>) : α × α → bool
-val (<=) : α × α → bool
-val (>=) : α × α → bool
-val (<>) : α × α → bool
-val (~-) : int → int
-val (+) : int × int → int
-val (*) : int × int → int
-val (-) : int × int → int
-val (mod) : int × int → int
-val (/) : int × int → int
-val ref : α → α ref
-val (!) : α ref → α
-val (:=) : α ref × α → unit
-val toString : α → string
-val absurd : α → β
-val not : bool → bool
-type option
-val assoc : α → (α × β) list → β option
-val range : int → int → int list
-val reverse : α list → α list
-val map : (α → β) → α list → β list
-val hd : α list → α
-val tl : α list → α list
-val take : (int → α) → int → α list
-val fold_left : (α → β → α) → α → β list → α
-val fold_right : (α → β → β) → α list → β → β
-val iter : (α → β) → α list → unit
-val forall : (α → bool) → α list → bool
-val exists : (α → bool) → α list → bool
-val mem : α → α list → bool
-val filter : (α → bool) → α list → α list
-val complement : α list → α list → α list
-val intersection : α list → α list → α list
-val zip : α list → β list → (α × β) list
-val unzip : (α × β) list → α list × β list
-val (@) : α list × α list → α list
-val length : α list → int
-val nth : α list → int → α
-val abs : int → int
-val min : α → α → α
-val max : α → α → α
-val gcd : int → int → int
-val lcm : int → int → int
-val odd : int → bool
-val even : int → bool
-val id : α → α
-val compose : (α → β) → (γ → α) → γ → β
-val (|>) : α → (α → β) → β
-val ignore : α → unit
-val fst : α × β → α
-val snd : α × β → β
-val return : α → α
-val awaitValue : ⟨α⟩ → α
-operation call : int × int
-operation result : int × int
-val naiveCallWith : int × int → unit → int × int
-val callWith : int ref → int → unit → int
-val remote : (int → int) → ⟨α⟩
-↑ call (2, 0)
-↑ result (240, 0)
-↑ call (3, 1)
-↑ result (360, 1)
-The process has terminated in the configuration:
-run promise (call (x, callNo) ↦
-             let y =
-                (fun x ↦ let b = let b = (*) (6, x) in (*) (5, b) in
-                           (*) (4, b))
-                x in ↑result((y, callNo), return ()); (rec loop ...) ())
-    as p in
-    return p
-|| 
-run (return 187200)
+type option-8
+operation call-0 : int-1 × int-1
+operation result-1 : int-1 × int-1
+↑call-0 (3, 1), id=1
+↑call-0 (2, 0), id=1
+↑result-1 (240, 0), id=0
+↑result-1 (360, 1), id=0
+The program has terminated in the configuration:
+Conf
+  id = 0;
+Await
+res = promise (call-0 (x-289, callNo-288) ↦
+                     let y-290 =
+                        (fun x-291 ↦ let var-292 =
+                                          let var-293 = (*)-8 (6, x-291) in
+                                          (*)-8 (5, var-293) in
+                                       (*)-8 (4, var-292))
+                        x-289 in
+                     ↑result-1((y-290, callNo-288), return ());
+                     (rec loop-295 ...) ())
+            as p-287 in
+            return p-287
+Conf
+  id = 1;
+Done
+res = 187200

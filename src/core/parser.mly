@@ -60,10 +60,10 @@ commands:
 command:
   | TYPE defs = separated_nonempty_list(AND, ty_def)
     { TyDef defs }
-  | LET x = ident t = lambdas0(EQUAL)
-    { TopLet (x, t) }
-  | LET REC def = let_rec_def
-    { let (f, t) = def in TopLetRec (f, t) }
+  | LET LPAREN x = ident COLON ty = ty RPAREN t = lambdas0(EQUAL)
+    { TopLet (x, ty, t) }
+  | LET REC def = top_let_rec_def
+    { let (f, ty, t) = def in TopLetRec (f, ty, t) }
   | RUN trm = term
     { TopDo trm }
   | OPERATION op = operation COLON t = ty
@@ -87,8 +87,10 @@ plain_term:
     { let (p, t1) = def in Let (p, t1, t2) }
   | LET REC def = let_rec_def IN t2 = term
     { let (f, t1) = def in LetRec (f, t1, t2) }
-  | PROMISE LPAREN op = operation p1 = pattern k = option(ident) g = guard MAPSTO t1 = term RPAREN AS p2 = pattern IN t2 = term
-    { Promise (k, op, (p1, g, t1), (p2, t2)) }
+  | PROMISE LPAREN op = operation p1 = pattern MAPSTO t1 = term RPAREN AS p2 = pattern IN t2 = term
+    { Promise (None, op, (p1, t1), (p2, t2)) }
+  | PROMISE LPAREN op = operation p1 = pattern k = ident MAPSTO t1 = term RPAREN AS p2 = pattern IN t2 = term
+    { Promise (Some k, op, (p1, t1), (p2, t2)) }
   | AWAIT t1 = term UNTIL LPROMISE p = pattern RPROMISE IN t2 = term
     { Await (t1, (p, t2)) }
   | t1 = term SEMI t2 = term
@@ -201,12 +203,6 @@ case:
   | p = pattern MAPSTO t = term
     { (p, t) }
 
-guard:
-  |
-    { None }
-  | WHEN t = term
-    { Some t}
-
 lambdas0(SEP):
   | SEP t = term
     { t }
@@ -228,8 +224,14 @@ let_def:
     { ({it= PVar x.it; at= x.at}, t) }
 
 let_rec_def:
-  | f = ident t = lambdas0(EQUAL)
-    { (f, t) }
+  | p = ident t = lambdas0(EQUAL)
+    { (p, t) }
+  | rd = top_let_rec_def
+    { let f, ty, t = rd in (f, {it=Annotated(t, ty); at= of_lexeme $startpos }) }
+
+top_let_rec_def:
+  | LPAREN f = ident COLON ty = ty RPAREN t = lambdas0(EQUAL)
+    { (f, ty, t) }
 
 pattern: mark_position(plain_pattern) { $1 }
 plain_pattern:

@@ -1,116 +1,64 @@
-val (=) : α × α → bool
-val (<) : α × α → bool
-val (>) : α × α → bool
-val (<=) : α × α → bool
-val (>=) : α × α → bool
-val (<>) : α × α → bool
-val (~-) : int → int
-val (+) : int × int → int
-val (*) : int × int → int
-val (-) : int × int → int
-val (mod) : int × int → int
-val (/) : int × int → int
-val ref : α → α ref
-val (!) : α ref → α
-val (:=) : α ref × α → unit
-val toString : α → string
-val absurd : α → β
-val not : bool → bool
-type option
-val assoc : α → (α × β) list → β option
-val range : int → int → int list
-val reverse : α list → α list
-val map : (α → β) → α list → β list
-val hd : α list → α
-val tl : α list → α list
-val take : (int → α) → int → α list
-val fold_left : (α → β → α) → α → β list → α
-val fold_right : (α → β → β) → α list → β → β
-val iter : (α → β) → α list → unit
-val forall : (α → bool) → α list → bool
-val exists : (α → bool) → α list → bool
-val mem : α → α list → bool
-val filter : (α → bool) → α list → α list
-val complement : α list → α list → α list
-val intersection : α list → α list → α list
-val zip : α list → β list → (α × β) list
-val unzip : (α × β) list → α list × β list
-val (@) : α list × α list → α list
-val length : α list → int
-val nth : α list → int → α
-val abs : int → int
-val min : α → α → α
-val max : α → α → α
-val gcd : int → int → int
-val lcm : int → int → int
-val odd : int → bool
-val even : int → bool
-val id : α → α
-val compose : (α → β) → (γ → α) → γ → β
-val (|>) : α → (α → β) → β
-val ignore : α → unit
-val fst : α × β → α
-val snd : α × β → β
-val return : α → α
-val awaitValue : ⟨α⟩ → α
-type callId
-type loc
-type val
-operation lookupReq : loc × callId
-operation updateReq : loc × val × callId
-operation allocReq : val × callId
-operation lookupRes : val × callId
-operation updateRes : callId
-operation allocRes : loc × callId
-val empty : α list
-val lookupHeap : (α × β) list → α → β
-val updateHeap : (α × β) list → α → β → (α × β) list
-val allocHeap : (int × α) list → α → (int × α) list × int
-val heapRunner : unit → ⟨α⟩
-val lookup : int ref → int → int
-val update : int ref → int → int → unit
-val alloc : int ref → int → int
-↑ allocReq (0, 0)
-↑ allocRes (0, 0)
-↑ allocReq (10, 1)
-↑ allocRes (1, 1)
-↑ updateReq (0, 10, 2)
-↑ updateRes 2
-↑ lookupReq (0, 3)
-↑ lookupRes (10, 3)
-↑ updateReq (1, 14, 4)
-↑ updateRes 4
-↑ lookupReq (0, 5)
-↑ lookupRes (10, 5)
-↑ lookupReq (1, 6)
-↑ lookupRes (14, 6)
-The process has terminated in the configuration:
-run promise (lookupReq (l, callId) ↦
-             let v =
-                let b =
-                   let b = (!) { contents = (1, 14)::(0, 10)::empty } in
-                   lookupHeap b in b l in
-             ↑lookupRes((v, callId), return ()); (rec awaitLookup ...) ())
-    as p in
-    promise (updateReq (l, v, callId) ↦
-             let heap' =
-                let b =
-                   let b =
-                      let b = (!) { contents = (1, 14)::(0, 10)::empty } in
-                      updateHeap b in b l in b v in
-             ↑updateRes(callId, return ());
-             (:=) ({ contents = (1, 14)::(0, 10)::empty }, heap');
-             (rec awaitUpdate ...) ())
-    as p in
-    promise (allocReq (v, callId) ↦
-             let (heap', l) =
-                let b =
-                   let b = (!) { contents = (1, 14)::(0, 10)::empty } in
-                   allocHeap b in b v in
-             ↑allocRes((l, callId), return ());
-             (:=) ({ contents = (1, 14)::(0, 10)::empty }, heap');
-             (rec awaitAlloc ...) ())
-    as p in
-    return p
-|| 
-run (return (10, 14))
+type option-8
+type callId-9
+type loc-10
+type val-11
+operation lookupReq-0 : loc-10 × callId-9
+operation updateReq-1 : loc-10 × val-11 × callId-9
+operation allocReq-2 : val-11 × callId-9
+operation lookupRes-3 : val-11 × callId-9
+operation updateRes-4 : callId-9
+operation allocRes-5 : loc-10 × callId-9
+↑allocReq-2 (0, 0), id=1
+↑allocRes-5 (0, 0), id=0
+↑allocReq-2 (10, 1), id=1
+↑allocRes-5 (1, 1), id=0
+↑updateReq-1 (0, 10, 2), id=1
+↑updateRes-4 2, id=0
+↑lookupReq-0 (0, 3), id=1
+↑lookupRes-3 (10, 3), id=0
+↑updateReq-1 (1, 14, 4), id=1
+↑updateRes-4 4, id=0
+↑lookupReq-0 (0, 5), id=1
+↑lookupRes-3 (10, 5), id=0
+↑lookupReq-0 (1, 6), id=1
+↑lookupRes-3 (14, 6), id=0
+The program has terminated in the configuration:
+Conf
+  id = 0;
+Await
+res = promise (lookupReq-0 (l-719, callId-718) ↦
+                     let v-720 =
+                        let var-721 =
+                           let var-722 =
+                              (!)-13 { contents = (1, 14)::(0, 10)::[] } in
+                           lookupHeap-211 var-722 in var-721 l-719 in
+                     ↑lookupRes-3((v-720, callId-718), return ());
+                     (rec awaitLookup-767 ...) ())
+            as p-717 in
+            promise (updateReq-1 (l-525, v-524, callId-523) ↦
+                     let heap'-526 =
+                        let var-527 =
+                           let var-528 =
+                              let var-529 =
+                                 (!)-13 { contents = (1, 14)::(0, 10)::[] } in
+                              updateHeap-218 var-529 in var-528 l-525 in
+                        var-527 v-524 in
+                     ↑updateRes-4(callId-523, return ());
+                     (:=)-14 ({ contents = (1, 14)::(0, 10)::[] }, heap'-526);
+                     (rec awaitUpdate-653 ...) ())
+            as p-522 in
+            promise (allocReq-2 (v-371, callId-370) ↦
+                     let (heap'-373, l-372) =
+                        let var-374 =
+                           let var-375 =
+                              (!)-13 { contents = (1, 14)::(0, 10)::[] } in
+                           allocHeap-228 var-375 in var-374 v-371 in
+                     ↑allocRes-5((l-372, callId-370), return ());
+                     (:=)-14 ({ contents = (1, 14)::(0, 10)::[] }, heap'-373);
+                     (rec awaitAlloc-409 ...) ())
+            as p-369 in
+            return p-369
+Conf
+  id = 1;
+Done
+res = (10, 14)

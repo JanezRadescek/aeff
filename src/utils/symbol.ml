@@ -3,15 +3,17 @@ module type S = sig
 
   val compare : t -> t -> int
 
-  val fresh : string -> t
+  val fresh : string option -> t
 
   val refresh : t -> t
 
   val print : t -> Format.formatter -> unit
+
+  val split : t -> int * string option
 end
 
 module Make () : S = struct
-  type t = int * string
+  type t = int * string option
 
   let compare (n1, _) (n2, _) = Int.compare n1 n2
 
@@ -23,7 +25,13 @@ module Make () : S = struct
 
   let refresh (_, ann) = fresh ann
 
-  let print (_n, ann) ppf = Format.fprintf ppf "%s" ann
+  let print (n, ann) ppf =
+    Format.fprintf ppf "%s"
+      ( match ann with
+      | Some a -> Printf.sprintf "%s-%d" a n
+      | None -> Printf.sprintf "var-%d" n )
+
+  let split (n, ann) = (n, ann)
 end
 
 let rec subscript i =
